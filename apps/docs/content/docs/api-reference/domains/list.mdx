@@ -1,0 +1,105 @@
+---
+title: List domains
+description: The project's sending domains, their default senders and their status in Cloudflare.
+method: GET
+---
+
+<Endpoint method="GET" path="/v1/domains" />
+
+<ApiPage>
+<ApiMain>
+
+Returns one entry per domain in the project's allowed domains. For each one, Flaresend asks Cloudflare whether the domain is set up in Email Sending, and caches the answer for 10 minutes. Add `?refresh=1` to skip the cache.
+
+Checking needs the mailer's `CF_API_TOKEN` secret. Without it every domain shows `verification: "unknown"`. See [Domains](/docs/deliverability/domains).
+
+<Callout type="info" title="Setting up a domain">
+  Onboarding a domain in Cloudflare (`POST /v1/domains/:domain/setup`) changes DNS records with the mailer's Cloudflare token, so it only works with the admin key. See [Set up a domain](/docs/api-reference/admin/setup-domain).
+</Callout>
+
+## Query parameters
+
+<Fields>
+
+<ParamField query="refresh" type="boolean" default="false">
+  `1` or `true` to ask Cloudflare now instead of using a status up to 10 minutes old.
+</ParamField>
+
+</Fields>
+
+## Response
+
+<Fields>
+
+<ResponseField name="data" type="Domain[]">
+  <Expandable title="domain properties">
+    <ResponseField name="domain" type="string">
+      The domain, for example `acme.com`.
+    </ResponseField>
+    <ResponseField name="defaultFrom" type="string | null">
+      The sender used for this domain when a send leaves out `from`: the domain's own default sender, or else the project's default sender when that address is on this domain.
+    </ResponseField>
+    <ResponseField name="verification" type="'onboarded' | 'pending' | 'missing' | 'unknown'">
+      `onboarded`: set up and enabled in Cloudflare Email Sending. `pending`: added but not enabled yet. `missing`: no Cloudflare zone for the domain, or the zone doesn't list it as a sending domain. `unknown`: no `CF_API_TOKEN`, or the check failed.
+    </ResponseField>
+    <ResponseField name="details" type="object | null">
+      What Cloudflare reported: `zone`, `name`, `enabled`, `dkimSelector` and `returnPathDomain`, or `{ reason }` / `{ error }` when the check found nothing or failed. Not present when there is no token.
+    </ResponseField>
+    <ResponseField name="checkedAt" type="string | null">
+      When Cloudflare was last asked. `null` without a token.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+</Fields>
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+// Returns the array directly, not { data }
+const domains = await flaresend.domains.list();
+```
+
+```bash tab="cURL" tab-group="lang"
+curl "https://mailer.example.com/v1/domains?refresh=1" \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "data": [
+    {
+      "domain": "acme.com",
+      "verification": "onboarded",
+      "details": {
+        "zone": "acme.com",
+        "name": "acme.com",
+        "enabled": true,
+        "dkimSelector": "cf2024-1",
+        "returnPathDomain": "cf-bounce.acme.com"
+      },
+      "checkedAt": "2026-09-26T14:00:02.518Z",
+      "defaultFrom": "Acme <hello@acme.com>"
+    }
+  ]
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

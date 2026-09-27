@@ -1,0 +1,103 @@
+---
+title: How it works
+description: What happens to an email between your API call and the recipient's inbox, and how its status gets back to you.
+icon: Workflow
+---
+
+Flaresend is one Cloudflare Worker, `flaresend`. It is the only thing in your account that sends email. It keeps its records in D1, email bodies in R2, and moves work through four queues: `flaresend-send`, `flaresend-events`, `flaresend-webhooks` and a shared dead letter queue, `flaresend-dlq`.
+
+<ArchitectureDiagram />
+
+## 1. The request
+
+Your app calls `POST /v1/emails` with a project API key, or `MailerRpc.send` over a service binding. Both go through the same code, in this order. The first check that fails stops the request with an [error](/docs/api-reference/errors), and nothing is stored.
+
+1. **Parse.** The body is checked against the schema: types, lengths, and that there is a `subject` (unless a template is used) and one of `html`, `text` or `template`.
+2. **Sender.** `from` (or the project's default sender) must be a valid address on one of the project's allowed domains, and in its allowed senders list if it has one. Otherwise `403 invalid_sender`.
+3. **Recipients.** Every address in `to`, `cc` and `bcc` is parsed and lowercased, duplicates are dropped, and the total must be between 1 and 50.
+4. **Suppressions.** With a live key, any recipient on the suppression list fails the request with `422 recipient_suppressed`. Test keys skip this.
+5. **Headers.** Custom headers are checked: no reserved names, no line breaks, size limits.
+6. **Template.** If `template` is set, it is rendered with `data`. A template stored in the project wins over a built-in one with the same name.
+7. **Attachments and size.** Attachment content must be base64, and the whole email must be under 5 MiB. `scheduledAt`, if set, must be in the future and at most 30 days ahead.
+8. **Idempotency.** If the request has an idempotency key that was used before with the same body, the first email is returned with `idempotent: true` and nothing else happens. See [Idempotency](/docs/emails/idempotency).
+9. **Rate limits.** With a live key, the per-project rate limit and the project's daily limit are checked.
+
+Then Flaresend stores the email:
+
+- The body (HTML, text, headers, attachments) goes to R2 at `payloads/{id}.json`. An R2 lifecycle rule deletes it after **30 days**. After that you can still see the email's record, but not its content, and it can't be resent.
+- The email, one row per recipient and the first timeline event go to D1 in one batch, so either all of them are written or none are.
+- A message with the email ID goes on `flaresend-send`.
+
+The response is `202` with `status: "queued"`. Flaresend does not wait for Cloudflare. With a test key, the email is recorded with status `test` and never queued.
+
+## 2. Sending
+
+The send queue consumer picks the message up, usually within a few seconds:
+
+1. It skips the email if it is no longer `queued`, `scheduled` or `sending` (for example, it was canceled).
+2. It moves the email to `sending`. Only one queue message can do this, so a duplicate message never sends twice.
+3. It loads the body from R2, adds the open pixel and click links if [tracking](/docs/emails/tracking) is on, and calls Cloudflare Email Service.
+4. On success, it stores Cloudflare's `messageId` and sets the status to `sent`.
+
+If Cloudflare returns an error, the consumer decides whether to try again:
+
+| Error | What happens |
+|---|---|
+| `E_RATE_LIMIT_EXCEEDED`, `E_INTERNAL_SERVER_ERROR`, `E_DELIVERY_FAILED`, network errors | Retried. The email goes back to `queued` and an `email.retrying` event is added. |
+| `E_DAILY_LIMIT_EXCEEDED` (your Cloudflare account's limit) | Retried after one hour. |
+| `E_RECIPIENT_SUPPRESSED` | Not retried. The email becomes `rejected`, and its recipients are added to the suppression list. |
+| Anything else | Not retried. The email becomes `failed` and the error code is kept in `lastError`. |
+
+Retries wait `min(2^attempt × 15 s, 1 h)` plus up to 20% random jitter: about 30 s, 1 min, 2 min, 4 min and so on, capped at an hour. After **8** retries the message moves to the dead letter queue, and the email is marked `failed` with the code `max_retries_exhausted`.
+
+## 3. Delivery events
+
+`sent` only means Cloudflare accepted the message. What happens next comes back as Cloudflare delivery events, one per recipient, on `flaresend-events`: `delivered`, `deferred`, `bounced`, `failed`, `rejected` or `complained`.
+
+For each event, the events consumer:
+
+- **Drops duplicates.** Events can arrive more than once. Each Cloudflare `eventId` is only applied once.
+- **Finds the email** by Cloudflare's `messageId`.
+- **Updates the recipient, but never downgrades it.** A late `deferred` can't overwrite `delivered`, and `delivered` can't overwrite a bounce. A complaint after delivery does replace `delivered`.
+- **Adds a timeline event**, such as `email.delivered` or `email.bounced`, with the SMTP details Cloudflare sent.
+- **Recomputes the email's status** from all its recipients, in this priority order: `complained` > `bounced` > `rejected` > `failed` > `delivered` (only when every recipient is delivered) > `deferred`. Once an email has a failure status, a lower one never replaces it.
+- **Updates suppressions.** A hard bounce or a complaint puts the address on the suppression list, so the next send to it fails fast. The list is shared by every project on the mailer.
+
+Events sometimes arrive before the send consumer has stored the `messageId`. Those events are retried a few times, then kept in an `orphan_events` table and applied as soon as the send finishes.
+
+<LifecycleDiagram />
+
+See [Email statuses](/docs/emails/statuses) for what each status means.
+
+<Callout type="warn" title="Events need a subscription">
+  Cloudflare only publishes delivery events for domains that have a queue subscription to `flaresend-events`. Without one, emails still send but stay at `sent`. See [Deploy](/docs/self-hosting/deploy).
+</Callout>
+
+## 4. Webhooks
+
+Every new timeline event is checked against your project's enabled [webhooks](/docs/webhooks). For each webhook subscribed to that event type, a delivery is created and put on `flaresend-webhooks`. The webhooks consumer POSTs the event JSON to your URL with a `Flaresend-Signature` header.
+
+A delivery succeeds on any `2xx` response within 10 seconds. Otherwise it is retried after 30 s, 2 min, 10 min, 30 min, 1 h, 3 h, 6 h and 12 h, then marked `failed`. See [Retries](/docs/webhooks/retries).
+
+## Scheduled emails
+
+An email with `scheduledAt` gets status `scheduled` and an `email.scheduled` event. Cloudflare Queues can delay a message by at most 12 hours, so:
+
+- If it is due within 12 hours, it goes on the send queue straight away with a delay.
+- If it is due later, a cron trigger that runs every 5 minutes puts it on the queue once it is within 12 hours of its time.
+
+When the message arrives, the consumer checks `scheduledAt` again. If the email was rescheduled to more than a minute later, it waits again. A canceled email is skipped. See [Scheduling](/docs/emails/scheduling).
+
+The same cron also advances [broadcasts](/docs/contacts/broadcasts) (100 recipients per broadcast per run) and rolls up yesterday's analytics.
+
+## Two ways in
+
+| | HTTP | RPC |
+|---|---|---|
+| Who can call it | Anything that can make an HTTPS request | Workers in the same Cloudflare account |
+| Auth | `Authorization: Bearer fs_live_…` | None. The service binding is the auth, and you name the project |
+| Client | `new Flaresend({ apiKey, baseUrl })` | `rpcClient(env.MAILER, { project })` |
+| Methods | Everything in the [API reference](/docs/api-reference) | `send`, `sendBatch`, `get`, `list`, `cancel` |
+| Client retries | Yes, on 429, 5xx and network errors | No |
+
+Both paths run the same checks and write the same records. See [Send with Cloudflare Workers](/docs/send-with/cloudflare-workers) for the RPC setup.

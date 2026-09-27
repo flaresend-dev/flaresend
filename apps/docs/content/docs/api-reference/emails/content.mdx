@@ -1,0 +1,110 @@
+---
+title: Retrieve email content
+description: Get the stored HTML, text, headers and attachment list of an email.
+method: GET
+---
+
+<Endpoint method="GET" path="/v1/emails/:id/content" />
+
+<ApiPage>
+<ApiMain>
+
+Bodies are stored in R2, separately from the email record, and deleted after 30 days by the bucket's lifecycle rule. Within that window this endpoint returns them. After it, the call fails with `404 content_expired`, while the email record itself stays available.
+
+Attachment contents are not returned, only their names, types and sizes.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="id" type="string" required>
+  The email ID.
+</ParamField>
+
+</Fields>
+
+## Response
+
+<Fields>
+
+<ResponseField name="html" type="string | null">
+  The HTML body as it was accepted, after any template was rendered.
+</ResponseField>
+
+<ResponseField name="text" type="string | null">
+  The plain text body.
+</ResponseField>
+
+<ResponseField name="trackedHtml" type="string | null">
+  The HTML that was actually sent when open or click tracking was on: links rewritten to `/t/c/…` and the tracking pixel added. `null` when tracking was off or the email hasn't been sent yet.
+</ResponseField>
+
+<ResponseField name="headers" type="Record<string, string>">
+  The custom headers that were sent. Broadcast emails include `List-Unsubscribe` and `List-Unsubscribe-Post`. Headers Cloudflare adds itself are not listed.
+</ResponseField>
+
+<ResponseField name="attachments" type="Array<{ filename, type, size }>">
+  One entry per attachment. `type` is the MIME type or `null`, and `size` is the decoded size in bytes.
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `email_not_found` | No email with that ID in this project. |
+| 404 | `content_expired` | The body is older than 30 days and has been deleted. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const content = await flaresend.emails.content('email_01K6B2Y4ZP9R3M7T8V5N2QXW4C');
+```
+
+```bash tab="cURL" tab-group="lang"
+curl https://mailer.example.com/v1/emails/email_01K6B2Y4ZP9R3M7T8V5N2QXW4C/content \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "html": "<p>Your invoice is attached.</p>",
+  "text": "Your invoice is attached.",
+  "trackedHtml": null,
+  "headers": { "X-Entity-Ref-ID": "inv-2026-0042" },
+  "attachments": [
+    { "filename": "invoice.pdf", "type": "application/pdf", "size": 48213 }
+  ]
+}
+```
+
+```json tab="404" tab-group="status"
+{
+  "error": {
+    "type": "not_found",
+    "code": "content_expired",
+    "message": "the email body is no longer stored (bodies are kept for 30 days)",
+    "param": "id"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

@@ -1,0 +1,90 @@
+---
+title: Pagination
+description: Walk through long lists with limit, cursor and nextCursor.
+icon: ListOrdered
+---
+
+Lists that can grow long are paginated with a cursor. They return a page of results, newest first, and a `nextCursor` to fetch the page after it.
+
+```json
+{
+  "data": [
+    { "id": "email_01K6B2Y4ZP9R3M7T8V5N2QXW4C", "subject": "Welcome to Acme" },
+    { "id": "email_01K6B2X1QH4D8S2F6G9J3K7L0M", "subject": "Your sign-in link" }
+  ],
+  "nextCursor": "MjAyNi0wOS0yNlQxNDowNTozMS4xMjNafGVtYWlsXzAxSzZCMlgxUUg0RDhTMkY2RzlKM0s3TDBN"
+}
+```
+
+## Parameters
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `limit` | number | How many results per page. 1 to 100, default 25. |
+| `cursor` | string | The `nextCursor` from the previous page. Leave it out for the first page. |
+
+Pass the same filters on every page. The cursor only remembers where the last page ended, not the filters.
+
+`nextCursor` is `null` on the last page. Treat the cursor as an opaque string: its format can change.
+
+Results are ordered by creation time, newest first. New items created while you page through don't shift the pages you haven't read yet, because the cursor points at a position in time rather than an offset.
+
+## Which endpoints are paginated
+
+| Paginated: `{ data, nextCursor }` | Not paginated: `{ data }` |
+|---|---|
+| [List emails](/docs/api-reference/emails/list) | [List domains](/docs/api-reference/domains/list) |
+| [List events](/docs/api-reference/events/list) | [List API keys](/docs/api-reference/api-keys/list) |
+| [List webhook deliveries](/docs/api-reference/webhooks/deliveries) | [List webhooks](/docs/api-reference/webhooks/list) |
+| [List contacts](/docs/api-reference/contacts/list) | [List templates](/docs/api-reference/templates/list) and [versions](/docs/api-reference/templates/versions) |
+| [List an audience's contacts](/docs/api-reference/audiences/list-contacts) | [List audiences](/docs/api-reference/audiences/list) |
+| Admin: [emails](/docs/api-reference/admin/list-emails), events and [suppressions](/docs/api-reference/admin/list-suppressions) | [List broadcasts](/docs/api-reference/broadcasts/list) |
+
+On emails and events (including the admin versions), a `limit` outside 1 to 100 fails with `400 invalid_query`. On the other paginated lists it is clamped into range instead. The admin suppression list defaults to 50 per page and allows up to 200.
+
+## Reading every page
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend, type EmailRecord } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const bounced: EmailRecord[] = [];
+let cursor: string | undefined;
+
+do {
+  const page = await flaresend.emails.list({ status: 'bounced', limit: 100, cursor });
+  bounced.push(...page.data);
+  cursor = page.nextCursor ?? undefined;
+} while (cursor);
+```
+
+```bash tab="cURL" tab-group="lang"
+# First page
+curl "https://mailer.example.com/v1/emails?status=bounced&limit=100" \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+
+# Next page: pass nextCursor from the previous response, and the same filters
+curl "https://mailer.example.com/v1/emails?status=bounced&limit=100&cursor=MjAyNi0wOS0yNlQxNDow..." \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+```ts tab="Worker (RPC)" tab-group="lang"
+import { rpcClient } from '@flaresend/client/rpc';
+
+const mail = rpcClient(env.MAILER, { project: 'acme' });
+
+let cursor: string | undefined;
+do {
+  const page = await mail.list({ status: 'bounced', limit: 100, cursor });
+  for (const email of page.data) {
+    // ...
+  }
+  cursor = page.nextCursor ?? undefined;
+} while (cursor);
+```
+
+Cursors use only URL-safe characters (letters, digits, `-` and `_`), so you can put them in a query string as they are. A cursor that can't be read is ignored, and you get the first page.

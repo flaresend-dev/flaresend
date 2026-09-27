@@ -1,0 +1,155 @@
+---
+title: Retrieve a project
+description: Get one project's settings by its slug.
+method: GET
+---
+
+<Endpoint method="GET" path="/v1/admin/projects/:slug" auth="admin" />
+
+<ApiPage>
+<ApiMain>
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="slug" type="string" required>
+  The project slug, for example `acme`.
+</ParamField>
+
+</Fields>
+
+## Response
+
+<Fields>
+
+<ResponseField name="id" type="string">
+  The project ID, for example `proj_01K6B1QZ3M8H2V5T7R9N4XW6CD`.
+</ResponseField>
+
+<ResponseField name="slug" type="string">
+  The slug used in admin URLs and by RPC callers.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  The display name.
+</ResponseField>
+
+<ResponseField name="defaultFrom" type="string | null">
+  The sender used when a send has no `from`.
+</ResponseField>
+
+<ResponseField name="allowedDomains" type="string[]">
+  Domains the project may send from.
+</ResponseField>
+
+<ResponseField name="allowedSenders" type="string[] | null">
+  Exact addresses allowed in `from`, or `null` for any address on the allowed domains.
+</ResponseField>
+
+<ResponseField name="domainSenders" type="Record<string, string>">
+  The default sender per domain. Only domains that have one are listed; `{}` when none do.
+</ResponseField>
+
+<ResponseField name="rpcEnabled" type="boolean">
+  Whether Workers may send for this project over the service binding.
+</ResponseField>
+
+<ResponseField name="dailyLimit" type="integer">
+  Live emails allowed per UTC day. `0` means no limit.
+</ResponseField>
+
+<ResponseField name="trackOpens" type="boolean">
+  Default for open tracking on HTML emails.
+</ResponseField>
+
+<ResponseField name="trackClicks" type="boolean">
+  Default for click tracking on HTML emails.
+</ResponseField>
+
+<ResponseField name="broadcastsEnabled" type="boolean">
+  Whether broadcasts are allowed.
+</ResponseField>
+
+<ResponseField name="createdAt" type="string">
+  ISO 8601 creation time.
+</ResponseField>
+
+<ResponseField name="updatedAt" type="string">
+  ISO 8601 time of the last change.
+</ResponseField>
+
+<ResponseField name="disabledAt" type="string | null">
+  When the project was disabled, or `null`. A disabled project's API keys get `403 project_disabled` and its RPC calls fail the same way.
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `project_not_found` | No project has this slug. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+const res = await fetch('https://mailer.example.com/v1/admin/projects/acme', {
+  headers: { Authorization: `Bearer ${process.env.FLARESEND_ADMIN_KEY}` },
+});
+const project = await res.json();
+```
+
+```bash tab="cURL" tab-group="lang"
+curl https://mailer.example.com/v1/admin/projects/acme \
+  -H "Authorization: Bearer $FLARESEND_ADMIN_KEY"
+```
+
+```bash tab="CLI" tab-group="lang"
+flaresend projects show acme
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "id": "proj_01K6B1QZ3M8H2V5T7R9N4XW6CD",
+  "slug": "acme",
+  "name": "Acme",
+  "defaultFrom": "Acme <hello@acme.com>",
+  "allowedDomains": ["acme.com", "mail.acme.com"],
+  "allowedSenders": null,
+  "domainSenders": {
+    "mail.acme.com": "Acme Alerts <alerts@mail.acme.com>"
+  },
+  "rpcEnabled": true,
+  "dailyLimit": 5000,
+  "trackOpens": true,
+  "trackClicks": false,
+  "broadcastsEnabled": false,
+  "createdAt": "2026-09-26T10:00:00.000Z",
+  "updatedAt": "2026-09-26T12:30:00.000Z",
+  "disabledAt": null
+}
+```
+
+```json tab="404" tab-group="status"
+{
+  "error": {
+    "type": "not_found",
+    "code": "project_not_found",
+    "message": "project \"acme\" not found",
+    "param": "slug"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

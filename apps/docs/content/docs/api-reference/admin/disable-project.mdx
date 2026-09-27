@@ -1,0 +1,92 @@
+---
+title: Disable a project
+description: Stop a project from sending. Nothing is deleted, and it can be enabled again.
+method: DELETE
+---
+
+<Endpoint method="DELETE" path="/v1/admin/projects/:slug" auth="admin" />
+
+<ApiPage>
+<ApiMain>
+
+Despite the `DELETE` method, this does not delete anything. It sets the project's `disabledAt`, the same as [updating](/docs/api-reference/admin/update-project) it with `{ "disabled": true }`. Its emails, keys, templates and contacts stay.
+
+While a project is disabled:
+
+- Requests with its API keys fail with `403 project_disabled`.
+- RPC calls for its slug fail with `403 project_disabled`.
+- A broadcast that is sending is canceled on its next cron tick.
+- [Resend an email](/docs/api-reference/admin/resend-email) refuses its emails with `403 project_disabled`.
+
+To turn it back on, send `PATCH /v1/admin/projects/:slug` with `{ "disabled": false }`, or run `flaresend projects enable <slug>`.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="slug" type="string" required>
+  The project slug.
+</ParamField>
+
+</Fields>
+
+## Response
+
+Status `200` with the [project](/docs/api-reference/admin/retrieve-project#response), now with `disabledAt` set. Calling it on a project that is already disabled keeps the original `disabledAt`.
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `project_not_found` | No project has this slug. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+const res = await fetch('https://mailer.example.com/v1/admin/projects/acme', {
+  method: 'DELETE',
+  headers: { Authorization: `Bearer ${process.env.FLARESEND_ADMIN_KEY}` },
+});
+const project = await res.json();
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X DELETE https://mailer.example.com/v1/admin/projects/acme \
+  -H "Authorization: Bearer $FLARESEND_ADMIN_KEY"
+```
+
+```bash tab="CLI" tab-group="lang"
+flaresend projects disable acme
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "id": "proj_01K6B1QZ3M8H2V5T7R9N4XW6CD",
+  "slug": "acme",
+  "name": "Acme",
+  "defaultFrom": "Acme <hello@acme.com>",
+  "allowedDomains": ["acme.com"],
+  "allowedSenders": null,
+  "domainSenders": {},
+  "rpcEnabled": true,
+  "dailyLimit": 5000,
+  "trackOpens": false,
+  "trackClicks": false,
+  "broadcastsEnabled": false,
+  "createdAt": "2026-09-26T10:00:00.000Z",
+  "updatedAt": "2026-09-27T08:15:00.000Z",
+  "disabledAt": "2026-09-27T08:15:00.000Z"
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

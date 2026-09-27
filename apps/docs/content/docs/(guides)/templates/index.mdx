@@ -1,0 +1,106 @@
+---
+title: Templates
+description: Send by template name and data instead of building HTML in every app.
+icon: LayoutTemplate
+---
+
+import { Blocks, Code2, PencilRuler } from 'lucide-react';
+
+A template turns a name and some data into a subject, an HTML body and a text body. Your app sends `template` and `data`; Flaresend renders the email.
+
+```ts tab="Node.js" tab-group="lang"
+await flaresend.emails.send({
+  from: 'Acme <hello@acme.com>',
+  to: 'ada@example.com',
+  template: 'welcome',
+  data: { name: 'Ada', appName: 'Acme', loginUrl: 'https://acme.com/login' },
+});
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/emails \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "from": "Acme <hello@acme.com>",
+    "to": "ada@example.com",
+    "template": "welcome",
+    "data": { "name": "Ada", "appName": "Acme", "loginUrl": "https://acme.com/login" }
+  }'
+```
+
+```ts tab="Worker (RPC)" tab-group="lang"
+await mail.send({
+  from: 'Acme <hello@acme.com>',
+  to: 'ada@example.com',
+  template: 'welcome',
+  data: { name: 'Ada', appName: 'Acme', loginUrl: 'https://acme.com/login' },
+});
+```
+
+No `subject` is needed: the template provides one.
+
+## Two kinds of template
+
+<Cards>
+  <Card icon={<Blocks />} title="Built-in templates" href="/docs/templates/built-in">
+    React Email components that live in the repo (`packages/templates`) and ship with the mailer. Same for every project. Changed by a code change and a deploy.
+  </Card>
+  <Card icon={<PencilRuler />} title="Custom templates" href="/docs/templates/custom">
+    HTML with `{{variables}}`, stored per project in D1. Edited in the dashboard or through the API, with version history.
+  </Card>
+</Cards>
+
+## Which template is used
+
+When a send names a template, Flaresend looks in this order:
+
+1. A **custom template** with that name in the sending project.
+2. A **built-in template** with that name.
+3. Neither: `404 template_not_found`.
+
+So a project can replace a built-in template by creating a custom one with the same name. Other projects keep using the built-in one. Delete the custom template and the project falls back to the built-in one again.
+
+## Overriding parts of a template
+
+`subject`, `html` and `text` in the request take priority over what the template renders. The most common use is a custom subject:
+
+```ts
+await flaresend.emails.send({
+  to: 'ada@example.com',
+  template: 'welcome',
+  data: { name: 'Ada', appName: 'Acme', loginUrl },
+  subject: 'Ada, your Acme account is ready',
+});
+```
+
+Everything else about the send (tags, attachments, scheduling, tracking, idempotency) works the same with a template.
+
+## Checking data
+
+Data is checked when you send, before anything is stored:
+
+- Built-in templates validate `data` against the template's schema. A missing or wrong field fails with `400 invalid_template_data`, and `param` names the field, for example `data.loginUrl`.
+- Custom templates check the variables marked **required**. A missing, `null` or empty one fails with `400 invalid_template_data`.
+
+## Preview before sending
+
+[Render a template](/docs/api-reference/templates/render) returns the subject, HTML and text for some data without sending anything. The dashboard's template editor uses it for its live preview.
+
+```ts
+const { subject, html, text } = await flaresend.templates.render('welcome', {
+  name: 'Ada',
+  appName: 'Acme',
+  loginUrl: 'https://acme.com/login',
+});
+```
+
+## On the email record
+
+Emails sent from a template have `template` (the name) and `templateVersion` (the custom template's version, or `null` for built-in templates) on their record, so you can tell which version someone received.
+
+<Cards>
+  <Card icon={<Code2 />} title="Typed templates" href="/docs/templates/typed">
+    Let TypeScript check `data` against the template name.
+  </Card>
+</Cards>

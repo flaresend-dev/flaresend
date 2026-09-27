@@ -1,0 +1,93 @@
+---
+title: Delete an audience
+description: Delete an audience. The contacts in it are kept.
+method: DELETE
+---
+
+<Endpoint method="DELETE" path="/v1/audiences/:id" />
+
+<ApiPage>
+<ApiMain>
+
+Deletes the audience and its membership list. The contacts themselves are not deleted; they stay in the project and in any other audiences.
+
+An audience can't be deleted while a broadcast to it is `scheduled` or `sending`. [Cancel the broadcast](/docs/api-reference/broadcasts/cancel) first.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="id" type="string" required>
+  The audience ID.
+</ParamField>
+
+</Fields>
+
+## Response
+
+<Fields>
+
+<ResponseField name="id" type="string">
+  The ID of the deleted audience.
+</ResponseField>
+
+<ResponseField name="deleted" type="true">
+  Always `true`.
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `audience_not_found` | No audience with that ID in this project. |
+| 409 | `audience_in_use` | A broadcast to this audience is scheduled or sending. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+await flaresend.audiences.remove('aud_01K6C2A7F3H5J8K1M4N6P9Q2RS');
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X DELETE https://mailer.example.com/v1/audiences/aud_01K6C2A7F3H5J8K1M4N6P9Q2RS \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "id": "aud_01K6C2A7F3H5J8K1M4N6P9Q2RS",
+  "deleted": true
+}
+```
+
+```json tab="409" tab-group="status"
+{
+  "error": {
+    "type": "conflict",
+    "code": "audience_in_use",
+    "message": "a broadcast to this audience is scheduled or sending",
+    "param": "id"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

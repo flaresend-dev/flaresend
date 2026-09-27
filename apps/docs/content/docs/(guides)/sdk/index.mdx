@@ -1,0 +1,104 @@
+---
+title: "@flaresend/client"
+description: The official TypeScript client. Sends over HTTP from any runtime with fetch, or over RPC from Cloudflare Workers.
+icon: Package
+---
+
+import { Globe, Cloud, ShieldCheck, TriangleAlert } from 'lucide-react';
+
+`@flaresend/client` is the client for your Flaresend mailer. It is written in TypeScript, ships ESM and CommonJS builds with type definitions, and has one runtime dependency, `@flaresend/types`.
+
+```bash tab="npm" tab-group="pm"
+npm install @flaresend/client
+```
+
+```bash tab="pnpm" tab-group="pm"
+pnpm add @flaresend/client
+```
+
+```bash tab="yarn" tab-group="pm"
+yarn add @flaresend/client
+```
+
+```bash tab="bun" tab-group="pm"
+bun add @flaresend/client
+```
+
+## Three entry points
+
+| Import | What it is | Runs in |
+|---|---|---|
+| `@flaresend/client` | `Flaresend`, the HTTP client for the whole REST API, plus errors, webhook helpers and types | Anything with `fetch`: Node.js 18+, Bun, Deno, browsers, Workers |
+| `@flaresend/client/rpc` | `rpcClient`, for Workers that call the mailer over a service binding | Cloudflare Workers in the same account as the mailer |
+| `@flaresend/client/webhooks` | `verifyWebhookSignature` and friends, on their own | Anything with Web Crypto |
+
+Each entry point is separate, so a Worker that only verifies webhooks doesn't bundle the HTTP client.
+
+<Cards>
+  <Card icon={<Globe />} title="HTTP client" href="/docs/sdk/http">
+    Every method of `Flaresend`, with retries and idempotency.
+  </Card>
+  <Card icon={<Cloud />} title="RPC client" href="/docs/sdk/rpc">
+    Send from a Worker with no API key and no network hop.
+  </Card>
+  <Card icon={<ShieldCheck />} title="Webhook helpers" href="/docs/sdk/webhooks">
+    Verify and sign `Flaresend-Signature` headers.
+  </Card>
+  <Card icon={<TriangleAlert />} title="Errors" href="/docs/sdk/errors">
+    `FlaresendError` and how to handle each case.
+  </Card>
+</Cards>
+
+## Quick look
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const { id } = await flaresend.emails.send({
+  from: 'Acme <hello@acme.com>',
+  to: 'ada@example.com',
+  subject: 'Welcome to Acme',
+  html: '<p>Thanks for signing up.</p>',
+});
+const email = await flaresend.emails.get(id);
+```
+
+```ts tab="Worker (RPC)" tab-group="lang"
+import { rpcClient, type MailerRpcBinding } from '@flaresend/client/rpc';
+
+interface Env {
+  MAILER: MailerRpcBinding;
+}
+
+export default {
+  async fetch(req: Request, env: Env) {
+    const mail = rpcClient(env.MAILER, { project: 'acme' });
+    const { id } = await mail.send({
+      from: 'Acme <hello@acme.com>',
+      to: 'ada@example.com',
+      subject: 'Welcome to Acme',
+      html: '<p>Thanks for signing up.</p>',
+    });
+    return Response.json({ id });
+  },
+};
+```
+
+## Which one should I use?
+
+- Your code runs in a **Cloudflare Worker in the same account** as the mailer: use **RPC**. There is no key to store or leak, and the call doesn't go over the public internet.
+- Anything else (a Node.js server, a serverless function on another platform, a script, a Worker in another account): use **HTTP** with a project API key.
+- Never use the HTTP client with an API key in a browser. The key would be visible to anyone.
+
+## Other languages
+
+There is no official client for other languages yet. The REST API is plain JSON over HTTPS, so any HTTP library works. See the quickstarts for [Python](/docs/send-with/python), [Go](/docs/send-with/go), [PHP](/docs/send-with/php) and [Ruby](/docs/send-with/ruby), and the [API reference](/docs/api-reference).
+
+## Versioning
+
+`@flaresend/client` and `@flaresend/types` are always released together at the same version, following [semantic versioning](https://semver.org). While the version is `0.x`, a breaking change bumps the minor version. Release notes are on the [GitHub releases page](https://github.com/flaresend-dev/flaresend/releases).

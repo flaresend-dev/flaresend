@@ -1,0 +1,119 @@
+---
+title: Send a test event
+description: Deliver a fake email.delivered event to one webhook, to check your endpoint.
+method: POST
+---
+
+<Endpoint method="POST" path="/v1/webhooks/:id/test" />
+
+<ApiPage>
+<ApiMain>
+
+Queues one synthetic `email.delivered` event for this webhook only. It is sent even if the webhook is not subscribed to `email.delivered`. The request is signed with the webhook's secret like a real one, so you can test your [signature check](/docs/webhooks/verify).
+
+The payload has `data.test: true` and made-up values (`emailId: "email_test"`, `recipient: "recipient@example.com"`), so your handler can tell it apart from real events. Its event ID starts with `evt_test_`.
+
+The response comes back before the delivery happens. Check the result with [List deliveries](/docs/api-reference/webhooks/deliveries). A failed test delivery is retried on the same schedule as real ones (see [Retries](/docs/webhooks/retries)).
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="id" type="string" required>
+  The webhook ID.
+</ParamField>
+
+</Fields>
+
+## Response
+
+Status `202`.
+
+<Fields>
+
+<ResponseField name="deliveryId" type="string">
+  The ID of the queued delivery, for example `whd_01K6B4F2H6K8M0P2R4T6V8X0Z2`.
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `webhook_not_found` | No webhook with this ID in the project. |
+| 409 | `webhook_disabled` | The webhook is disabled. Enable it first. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const { deliveryId } = await flaresend.webhooks.test('wh_01K6B3C8R2M5T7V9X1Z3B5D7F9');
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/webhooks/wh_01K6B3C8R2M5T7V9X1Z3B5D7F9/test \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="202" tab-group="status"
+{
+  "deliveryId": "whd_01K6B4F2H6K8M0P2R4T6V8X0Z2"
+}
+```
+
+```json tab="409" tab-group="status"
+{
+  "error": {
+    "type": "conflict",
+    "code": "webhook_disabled",
+    "message": "enable the webhook before sending a test event",
+    "param": "id"
+  }
+}
+```
+
+</ApiExample>
+
+<ApiExample title="Payload your endpoint receives">
+
+```json
+{
+  "id": "evt_test_8Hq2Lm4Zp7Xc1Vb9",
+  "type": "email.delivered",
+  "createdAt": "2026-09-26T10:05:00.000Z",
+  "data": {
+    "test": true,
+    "emailId": "email_test",
+    "recipient": "recipient@example.com",
+    "from": "sender@example.com",
+    "subject": "Flaresend test event",
+    "tags": {},
+    "delivery": {
+      "status": "delivered",
+      "provider": "test",
+      "deliveryTimeMs": 1234,
+      "smtpStatusCode": "250",
+      "smtpResponse": "250 2.0.0 OK"
+    }
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

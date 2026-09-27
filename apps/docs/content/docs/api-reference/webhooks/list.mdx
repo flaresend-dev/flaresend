@@ -1,0 +1,92 @@
+---
+title: List webhooks
+description: Every webhook in the project, oldest first.
+method: GET
+---
+
+<Endpoint method="GET" path="/v1/webhooks" />
+
+<ApiPage>
+<ApiMain>
+
+Returns all webhooks of the project in one response, ordered by creation time, oldest first. This list is not paginated. Secrets are never included.
+
+## Response
+
+<Fields>
+
+<ResponseField name="data" type="Webhook[]">
+  The webhooks. The Node.js client returns this array directly.
+
+  <Expandable title="webhook properties">
+    <ResponseField name="id" type="string">
+      The webhook ID.
+    </ResponseField>
+    <ResponseField name="projectId" type="string">
+      The project the webhook belongs to.
+    </ResponseField>
+    <ResponseField name="url" type="string">
+      The endpoint URL.
+    </ResponseField>
+    <ResponseField name="events" type="string[]">
+      The subscribed event types. `"*"` means all.
+    </ResponseField>
+    <ResponseField name="enabled" type="boolean">
+      Whether the webhook receives events.
+    </ResponseField>
+    <ResponseField name="createdAt" type="string">
+      ISO 8601 timestamp.
+    </ResponseField>
+    <ResponseField name="updatedAt" type="string">
+      ISO 8601 timestamp.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+</Fields>
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const webhooks = await flaresend.webhooks.list();
+```
+
+```bash tab="cURL" tab-group="lang"
+curl https://mailer.example.com/v1/webhooks \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "data": [
+    {
+      "id": "wh_01K6B3C8R2M5T7V9X1Z3B5D7F9",
+      "projectId": "proj_01K6A9W2E4R6T8Y0U2I4O6P8A0",
+      "url": "https://acme.com/webhooks/flaresend",
+      "events": ["*"],
+      "enabled": true,
+      "createdAt": "2026-09-26T10:00:00.000Z",
+      "updatedAt": "2026-09-26T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

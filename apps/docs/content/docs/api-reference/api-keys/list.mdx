@@ -1,0 +1,101 @@
+---
+title: List API keys
+description: Every API key of the project, including revoked and expired ones.
+method: GET
+---
+
+<Endpoint method="GET" path="/v1/api-keys" />
+
+<ApiPage>
+<ApiMain>
+
+Returns all of the project's keys, newest first. Revoked and expired keys are included, so check `revokedAt` and `expiresAt`. The full key is never returned: Flaresend only stores its first 12 characters and a hash.
+
+Keys are created, renamed and revoked with the admin key. See [Create an API key](/docs/api-reference/admin/create-api-key) and [API keys](/docs/api-keys).
+
+## Response
+
+<Fields>
+
+<ResponseField name="data" type="ApiKey[]">
+  <Expandable title="API key properties">
+    <ResponseField name="id" type="string">
+      The key ID, `key_…`. This is not the key itself.
+    </ResponseField>
+    <ResponseField name="projectId" type="string">
+      The project it belongs to.
+    </ResponseField>
+    <ResponseField name="name" type="string">
+      The name given when it was created, for example `production`.
+    </ResponseField>
+    <ResponseField name="mode" type="'live' | 'test'">
+      `test` keys never send. See [Test mode](/docs/emails/test-mode).
+    </ResponseField>
+    <ResponseField name="prefix" type="string">
+      The first 12 characters of the key, for example `fs_live_4f8K`, so you can tell keys apart.
+    </ResponseField>
+    <ResponseField name="lastUsedAt" type="string | null">
+      When the key last made a request. Updated at most once a minute.
+    </ResponseField>
+    <ResponseField name="createdAt" type="string">
+      When it was created.
+    </ResponseField>
+    <ResponseField name="revokedAt" type="string | null">
+      When it was revoked, or `null` if it's active.
+    </ResponseField>
+    <ResponseField name="expiresAt" type="string | null">
+      When it stops working, or `null` if it never expires.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+</Fields>
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+// Returns the array directly, not { data }
+const keys = await flaresend.apiKeys.list();
+```
+
+```bash tab="cURL" tab-group="lang"
+curl https://mailer.example.com/v1/api-keys \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "data": [
+    {
+      "id": "key_01K5ZQ9A1B2C3D4E5F6G7H8J9K",
+      "projectId": "proj_01K5ZQ8M3N6P1R4S7T0V2W5X8Y",
+      "name": "production",
+      "mode": "live",
+      "prefix": "fs_live_4f8K",
+      "lastUsedAt": "2026-09-26T14:05:31.123Z",
+      "createdAt": "2026-09-20T09:12:44.001Z",
+      "revokedAt": null,
+      "expiresAt": null
+    }
+  ]
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

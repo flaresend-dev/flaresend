@@ -1,0 +1,105 @@
+---
+title: List audience contacts
+description: Page through the contacts in one audience, newest first.
+method: GET
+---
+
+<Endpoint method="GET" path="/v1/audiences/:id/contacts" />
+
+<ApiPage>
+<ApiMain>
+
+Returns the contacts in the audience, ordered by when the contact was created, newest first. Unsubscribed contacts are included; check each contact's `unsubscribed` field. The list is cursor-paginated, see [Pagination](/docs/api-reference/pagination).
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="id" type="string" required>
+  The audience ID.
+</ParamField>
+
+</Fields>
+
+## Query parameters
+
+<Fields>
+
+<ParamField query="limit" type="number" default="25">
+  How many contacts per page, from 1 to 100. Values outside that range are clamped to it.
+</ParamField>
+
+<ParamField query="cursor" type="string">
+  The `nextCursor` value from the previous page.
+</ParamField>
+
+</Fields>
+
+## Response
+
+<Fields>
+
+<ResponseField name="data" type="Contact[]">
+  The contacts on this page, with the fields described in [Create a contact](/docs/api-reference/contacts/create#response).
+</ResponseField>
+
+<ResponseField name="nextCursor" type="string | null">
+  Pass this as `cursor` to get the next page. `null` on the last page.
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `audience_not_found` | No audience with that ID in this project. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const page = await flaresend.audiences.contacts('aud_01K6C2A7F3H5J8K1M4N6P9Q2RS', { limit: 100 });
+```
+
+```bash tab="cURL" tab-group="lang"
+curl "https://mailer.example.com/v1/audiences/aud_01K6C2A7F3H5J8K1M4N6P9Q2RS/contacts?limit=100" \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "data": [
+    {
+      "id": "ct_01K6C1M3R8T2V9X4Z6B7N5P0QA",
+      "projectId": "proj_01K5Z8W2Q4R6T8V0X2Z4B6D8FG",
+      "email": "ada@example.com",
+      "firstName": "Ada",
+      "lastName": "Lovelace",
+      "unsubscribed": false,
+      "data": { "plan": "pro" },
+      "createdAt": "2026-09-26T10:00:00.000Z",
+      "updatedAt": "2026-09-26T10:00:00.000Z"
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

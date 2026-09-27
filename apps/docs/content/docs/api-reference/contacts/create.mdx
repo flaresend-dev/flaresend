@@ -1,0 +1,160 @@
+---
+title: Create a contact
+description: Add a contact to the project, or update it if a contact with that email already exists.
+method: POST
+---
+
+<Endpoint method="POST" path="/v1/contacts" />
+
+<ApiPage>
+<ApiMain>
+
+This call is an upsert keyed on `email`. When the project has no contact with that address, a new one is created. When it has one, the fields you send are written over it and the fields you leave out are kept. Either way the response is the contact as it is now, with status `201`.
+
+Contacts are the people you send [broadcasts](/docs/contacts/broadcasts) to. See [Contacts](/docs/contacts/contacts).
+
+## Body parameters
+
+<Fields>
+
+<ParamField body="email" type="string" required>
+  The contact's address. Stored lowercased and trimmed. Each address appears once per project.
+</ParamField>
+
+<ParamField body="firstName" type="string | null">
+  Up to 200 characters. Available in broadcasts as `{{first_name}}`. On an existing contact, leaving it out or sending `null` keeps the stored value.
+</ParamField>
+
+<ParamField body="lastName" type="string | null">
+  Up to 200 characters. Available in broadcasts as `{{last_name}}`. On an existing contact, leaving it out or sending `null` keeps the stored value.
+</ParamField>
+
+<ParamField body="unsubscribed" type="boolean" default="false">
+  `true` means broadcasts skip this contact. On an existing contact, leaving it out keeps the stored value, so an upsert never re-subscribes someone by accident.
+</ParamField>
+
+<ParamField body="data" type="object | null">
+  Any extra values you want in broadcast templates, for example `{ "plan": "pro" }` for `{{plan}}`. On an existing contact, sending an object replaces the stored one; leaving it out or sending `null` keeps it.
+</ParamField>
+
+</Fields>
+
+<Callout type="info">
+  To clear `firstName`, `lastName` or `data`, use [Update a contact](/docs/api-reference/contacts/update), where `null` does clear the field.
+</Callout>
+
+## Response
+
+Status `201` with the contact.
+
+<Fields>
+
+<ResponseField name="id" type="string">
+  The contact ID, for example `ct_01K6C1M3R8T2V9X4Z6B7N5P0QA`.
+</ResponseField>
+
+<ResponseField name="projectId" type="string">
+  The project the contact belongs to.
+</ResponseField>
+
+<ResponseField name="email" type="string">
+  The lowercased address.
+</ResponseField>
+
+<ResponseField name="firstName" type="string | null" />
+
+<ResponseField name="lastName" type="string | null" />
+
+<ResponseField name="unsubscribed" type="boolean">
+  Whether broadcasts skip this contact.
+</ResponseField>
+
+<ResponseField name="data" type="object | null">
+  Your extra values.
+</ResponseField>
+
+<ResponseField name="createdAt" type="string">
+  ISO 8601 time the contact was first created.
+</ResponseField>
+
+<ResponseField name="updatedAt" type="string">
+  ISO 8601 time of the last change.
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `missing_body` | The request has no body. |
+| 400 | `invalid_body` | The body is not JSON, `email` is not a valid address, or a name is over 200 characters. `param` names the field. |
+
+See [Errors](/docs/api-reference/errors) for the full list.
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const contact = await flaresend.contacts.create({
+  email: 'ada@example.com',
+  firstName: 'Ada',
+  lastName: 'Lovelace',
+  data: { plan: 'pro' },
+});
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/contacts \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "ada@example.com",
+    "firstName": "Ada",
+    "lastName": "Lovelace",
+    "data": { "plan": "pro" }
+  }'
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="201" tab-group="status"
+{
+  "id": "ct_01K6C1M3R8T2V9X4Z6B7N5P0QA",
+  "projectId": "proj_01K5Z8W2Q4R6T8V0X2Z4B6D8FG",
+  "email": "ada@example.com",
+  "firstName": "Ada",
+  "lastName": "Lovelace",
+  "unsubscribed": false,
+  "data": { "plan": "pro" },
+  "createdAt": "2026-09-26T10:00:00.000Z",
+  "updatedAt": "2026-09-26T10:00:00.000Z"
+}
+```
+
+```json tab="400" tab-group="status"
+{
+  "error": {
+    "type": "validation_error",
+    "code": "invalid_body",
+    "message": "email: Invalid email",
+    "param": "email"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

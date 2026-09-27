@@ -1,0 +1,161 @@
+---
+title: Retrieve analytics
+description: Counts per day or hour, delivery and bounce rates, delivery time, top tags and top bouncing domains.
+method: GET
+---
+
+<Endpoint method="GET" path="/v1/analytics" />
+
+<ApiPage>
+<ApiMain>
+
+Returns the numbers behind the dashboard's Metrics page for the project. The buckets, totals and rates count live emails only; `topTags` counts every email in the range, test sends included.
+
+Emails are grouped by when they were **created** (UTC), not when an event happened. So an email created on Monday and bounced on Tuesday counts as bounced on Monday. The status counts use each email's **current** status: an email that was `deferred` and later `delivered` counts only as delivered.
+
+## Query parameters
+
+<Fields>
+
+<ParamField query="range" type="'7d' | '30d' | '90d'" default="7d">
+  How far back to look, counted in whole UTC days including today.
+</ParamField>
+
+<ParamField query="interval" type="'day' | 'hour'" default="day">
+  The bucket size. With `day`, every day in the range has a bucket, even with no emails. With `hour`, only hours that have emails are listed.
+</ParamField>
+
+</Fields>
+
+## Response
+
+<Fields>
+
+<ResponseField name="range" type="string">
+  The range used.
+</ResponseField>
+
+<ResponseField name="interval" type="'day' | 'hour'">
+  The interval used.
+</ResponseField>
+
+<ResponseField name="buckets" type="Bucket[]">
+  In time order. Each has a `bucket` label (`2026-09-25` for days, `2026-09-25T14` for hours) and one count per metric.
+
+  <Expandable title="metrics">
+    <ResponseField name="sent" type="number">
+      Emails handed to Cloudflare.
+    </ResponseField>
+    <ResponseField name="delivered" type="number">
+      Emails whose status is `delivered`. `deferred`, `bounced`, `complained`, `rejected` and `failed` count the same way.
+    </ResponseField>
+    <ResponseField name="opened" type="number">
+      Emails opened at least once (open tracking only).
+    </ResponseField>
+    <ResponseField name="clicked" type="number">
+      Emails with at least one tracked click.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="totals" type="object">
+  The same nine metrics summed over the range.
+</ResponseField>
+
+<ResponseField name="deliveryRate" type="number | null">
+  `delivered / sent`, rounded to four decimals, for example `0.9812`. `null` when nothing was sent. `bounceRate` and `complaintRate` work the same way.
+</ResponseField>
+
+<ResponseField name="p50DeliveryMs" type="number | null">
+  The median time Cloudflare took to deliver to a recipient, in milliseconds. `p95DeliveryMs` is the 95th percentile. `null` when there is no delivery data.
+</ResponseField>
+
+<ResponseField name="topTags" type="Array<{ tag, count }>">
+  The 10 most used tags as `key:value`, with how many emails carried each.
+</ResponseField>
+
+<ResponseField name="topBouncedDomains" type="Array<{ domain, count }>">
+  The 10 recipient domains with the most bounced recipients.
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_query` | `range` or `interval` has a value not listed above. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const stats = await flaresend.analytics.get({ range: '30d', interval: 'day' });
+```
+
+```bash tab="cURL" tab-group="lang"
+curl "https://mailer.example.com/v1/analytics?range=30d&interval=day" \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "range": "7d",
+  "interval": "day",
+  "buckets": [
+    {
+      "bucket": "2026-09-20",
+      "sent": 412,
+      "delivered": 405,
+      "deferred": 0,
+      "bounced": 5,
+      "complained": 0,
+      "rejected": 1,
+      "failed": 1,
+      "opened": 0,
+      "clicked": 0
+    }
+  ],
+  "totals": {
+    "sent": 2890,
+    "delivered": 2841,
+    "deferred": 2,
+    "bounced": 36,
+    "complained": 1,
+    "rejected": 6,
+    "failed": 4,
+    "opened": 0,
+    "clicked": 0
+  },
+  "deliveryRate": 0.983,
+  "bounceRate": 0.0125,
+  "complaintRate": 0.0003,
+  "p50DeliveryMs": 1840,
+  "p95DeliveryMs": 6120,
+  "topTags": [
+    { "tag": "kind:password-reset", "count": 1203 },
+    { "tag": "kind:welcome", "count": 988 }
+  ],
+  "topBouncedDomains": [
+    { "domain": "example.net", "count": 12 }
+  ]
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

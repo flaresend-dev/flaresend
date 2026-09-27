@@ -1,0 +1,123 @@
+---
+title: Introduction
+description: "How the Flaresend HTTP API works: base URL, requests, responses and request IDs."
+icon: BookOpen
+---
+
+import { Mail, Activity, Globe, KeyRound, Webhook, LayoutTemplate, ChartLine, Contact, Users, Radio, ShieldCheck, Code2 } from 'lucide-react';
+
+The Flaresend API is a JSON REST API served by your own mailer Worker. Every app that isn't a Cloudflare Worker in the same account uses it to send email, read what happened to it, and manage webhooks, templates and contacts.
+
+## Base URL
+
+Flaresend is not a hosted service, so there is no shared API host. The base URL is wherever you [deployed the mailer Worker](/docs/self-hosting/deploy). These docs use:
+
+```
+https://mailer.example.com
+```
+
+Every API route is under `/v1`, for example `POST https://mailer.example.com/v1/emails`.
+
+## Authentication
+
+Send a project API key as a Bearer token:
+
+```bash
+curl https://mailer.example.com/v1/me \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+The key decides which project the request acts on. Routes under `/v1/admin` take the admin key instead. See [Authentication](/docs/api-reference/authentication).
+
+## Requests
+
+- Send bodies as JSON with `Content-Type: application/json`. A body that isn't valid JSON fails with `400 invalid_body`, and a missing body where one is needed fails with `400 missing_body`.
+- Query parameters are plain strings, for example `?limit=50&status=bounced`.
+- Dates are ISO 8601 strings. Parameters such as `scheduledAt`, `since` and `until` need a time zone offset: `2026-10-01T09:00:00Z` or `2026-10-01T11:00:00+02:00`.
+- IDs have a prefix that tells you what they are: `email_`, `evt_`, `wh_`, `whd_`, `ct_`, `aud_`, `bc_`, `tmpl_`, `key_`, `proj_`, followed by a 26-character [ULID](https://github.com/ulid/spec).
+
+## Responses
+
+Every response is JSON and has one of three shapes:
+
+| Shape | Used by | Example |
+|---|---|---|
+| A single object | Creating, reading or changing one thing | `GET /v1/emails/:id` returns the email |
+| `{ "data": [...] }` | Short lists that are never paginated | `GET /v1/webhooks`, `GET /v1/domains` |
+| `{ "data": [...], "nextCursor": "..." }` | Lists that can be long | `GET /v1/emails`, `GET /v1/events` |
+
+See [Pagination](/docs/api-reference/pagination) for the third shape. Errors always have the same body, described in [Errors](/docs/api-reference/errors):
+
+```json
+{
+  "error": {
+    "type": "permission_error",
+    "code": "invalid_sender",
+    "message": "from must be an address on acme.com",
+    "param": "from"
+  }
+}
+```
+
+## Request IDs
+
+Every response has an `X-Request-Id` header. If you send your own `X-Request-Id` on the request, Flaresend uses that value instead of generating one, which makes it easy to follow one request through your logs and the Worker's logs. Unexpected errors are logged by the mailer with this ID.
+
+## Health check
+
+`GET /health` needs no key. It runs one query against the D1 database and returns:
+
+```json
+{ "ok": true }
+```
+
+## SDK and RPC
+
+The [`@flaresend/client`](/docs/sdk) package wraps every endpoint on this page, with retries and idempotency keys built in:
+
+```bash
+npm install @flaresend/client
+```
+
+Cloudflare Workers in the same account can skip HTTP entirely and call the mailer over a service binding. That path needs no API key. See the [RPC client](/docs/sdk/rpc).
+
+## Endpoints
+
+<Cards>
+  <Card icon={<Mail />} title="Emails" href="/docs/api-reference/emails/send">
+    Send, batch send, list, read, reschedule and cancel.
+  </Card>
+  <Card icon={<Activity />} title="Events" href="/docs/api-reference/events/list">
+    Every timeline event across the project.
+  </Card>
+  <Card icon={<Globe />} title="Domains" href="/docs/api-reference/domains/list">
+    Sending domains and their verification status.
+  </Card>
+  <Card icon={<KeyRound />} title="API keys" href="/docs/api-reference/api-keys/list">
+    The project's keys, and the key you're calling with.
+  </Card>
+  <Card icon={<Webhook />} title="Webhooks" href="/docs/api-reference/webhooks/create">
+    Endpoints that receive signed events.
+  </Card>
+  <Card icon={<LayoutTemplate />} title="Templates" href="/docs/api-reference/templates/create">
+    Stored templates with versions and previews.
+  </Card>
+  <Card icon={<ChartLine />} title="Analytics" href="/docs/api-reference/analytics/retrieve">
+    Sent, delivered, bounced and more, per day or hour.
+  </Card>
+  <Card icon={<Contact />} title="Contacts" href="/docs/api-reference/contacts/create">
+    People you send broadcasts to.
+  </Card>
+  <Card icon={<Users />} title="Audiences" href="/docs/api-reference/audiences/create">
+    Named lists of contacts.
+  </Card>
+  <Card icon={<Radio />} title="Broadcasts" href="/docs/api-reference/broadcasts/create">
+    One email to a small, opted-in audience.
+  </Card>
+  <Card icon={<ShieldCheck />} title="Admin API" href="/docs/api-reference/admin">
+    Projects, keys, suppressions and stats, with the admin key.
+  </Card>
+  <Card icon={<Code2 />} title="SDK" href="/docs/sdk">
+    The typed client for all of the above.
+  </Card>
+</Cards>

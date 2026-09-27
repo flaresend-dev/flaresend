@@ -1,0 +1,106 @@
+---
+title: Batch sending
+description: Send up to 100 different emails in one request and get a result for each.
+icon: Layers
+---
+
+`POST /v1/emails/batch` takes a JSON array of up to **100** emails. Each item has the same fields as a single [send](/docs/api-reference/emails/send), so items can have different senders, recipients, templates and tags.
+
+```ts tab="Node.js" tab-group="lang"
+const { data } = await flaresend.emails.sendBatch([
+  { from: 'Acme <hello@acme.com>', to: 'ada@example.com', subject: 'Hi Ada', text: 'Hello Ada' },
+  { from: 'Acme <hello@acme.com>', to: 'grace@example.com', subject: 'Hi Grace', text: 'Hello Grace' },
+]);
+
+for (const [i, result] of data.entries()) {
+  if ('error' in result) console.error(i, result.error.code, result.error.message);
+  else console.log(i, result.id, result.status);
+}
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/emails/batch \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: digest-2026-10-01" \
+  -d '[
+    { "from": "Acme <hello@acme.com>", "to": "ada@example.com", "subject": "Hi Ada", "text": "Hello Ada" },
+    { "from": "Acme <hello@acme.com>", "to": "grace@example.com", "subject": "Hi Grace", "text": "Hello Grace" }
+  ]'
+```
+
+```ts tab="Worker (RPC)" tab-group="lang"
+const { data } = await mail.sendBatch([
+  { from: 'Acme <hello@acme.com>', to: 'ada@example.com', subject: 'Hi Ada', text: 'Hello Ada' },
+  { from: 'Acme <hello@acme.com>', to: 'grace@example.com', subject: 'Hi Grace', text: 'Hello Grace' },
+]);
+```
+
+## Results
+
+The response is `200` with `data`: one result per item, **in the same order as the request**. Each result is either the normal send result or an error:
+
+```json
+{
+  "data": [
+    { "id": "email_01K6B2Y4ZP9R3M7T8V5N2QXW4C", "status": "queued" },
+    {
+      "error": {
+        "type": "unprocessable",
+        "code": "recipient_suppressed",
+        "message": "grace@example.com is on the suppression list (hard_bounce)",
+        "param": "grace@example.com"
+      }
+    }
+  ]
+}
+```
+
+Items are independent. One bad item does not stop the others. Check every entry; a `200` response doesn't mean every email was accepted.
+
+The request as a whole fails (with a normal error response) only when the body isn't a JSON array, is empty, or has more than 100 items (`400 invalid_body`), or when authentication fails.
+
+<Callout type="info" title="Limits apply per item">
+  Every item is one email for the rate limit and the daily limit. If the daily limit runs out partway through, the remaining items come back with `daily_limit_exceeded` errors.
+</Callout>
+
+## Dry run
+
+Add `?dryRun=true` to check a batch without sending anything. Every item goes through the same checks as a real send (sender, recipients, suppressions, headers, template rendering, size), but nothing is stored or queued, and limits aren't counted.
+
+```ts tab="Node.js" tab-group="lang"
+const preview = await flaresend.emails.sendBatch(items, { dryRun: true });
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST "https://mailer.example.com/v1/emails/batch?dryRun=true" \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d @batch.json
+```
+
+The response shows what would be sent:
+
+```json
+{
+  "dryRun": true,
+  "data": [
+    { "ok": true, "from": "hello@acme.com", "to": ["ada@example.com"], "cc": [], "bcc": [], "subject": "Hi Ada" },
+    { "error": { "type": "permission_error", "code": "invalid_sender", "message": "from must be an address on acme.com", "param": "from" } }
+  ]
+}
+```
+
+Idempotency keys are not checked in a dry run.
+
+## Idempotency
+
+Send an `Idempotency-Key` header to make the whole batch safe to retry. Flaresend stores it on each item as `<key>:<index>`, so item 0 of `digest-2026-10-01` gets `digest-2026-10-01:0`. Retrying the same batch with the same key returns the original emails with `idempotent: true` instead of sending them again.
+
+An item with its own `idempotencyKey` field keeps that key instead.
+
+The Node.js client always sends a batch key. If you don't pass `{ idempotencyKey }`, it makes a random one per call, so its automatic retries are safe. See [Idempotency](/docs/emails/idempotency).
+
+## Batch or loop?
+
+Use a batch when you have many different emails ready at once: fewer requests, and one queue write for the lot. To send the same message to several people who can see each other, use one email with several `to` addresses instead.

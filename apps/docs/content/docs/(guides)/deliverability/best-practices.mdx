@@ -1,0 +1,62 @@
+---
+title: Best practices
+description: Practical steps that keep your email out of spam folders, and how to use Flaresend's data to spot problems early.
+---
+
+Deliverability is whether your email reaches the inbox. It depends mostly on your domain's reputation with mailbox providers, which you build or lose with every send. These are the things that matter most with Flaresend.
+
+## Authenticate every sending domain
+
+Set up SPF, DKIM and DMARC on every domain in `allowedDomains`. [Domains](/docs/deliverability/domains) shows how. Check the domain shows `onboarded` before you send from it.
+
+Start DMARC at `p=none` (what Flaresend's setup adds) so nothing is rejected while you check the reports, then move to `p=quarantine` once you're sure all your legitimate mail passes.
+
+## Send from a subdomain
+
+Use something like `mail.acme.com` or `notify.acme.com` for app email. Its reputation is then separate from the root domain your team uses for everyday mail, and a problem with one doesn't hurt the other.
+
+## Always include a text part
+
+Send `text` alongside `html`. Some clients and filters look for it, and people with text-only readers get a readable email. [Templates](/docs/templates) render both for you.
+
+## Send only what people expect
+
+Cloudflare Email Service is for transactional email: receipts, sign-in links, password resets, notifications about the user's own account. Don't use Flaresend for newsletters or campaigns to large or bought lists. Keep [broadcasts](/docs/contacts/broadcasts) to small, opted-in lists and keep the unsubscribe link in them.
+
+## Warm up a new domain
+
+A domain with no sending history is treated with suspicion. For a new domain:
+
+- Start with the email people are waiting for (sign-in links, receipts), which gets opened and rarely marked as spam.
+- Raise volume gradually over a few weeks instead of sending thousands on day one.
+- Use the project's `dailyLimit` (default 5,000 a day) as a guard rail while you ramp up. Sends over the limit fail with `429 daily_limit_exceeded` until 00:00 UTC.
+
+## Keep your lists clean
+
+- Let the [suppression list](/docs/deliverability/suppressions) do its job. Don't remove addresses from it to "try again".
+- Use [webhooks](/docs/webhooks) for `email.bounced` and `email.complained` to mark addresses as bad in your own database, so your app stops trying.
+- Validate addresses at sign-up. Confirm them with a link before sending anything else.
+
+## Watch your numbers
+
+[Analytics](/docs/api-reference/analytics/retrieve) (the **Metrics** page in the dashboard) gives you the rates to watch. Rates are counts divided by emails sent in the range:
+
+| Metric | What to watch for |
+|---|---|
+| `bounceRate` | Rising bounces mean stale or mistyped addresses. Look at `topBouncedDomains` to see if one provider is refusing you. |
+| `complaintRate` | Anything above a few complaints per thousand is a warning sign. Large mailbox providers publish thresholds around 0.1% to 0.3%. |
+| `deliveryRate` | A drop, with no rise in bounces, often means messages are stuck as `deferred`: a receiver is slowing you down. |
+| `p50DeliveryMs`, `p95DeliveryMs` | Time from sending to delivery. A jump points at throttling. |
+
+```ts
+const stats = await flaresend.analytics.get({ range: '30d', interval: 'day' });
+console.log(stats.bounceRate, stats.complaintRate, stats.topBouncedDomains);
+```
+
+## Tracking has a cost
+
+Open tracking adds a hidden image and click tracking rewrites your links to go through your mailer's domain. Both are off by default. Some filters treat rewritten links with suspicion, and privacy features in mail clients make open counts unreliable. Turn them on only where you use the data. See [Tracking](/docs/emails/tracking).
+
+## Don't put secrets in tags or subjects
+
+Tags, subjects and a short text preview are stored in D1 and shown in the dashboard and webhook payloads. Keep one-time codes and tokens in the body only. Bodies are kept in R2 for 30 days, then deleted.

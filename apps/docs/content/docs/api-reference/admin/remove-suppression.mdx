@@ -1,0 +1,82 @@
+---
+title: Remove a suppression
+description: Let an address receive email again.
+method: DELETE
+---
+
+<Endpoint method="DELETE" path="/v1/admin/suppressions/:address" auth="admin" />
+
+<ApiPage>
+<ApiMain>
+
+Removes the address from Flaresend's list, for every project. It does not touch Cloudflare's own suppression list. If Cloudflare also suppressed the address, sends will still fail there (the email ends up `rejected`); remove it in the Cloudflare dashboard too.
+
+Removing an address that isn't on the list is not an error: the response has `deleted: false`.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="address" type="string" required>
+  The address, URL-encoded (`@` becomes `%40`). Matched case-insensitively.
+</ParamField>
+
+</Fields>
+
+## Response
+
+<Fields>
+
+<ResponseField name="address" type="string">
+  The lowercased address.
+</ResponseField>
+
+<ResponseField name="deleted" type="boolean">
+  `true` if the address was on the list, `false` if it wasn't.
+</ResponseField>
+
+<ResponseField name="note" type="string">
+  A reminder that Cloudflare keeps a separate suppression list.
+</ResponseField>
+
+</Fields>
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+const address = encodeURIComponent('grace@example.com');
+const res = await fetch(`https://mailer.example.com/v1/admin/suppressions/${address}`, {
+  method: 'DELETE',
+  headers: { Authorization: `Bearer ${process.env.FLARESEND_ADMIN_KEY}` },
+});
+const { deleted } = await res.json();
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X DELETE https://mailer.example.com/v1/admin/suppressions/grace%40example.com \
+  -H "Authorization: Bearer $FLARESEND_ADMIN_KEY"
+```
+
+```bash tab="CLI" tab-group="lang"
+flaresend suppressions remove grace@example.com
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "address": "grace@example.com",
+  "deleted": true,
+  "note": "This is Flaresend's local mirror. Cloudflare keeps its own suppression list; edit that one in the Cloudflare dashboard (Email Service)."
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

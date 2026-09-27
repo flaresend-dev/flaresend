@@ -1,0 +1,113 @@
+---
+title: Resend an email
+description: Send a stored email again as a new email, from any project.
+method: POST
+---
+
+<Endpoint method="POST" path="/v1/admin/emails/:id/resend" auth="admin" />
+
+<ApiPage>
+<ApiMain>
+
+Loads the original email's stored body from R2 and sends it again as a **new** email with a new ID. The original is not changed. This is what the dashboard's **Resend** action does.
+
+The new email:
+
+- has the same `from`, `to`, `cc`, `bcc`, `replyTo`, `subject`, `html`, `text`, custom headers and attachments;
+- keeps the original's tags and adds `resent_from` with the original email ID;
+- is sent live from the original's project, now, even if the original was scheduled or sent with a test key;
+- goes through every normal check again: allowed senders, the suppression list, rate limits and the daily limit;
+- uses the project's current open and click tracking defaults.
+
+There is no idempotency key, so each call sends another copy.
+
+Bodies are kept in R2 for 30 days. After that the email can't be resent and the call fails with `404 content_expired`.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="id" type="string" required>
+  The ID of the email to resend, from any project.
+</ParamField>
+
+</Fields>
+
+## Response
+
+Status `202`.
+
+<Fields>
+
+<ResponseField name="id" type="string">
+  The new email's ID.
+</ResponseField>
+
+<ResponseField name="status" type="'queued'">
+  The new email is on the send queue.
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 403 | `project_disabled` | The email's project is disabled. |
+| 403 | `invalid_sender` | The original sender is no longer allowed on the project. |
+| 404 | `email_not_found` | No email has this ID. |
+| 404 | `content_expired` | The stored body is gone (older than 30 days). |
+| 422 | `recipient_suppressed` | A recipient has been suppressed since the original was sent. |
+| 429 | `rate_limited`, `daily_limit_exceeded` | The project is over a limit. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+const res = await fetch(
+  'https://mailer.example.com/v1/admin/emails/email_01K6B2Y4ZP9R3M7T8V5N2QXW4C/resend',
+  {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.FLARESEND_ADMIN_KEY}` },
+  },
+);
+const { id } = await res.json(); // the new email
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/admin/emails/email_01K6B2Y4ZP9R3M7T8V5N2QXW4C/resend \
+  -H "Authorization: Bearer $FLARESEND_ADMIN_KEY"
+```
+
+```bash tab="CLI" tab-group="lang"
+flaresend emails resend email_01K6B2Y4ZP9R3M7T8V5N2QXW4C
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="202" tab-group="status"
+{
+  "id": "email_01K6B4H7N2Q5T8W1Z3C6F9J2M5",
+  "status": "queued"
+}
+```
+
+```json tab="404" tab-group="status"
+{
+  "error": {
+    "type": "not_found",
+    "code": "content_expired",
+    "message": "the email body is no longer stored, so it cannot be resent",
+    "param": "id"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

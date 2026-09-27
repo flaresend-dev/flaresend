@@ -1,0 +1,41 @@
+{
+  "name": "@flaresend/types",
+  "version": "0.2.0",
+  "description": "Zod schemas and TypeScript types for the Flaresend API",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/flaresend-dev/flaresend.git",
+    "directory": "packages/types"
+  },
+  "homepage": "https://github.com/flaresend-dev/flaresend/tree/main/packages/types#readme",
+  "bugs": "https://github.com/flaresend-dev/flaresend/issues",
+  "keywords": ["email", "cloudflare", "zod", "flaresend"],
+  "engines": { "node": ">=18" },
+  "sideEffects": false,
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+      "require": { "types": "./dist/index.d.cts", "default": "./dist/index.cjs" }
+    }
+  },
+  "files": ["dist"],
+  "publishConfig": { "access": "public" },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.0",
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.0"
+  }
+}

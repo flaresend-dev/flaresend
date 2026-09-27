@@ -1,0 +1,115 @@
+---
+title: Retrieve a webhook
+description: One webhook by ID, without its secret.
+method: GET
+---
+
+<Endpoint method="GET" path="/v1/webhooks/:id" />
+
+<ApiPage>
+<ApiMain>
+
+The secret is never returned here. If you lost it, [rotate it](/docs/api-reference/webhooks/rotate-secret) to get a new one.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="id" type="string" required>
+  The webhook ID, for example `wh_01K6B3C8R2M5T7V9X1Z3B5D7F9`.
+</ParamField>
+
+</Fields>
+
+## Response
+
+<Fields>
+
+<ResponseField name="id" type="string">
+  The webhook ID.
+</ResponseField>
+
+<ResponseField name="projectId" type="string">
+  The project the webhook belongs to.
+</ResponseField>
+
+<ResponseField name="url" type="string">
+  The endpoint URL.
+</ResponseField>
+
+<ResponseField name="events" type="string[]">
+  The subscribed event types. `"*"` means all.
+</ResponseField>
+
+<ResponseField name="enabled" type="boolean">
+  Whether the webhook receives events.
+</ResponseField>
+
+<ResponseField name="createdAt" type="string">
+  ISO 8601 timestamp.
+</ResponseField>
+
+<ResponseField name="updatedAt" type="string">
+  ISO 8601 timestamp.
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `webhook_not_found` | No webhook with this ID in the project. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const webhook = await flaresend.webhooks.get('wh_01K6B3C8R2M5T7V9X1Z3B5D7F9');
+```
+
+```bash tab="cURL" tab-group="lang"
+curl https://mailer.example.com/v1/webhooks/wh_01K6B3C8R2M5T7V9X1Z3B5D7F9 \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "id": "wh_01K6B3C8R2M5T7V9X1Z3B5D7F9",
+  "projectId": "proj_01K6A9W2E4R6T8Y0U2I4O6P8A0",
+  "url": "https://acme.com/webhooks/flaresend",
+  "events": ["email.delivered", "email.bounced", "email.complained"],
+  "enabled": true,
+  "createdAt": "2026-09-26T10:00:00.000Z",
+  "updatedAt": "2026-09-26T10:00:00.000Z"
+}
+```
+
+```json tab="404" tab-group="status"
+{
+  "error": {
+    "type": "not_found",
+    "code": "webhook_not_found",
+    "message": "webhook wh_01K6B3C8R2M5T7V9X1Z3B5D7F9 not found",
+    "param": "id"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

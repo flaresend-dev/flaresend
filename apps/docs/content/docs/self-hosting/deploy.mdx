@@ -1,0 +1,188 @@
+---
+title: Deploy
+description: Set up Flaresend in your Cloudflare account, from an empty account to your first API key.
+icon: Rocket
+---
+
+This is the one-time setup. A script does almost all of it. The same steps by hand are below.
+
+## Quick setup
+
+```bash
+pnpm install
+npx wrangler login
+pnpm bootstrap
+```
+
+`pnpm bootstrap` (`scripts/bootstrap.mjs`) asks for your sending domain, an optional hostname for the mailer, and a `CF_API_TOKEN`. It lists the token's permissions and checks the token before using it. Then it creates the D1 database, R2 bucket and queues, deploys the mailer with its secrets, creates the first project and a live API key, onboards the domain, and deploys the [dashboard](/docs/self-hosting/dashboard). At the end it asks for the two Cloudflare Access values for the dashboard. You can skip that and run it again later.
+
+It is safe to run again: anything that already exists is kept, and existing secrets are not replaced. Your answers and the admin key are saved in `.flaresend/bootstrap.json` (gitignored).
+
+You need the Workers Paid plan (for Queues), and the sending domain's DNS on Cloudflare in the same account.
+
+## Manual setup
+
+Run the commands from `apps/mailer` unless a step says otherwise. Replace `acme.com`, `<ZONE_ID>` and `mailer.example.com` with your own values.
+
+<Steps>
+<Step>
+
+### Log in to Cloudflare
+
+```bash
+npx wrangler login
+```
+
+</Step>
+<Step>
+
+### Create the resources
+
+```bash
+npx wrangler d1 create flaresend
+npx wrangler r2 bucket create flaresend-payloads
+npx wrangler r2 bucket lifecycle add flaresend-payloads expire-payloads-30-days payloads/ --expire-days 30
+npx wrangler queues create flaresend-send
+npx wrangler queues create flaresend-events
+npx wrangler queues create flaresend-dlq
+npx wrangler queues create flaresend-webhooks
+```
+
+There is no `database_id` to paste. `wrangler.jsonc` names the database `flaresend`, and Wrangler looks it up by name in the account you deploy to.
+
+The lifecycle rule deletes email bodies from R2 after 30 days. After that, [`GET /v1/emails/:id/content`](/docs/api-reference/emails/content) returns `404 content_expired` and the email can no longer be resent. The metadata in D1 stays.
+
+</Step>
+<Step>
+
+### Onboard each sending domain
+
+Repeat this for every domain a project will send from. On zones that use Cloudflare DNS, it adds the SPF and DKIM records for you.
+
+```bash
+npx wrangler email sending enable acme.com
+npx wrangler email sending dns get acme.com   # confirm the records
+npx wrangler email sending list
+```
+
+Add a DMARC record for the domain too, unless the onboarding already added one:
+
+```txt
+_dmarc.acme.com  TXT  "v=DMARC1; p=quarantine; rua=mailto:dmarc@acme.com"
+```
+
+<Callout>
+  Once the mailer is deployed with a `CF_API_TOKEN` that has the Edit permissions listed in [Configuration](/docs/self-hosting/configuration#cf_api_token), the dashboard can do this step and the next one for you: **Add domain** onboards a new domain, and **Set up in Cloudflare** does it for a domain already on the project. The CLI and API equivalent is [Set up a domain](/docs/api-reference/admin/setup-domain).
+</Callout>
+
+</Step>
+<Step>
+
+### Send delivery events to the events queue
+
+One subscription per sending domain. `--zone-id` is the zone that contains the domain.
+
+```bash
+npx wrangler queues subscription create flaresend-events \
+  --source email.sending \
+  --events message.delivered,message.deferred,message.bounced,message.failed,message.rejected,message.complained \
+  --zone-id <ZONE_ID> --domain acme.com \
+  --name flaresend-acme-com
+```
+
+<Callout type="warn">
+  Without this subscription emails still send, but they stay at `sent` forever: no `delivered`, `bounced` or `complained` status, and no automatic suppressions.
+</Callout>
+
+</Step>
+<Step>
+
+### Set the secrets
+
+```bash
+npx wrangler secret put ADMIN_API_KEY     # generate with: openssl rand -base64 32
+npx wrangler secret put TRACKING_SECRET   # open/click tracking and unsubscribe links: openssl rand -base64 32
+npx wrangler secret put CF_ACCOUNT_ID     # your account ID (npx wrangler whoami)
+npx wrangler secret put CF_API_TOKEN      # optional: domain status and domain setup
+```
+
+[Configuration](/docs/self-hosting/configuration) lists the token's permissions. `CF_ACCOUNT_ID` and `PUBLIC_BASE_URL` (next step) are secrets rather than `vars`, so `wrangler.jsonc` holds nothing specific to your account. `wrangler deploy` never removes secrets.
+
+</Step>
+<Step>
+
+### Set the public URL
+
+The mailer answers on `https://flaresend.<your-subdomain>.workers.dev`. To serve it on your own hostname too, add a custom domain under **Workers & Pages → flaresend → Settings → Domains & Routes → Add → Custom domain**, or deploy once with `npx wrangler deploy --domain mailer.example.com`. `wrangler.jsonc` has no `routes`, so later deploys leave the custom domain alone.
+
+Set `PUBLIC_BASE_URL` to the URL people should see. Tracking pixels, click links and unsubscribe links point there.
+
+```bash
+npx wrangler secret put PUBLIC_BASE_URL   # for example https://mailer.example.com, no trailing slash
+```
+
+</Step>
+<Step>
+
+### Migrate and deploy
+
+```bash
+npx wrangler d1 migrations apply flaresend --remote
+npx wrangler deploy
+```
+
+Check that it answers. `/health` runs a D1 query and returns `{ "ok": true }`:
+
+```bash
+curl https://mailer.example.com/health
+```
+
+From the repo root, `pnpm run deploy` does both steps (`migrate:remote`, then `deploy` in `apps/mailer`).
+
+</Step>
+<Step>
+
+### Create the first project and API key
+
+```bash
+curl -X POST https://mailer.example.com/v1/admin/projects \
+  -H "Authorization: Bearer $FLARESEND_ADMIN_KEY" -H "Content-Type: application/json" \
+  -d '{"slug":"acme","name":"Acme","defaultFrom":"Acme <hello@acme.com>","allowedDomains":["acme.com"]}'
+
+curl -X POST https://mailer.example.com/v1/admin/projects/acme/api-keys \
+  -H "Authorization: Bearer $FLARESEND_ADMIN_KEY" -H "Content-Type: application/json" \
+  -d '{"name":"production","mode":"live"}'
+```
+
+The second call returns the full key once. Store it in your app's secrets: Flaresend keeps only the first 12 characters and a SHA-256 hash.
+
+Or with the [CLI](/docs/self-hosting/cli):
+
+```bash
+export FLARESEND_BASE_URL=https://mailer.example.com FLARESEND_ADMIN_KEY=...
+flaresend projects create --slug acme --name Acme --domains acme.com --default-from "Acme <hello@acme.com>"
+flaresend keys create --project acme --name production --mode live
+```
+
+</Step>
+<Step>
+
+### Send a test email
+
+```bash
+curl -X POST https://mailer.example.com/v1/emails \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"to":"you@your-inbox.com","subject":"It works","text":"Sent through Flaresend."}'
+```
+
+`from` can be left out because the project has a `defaultFrom`. Then follow the [Quickstart](/docs/quickstart).
+
+</Step>
+</Steps>
+
+## Optional next steps
+
+- Deploy the [dashboard](/docs/self-hosting/dashboard).
+- Set up [CI](/docs/self-hosting/ci) so pushes to `main` migrate and deploy.
+- Let other Workers send over RPC: add a service binding to `flaresend`, entrypoint `MailerRpc`. See [Cloudflare Workers](/docs/send-with/cloudflare-workers).

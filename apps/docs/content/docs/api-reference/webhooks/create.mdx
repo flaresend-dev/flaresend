@@ -1,0 +1,145 @@
+---
+title: Create a webhook
+description: Register an endpoint that receives a signed POST for the email events you pick.
+method: POST
+---
+
+<Endpoint method="POST" path="/v1/webhooks" />
+
+<ApiPage>
+<ApiMain>
+
+Flaresend POSTs a JSON payload to `url` every time one of the chosen events happens to an email in this project. The response contains the signing `secret`. It is only shown here and when you [rotate the secret](/docs/api-reference/webhooks/rotate-secret), so store it now. Use it to [verify signatures](/docs/webhooks/verify).
+
+## Body parameters
+
+<Fields>
+
+<ParamField body="url" type="string" required>
+  The endpoint to call. Must be an `http://` or `https://` URL.
+</ParamField>
+
+<ParamField body="events" type="string[]" default='["*"]'>
+  The event types to send. `"*"` means every type. At least one entry. Duplicates are removed. Allowed values:
+
+  `email.queued`, `email.sent`, `email.delivered`, `email.deferred`, `email.bounced`, `email.complained`, `email.rejected`, `email.failed`, `email.opened`, `email.clicked`, `email.canceled`, `*`
+
+  See [Event types](/docs/webhooks/event-types).
+</ParamField>
+
+<ParamField body="enabled" type="boolean" default="true">
+  A disabled webhook receives nothing, and deliveries that were still pending when it was disabled are marked `failed`.
+</ParamField>
+
+</Fields>
+
+## Response
+
+Status `201`.
+
+<Fields>
+
+<ResponseField name="id" type="string">
+  The webhook ID, for example `wh_01K6B3C8R2M5T7V9X1Z3B5D7F9`.
+</ResponseField>
+
+<ResponseField name="projectId" type="string">
+  The project the webhook belongs to.
+</ResponseField>
+
+<ResponseField name="url" type="string">
+  The endpoint URL.
+</ResponseField>
+
+<ResponseField name="events" type="string[]">
+  The subscribed event types, without duplicates.
+</ResponseField>
+
+<ResponseField name="enabled" type="boolean">
+  Whether the webhook receives events.
+</ResponseField>
+
+<ResponseField name="secret" type="string">
+  The signing secret, `whsec_` followed by 32 letters and digits. Returned only on create and on rotate.
+</ResponseField>
+
+<ResponseField name="createdAt" type="string">
+  ISO 8601 timestamp.
+</ResponseField>
+
+<ResponseField name="updatedAt" type="string">
+  ISO 8601 timestamp.
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `missing_body` | The request has no body. |
+| 400 | `invalid_body` | `url` is not an http(s) URL, or `events` is empty or has an unknown type. `param` names the field. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const webhook = await flaresend.webhooks.create({
+  url: 'https://acme.com/webhooks/flaresend',
+  events: ['email.delivered', 'email.bounced', 'email.complained'],
+});
+
+// Store webhook.secret now. It is not shown again.
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/webhooks \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://acme.com/webhooks/flaresend",
+    "events": ["email.delivered", "email.bounced", "email.complained"]
+  }'
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="201" tab-group="status"
+{
+  "id": "wh_01K6B3C8R2M5T7V9X1Z3B5D7F9",
+  "projectId": "proj_01K6A9W2E4R6T8Y0U2I4O6P8A0",
+  "url": "https://acme.com/webhooks/flaresend",
+  "events": ["email.delivered", "email.bounced", "email.complained"],
+  "enabled": true,
+  "createdAt": "2026-09-26T10:00:00.000Z",
+  "updatedAt": "2026-09-26T10:00:00.000Z",
+  "secret": "whsec_4fK9aQ2mZ7xR1pL8vT3nB6cY0hJ5wE2d"
+}
+```
+
+```json tab="400" tab-group="status"
+{
+  "error": {
+    "type": "validation_error",
+    "code": "invalid_body",
+    "message": "url: url must be http(s)",
+    "param": "url"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

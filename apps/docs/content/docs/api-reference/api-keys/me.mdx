@@ -1,0 +1,88 @@
+---
+title: Retrieve the current key
+description: Find out which project and key a request is using. A cheap way to check a key works.
+method: GET
+---
+
+<Endpoint method="GET" path="/v1/me" />
+
+<ApiPage>
+<ApiMain>
+
+Returns the project and the key that made the request. It reads nothing else, so it's the quickest way to check that a key is valid and the mailer is reachable, for example in a health check or right after deploying a new key.
+
+## Response
+
+<Fields>
+
+<ResponseField name="project" type="{ id, slug, name }">
+  The project the key belongs to.
+</ResponseField>
+
+<ResponseField name="key" type="{ id, name, mode }">
+  The key: its ID, its name and whether it's `live` or `test`.
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 401 | `missing_api_key`, `invalid_api_key`, `revoked_api_key`, `expired_api_key` | The key doesn't work. See [Authentication](/docs/api-reference/authentication). |
+| 403 | `project_disabled` | The project is disabled. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const { project, key } = await flaresend.me();
+```
+
+```bash tab="cURL" tab-group="lang"
+curl https://mailer.example.com/v1/me \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "project": {
+    "id": "proj_01K5ZQ8M3N6P1R4S7T0V2W5X8Y",
+    "slug": "acme",
+    "name": "Acme"
+  },
+  "key": {
+    "id": "key_01K5ZQ9A1B2C3D4E5F6G7H8J9K",
+    "name": "production",
+    "mode": "live"
+  }
+}
+```
+
+```json tab="401" tab-group="status"
+{
+  "error": {
+    "type": "authentication_error",
+    "code": "invalid_api_key",
+    "message": "invalid API key"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

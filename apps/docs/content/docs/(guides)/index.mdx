@@ -1,0 +1,98 @@
+---
+title: Introduction
+description: Flaresend is a transactional email API that runs in your own Cloudflare account.
+icon: House
+---
+
+import { Rocket, Code2, Braces, Server, Webhook, LayoutTemplate, ShieldCheck, Cloud } from 'lucide-react';
+
+Flaresend gives your apps a Resend-style email API on top of [Cloudflare Email Service](https://developers.cloudflare.com/email-service/). You deploy one Worker, and every app you run sends through it: other Workers call it over a service binding, and everything else calls a REST API with a project key.
+
+Every send is logged, retried on failure, tracked through delivery, and reported back to you with signed webhooks. Nothing leaves your Cloudflare account.
+
+<Cards>
+  <Card icon={<Rocket />} title="Quickstart" href="/docs/quickstart">
+    Send your first email in under five minutes.
+  </Card>
+  <Card icon={<Braces />} title="API Reference" href="/docs/api-reference">
+    Every endpoint, parameter and error code.
+  </Card>
+  <Card icon={<Code2 />} title="SDK" href="/docs/sdk">
+    `@flaresend/client` for Node.js, Bun, Deno, browsers and Workers.
+  </Card>
+  <Card icon={<Server />} title="Self-hosting" href="/docs/self-hosting">
+    Deploy the mailer Worker to your own account.
+  </Card>
+</Cards>
+
+## Send in one call
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+await flaresend.emails.send({
+  from: 'Acme <hello@acme.com>',
+  to: 'ada@example.com',
+  subject: 'Hello from Flaresend',
+  html: '<p>It works.</p>',
+});
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/emails \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "from": "Acme <hello@acme.com>",
+    "to": "ada@example.com",
+    "subject": "Hello from Flaresend",
+    "html": "<p>It works.</p>"
+  }'
+```
+
+```ts tab="Worker (RPC)" tab-group="lang"
+import { rpcClient } from '@flaresend/client/rpc';
+
+const mail = rpcClient(env.MAILER, { project: 'acme' });
+
+await mail.send({
+  from: 'Acme <hello@acme.com>',
+  to: 'ada@example.com',
+  subject: 'Hello from Flaresend',
+  html: '<p>It works.</p>',
+});
+```
+
+`https://mailer.example.com` stands for the URL of your own mailer Worker. Flaresend is not a hosted service: you [deploy it](/docs/self-hosting/deploy) once, then point every app at it.
+
+## What you get
+
+<Cards>
+  <Card icon={<Cloud />} title="Two ways to send" href="/docs/how-it-works">
+    REST with a project API key from anywhere, or RPC over a service binding from Workers, with no key at all.
+  </Card>
+  <Card icon={<ShieldCheck />} title="Safe retries" href="/docs/emails/idempotency">
+    Idempotency keys, queue retries with backoff, and a status that never goes backwards.
+  </Card>
+  <Card icon={<LayoutTemplate />} title="Templates" href="/docs/templates">
+    Built-in React Email templates, plus templates you edit in the dashboard with version history.
+  </Card>
+  <Card icon={<Webhook />} title="Webhooks" href="/docs/webhooks">
+    Signed events for delivered, bounced, complained, opened, clicked and more.
+  </Card>
+</Cards>
+
+## How it fits together
+
+<ArchitectureDiagram />
+
+Read [How it works](/docs/how-it-works) for the details of each step.
+
+<Callout type="warn" title="Transactional email only">
+  Cloudflare Email Service is for transactional email. Marketing and bulk campaigns are not permitted. Flaresend's [broadcasts](/docs/contacts/broadcasts) are off by default and capped at 500 recipients, for small lists of people who opted in.
+</Callout>

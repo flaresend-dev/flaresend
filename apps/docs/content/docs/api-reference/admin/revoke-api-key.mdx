@@ -1,0 +1,82 @@
+---
+title: Revoke an API key
+description: Stop a key from working, immediately and for good.
+method: DELETE
+---
+
+<Endpoint method="DELETE" path="/v1/admin/api-keys/:id" auth="admin" />
+
+<ApiPage>
+<ApiMain>
+
+Sets the key's `revokedAt`. From then on every request with it fails with `401 revoked_api_key`. There is no way to un-revoke a key; create a new one instead. The key record is not deleted and still shows in [List API keys](/docs/api-reference/admin/list-api-keys).
+
+Revoking a key that is already revoked succeeds and keeps the original `revokedAt`.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="id" type="string" required>
+  The key ID.
+</ParamField>
+
+</Fields>
+
+## Response
+
+Status `200` with the key record, now with `revokedAt` set. Fields are described in [Create an API key](/docs/api-reference/admin/create-api-key#response).
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `api_key_not_found` | No key has this ID. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+const res = await fetch(
+  'https://mailer.example.com/v1/admin/api-keys/key_01K6B1T8W2N5R7X9Q3M6V4ZP8H',
+  {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${process.env.FLARESEND_ADMIN_KEY}` },
+  },
+);
+const key = await res.json();
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X DELETE https://mailer.example.com/v1/admin/api-keys/key_01K6B1T8W2N5R7X9Q3M6V4ZP8H \
+  -H "Authorization: Bearer $FLARESEND_ADMIN_KEY"
+```
+
+```bash tab="CLI" tab-group="lang"
+flaresend keys revoke key_01K6B1T8W2N5R7X9Q3M6V4ZP8H
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "id": "key_01K6B1T8W2N5R7X9Q3M6V4ZP8H",
+  "projectId": "proj_01K6B1QZ3M8H2V5T7R9N4XW6CD",
+  "name": "production-web",
+  "mode": "live",
+  "prefix": "fs_live_7Hq2",
+  "lastUsedAt": "2026-09-26T14:02:11.000Z",
+  "createdAt": "2026-09-26T10:05:00.000Z",
+  "revokedAt": "2026-09-27T09:00:00.000Z",
+  "expiresAt": null
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

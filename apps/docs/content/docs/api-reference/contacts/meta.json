@@ -1,0 +1,1 @@
+{ "title": "Contacts", "icon": "Contact", "pages": ["create", "list", "retrieve", "update", "delete", "import"] }

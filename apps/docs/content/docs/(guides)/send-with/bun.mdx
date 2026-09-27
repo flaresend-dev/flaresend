@@ -1,0 +1,117 @@
+---
+title: Send emails with Bun
+description: Use @flaresend/client from a Bun script or server.
+---
+
+## Prerequisites
+
+- A deployed mailer and its URL, for example `https://mailer.example.com`. See [Deploy](/docs/self-hosting/deploy).
+- An API key for your project. See [API keys](/docs/api-keys).
+
+## Install
+
+```bash
+bun add @flaresend/client
+```
+
+Bun loads `.env` automatically:
+
+```bash title=".env"
+FLARESEND_API_KEY=fs_live_...
+```
+
+## Send an email
+
+```ts title="index.ts"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: Bun.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const { id } = await flaresend.emails.send({
+  from: 'Acme <hello@acme.com>',
+  to: 'ada@example.com',
+  subject: 'Hello from Bun',
+  html: '<p>It works.</p>',
+  text: 'It works.',
+});
+
+console.log(id);
+```
+
+```bash
+bun run index.ts
+```
+
+## From a Bun server
+
+```ts title="server.ts"
+import { Flaresend, FlaresendError } from '@flaresend/client';
+
+const flaresend = new Flaresend({ apiKey: Bun.env.FLARESEND_API_KEY!, baseUrl: 'https://mailer.example.com' });
+
+Bun.serve({
+  port: 3000,
+  routes: {
+    '/invite': {
+      POST: async (req) => {
+        const { email, inviteId } = await req.json();
+        try {
+          const { id } = await flaresend.emails.send(
+            { from: 'Acme <hello@acme.com>', to: email, subject: "You're invited", text: 'Join us at https://acme.com' },
+            { idempotencyKey: `invite-${inviteId}` },
+          );
+          return Response.json({ id });
+        } catch (err) {
+          if (err instanceof FlaresendError) return Response.json({ error: err.toJSON() }, { status: err.status || 500 });
+          throw err;
+        }
+      },
+    },
+  },
+});
+```
+
+## Attachments from a file
+
+`attachmentFromBytes` base64-encodes bytes without `Buffer`:
+
+```ts
+import { attachmentFromBytes } from '@flaresend/client';
+
+const pdf = new Uint8Array(await Bun.file('./invoice.pdf').arrayBuffer());
+
+await flaresend.emails.send({
+  from: 'Acme <billing@acme.com>',
+  to: 'ada@example.com',
+  subject: 'Your invoice',
+  text: 'Your invoice is attached.',
+  attachments: [attachmentFromBytes('invoice.pdf', pdf, 'application/pdf')],
+});
+```
+
+## Idempotency
+
+The `idempotencyKey` above means the same invite is never emailed twice, even if the request is repeated. See [Idempotency](/docs/emails/idempotency).
+
+## Errors
+
+A failed call throws `FlaresendError`. `err.toJSON()` returns the API's error object:
+
+```json
+{
+  "type": "validation_error",
+  "code": "invalid_body",
+  "message": "to contains an invalid address: ada@",
+  "param": "to"
+}
+```
+
+See [Errors](/docs/sdk/errors).
+
+## Next steps
+
+- [HTTP client reference](/docs/sdk/http)
+- [Batch sending](/docs/emails/batch)

@@ -1,0 +1,191 @@
+---
+title: Create a template
+description: Store a template in the project, with Mustache-style variables.
+method: POST
+---
+
+<Endpoint method="POST" path="/v1/templates" />
+
+<ApiPage>
+<ApiMain>
+
+Creates version 1 of a template stored in the project. Send it with `template: "<name>"` in [Send an email](/docs/api-reference/emails/send). The syntax (`{{name}}`, `{{{raw}}}`, `{{#if}}`, `{{#each}}`) is described in [Custom templates](/docs/templates/custom).
+
+You can reuse the name of a [built-in template](/docs/templates/built-in). The stored template then wins over the built-in one for this project.
+
+## Body parameters
+
+<Fields>
+
+<ParamField body="name" type="string" required>
+  1 to 100 characters: lowercase letters, digits, `-` and `_`, starting with a letter or digit. Must be unique in the project.
+</ParamField>
+
+<ParamField body="subject" type="string" required>
+  1 to 998 characters. Variables are allowed, for example `Welcome, {{first_name}}`. Not HTML-escaped.
+</ParamField>
+
+<ParamField body="html" type="string" required>
+  The HTML body. Values inserted with `{{…}}` are HTML-escaped; `{{{…}}}` inserts them as is.
+</ParamField>
+
+<ParamField body="text" type="string">
+  The plain text body. When you leave it out, sends get a text version made from the rendered HTML.
+</ParamField>
+
+<ParamField body="variables" type="Variable[]">
+  The variables the template expects. A `required` variable must be present and not empty in `data`, or the send fails with `400 invalid_template_data`.
+
+  <Expandable title="variable properties">
+    <ParamField body="name" type="string" required>
+      The variable path, for example `first_name` or `order.total`.
+    </ParamField>
+    <ParamField body="required" type="boolean" default="false">
+      Reject sends that don't provide it.
+    </ParamField>
+    <ParamField body="example" type="any">
+      An example value. Stored with the template and returned as is.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+</Fields>
+
+## Response
+
+Status `201`.
+
+<Fields>
+
+<ResponseField name="id" type="string">
+  The template ID, for example `tmpl_01K6B5A7C9E1G3J5L7N9Q1S3U5`.
+</ResponseField>
+
+<ResponseField name="source" type="'db'">
+  Always `db` for stored templates.
+</ResponseField>
+
+<ResponseField name="projectId" type="string">
+  The project the template belongs to.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  The template name.
+</ResponseField>
+
+<ResponseField name="subject" type="string">
+  The subject, unrendered.
+</ResponseField>
+
+<ResponseField name="html" type="string">
+  The HTML, unrendered.
+</ResponseField>
+
+<ResponseField name="text" type="string | null">
+  The text body, or `null`.
+</ResponseField>
+
+<ResponseField name="variables" type="Variable[]">
+  The declared variables.
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  `1` for a new template.
+</ResponseField>
+
+<ResponseField name="createdAt" type="string">
+  ISO 8601 timestamp.
+</ResponseField>
+
+<ResponseField name="updatedAt" type="string">
+  ISO 8601 timestamp.
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `missing_body` | The request has no body. |
+| 400 | `invalid_body` | A field is missing or malformed, for example a name with capital letters. `param` names the field. |
+| 400 | `invalid_template` | A syntax error, such as an unclosed `{{#if}}`. `param` is `subject`, `html` or `text`. |
+| 409 | `template_exists` | The project already has a stored template with this name. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const template = await flaresend.templates.create({
+  name: 'order-shipped',
+  subject: 'Order {{order.number}} is on its way',
+  html: '<p>Hi {{first_name}}, your order has shipped.</p>',
+  variables: [
+    { name: 'first_name', required: true, example: 'Ada' },
+    { name: 'order.number', required: true, example: '1042' },
+  ],
+});
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/templates \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "order-shipped",
+    "subject": "Order {{order.number}} is on its way",
+    "html": "<p>Hi {{first_name}}, your order has shipped.</p>",
+    "variables": [
+      { "name": "first_name", "required": true, "example": "Ada" },
+      { "name": "order.number", "required": true, "example": "1042" }
+    ]
+  }'
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="201" tab-group="status"
+{
+  "id": "tmpl_01K6B5A7C9E1G3J5L7N9Q1S3U5",
+  "source": "db",
+  "projectId": "proj_01K6A9W2E4R6T8Y0U2I4O6P8A0",
+  "name": "order-shipped",
+  "subject": "Order {{order.number}} is on its way",
+  "html": "<p>Hi {{first_name}}, your order has shipped.</p>",
+  "text": null,
+  "variables": [
+    { "name": "first_name", "required": true, "example": "Ada" },
+    { "name": "order.number", "required": true, "example": "1042" }
+  ],
+  "version": 1,
+  "createdAt": "2026-09-26T10:00:00.000Z",
+  "updatedAt": "2026-09-26T10:00:00.000Z"
+}
+```
+
+```json tab="409" tab-group="status"
+{
+  "error": {
+    "type": "conflict",
+    "code": "template_exists",
+    "message": "template \"order-shipped\" already exists",
+    "param": "name"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

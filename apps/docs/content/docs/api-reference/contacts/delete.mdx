@@ -1,0 +1,81 @@
+---
+title: Delete a contact
+description: Remove a contact and take it out of every audience.
+method: DELETE
+---
+
+<Endpoint method="DELETE" path="/v1/contacts/:id" />
+
+<ApiPage>
+<ApiMain>
+
+Deletes the contact and removes it from every audience it was in. This can't be undone. Emails already sent to the contact stay in the email log.
+
+If you only want to stop sending to someone, [update the contact](/docs/api-reference/contacts/update) with `unsubscribed: true` instead. That keeps the record, so a later import or upsert doesn't subscribe them again.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="id" type="string" required>
+  The contact ID.
+</ParamField>
+
+</Fields>
+
+## Response
+
+<Fields>
+
+<ResponseField name="id" type="string">
+  The ID of the deleted contact.
+</ResponseField>
+
+<ResponseField name="deleted" type="true">
+  Always `true`.
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `contact_not_found` | No contact with that ID in this project. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+await flaresend.contacts.remove('ct_01K6C1M3R8T2V9X4Z6B7N5P0QA');
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X DELETE https://mailer.example.com/v1/contacts/ct_01K6C1M3R8T2V9X4Z6B7N5P0QA \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "id": "ct_01K6C1M3R8T2V9X4Z6B7N5P0QA",
+  "deleted": true
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

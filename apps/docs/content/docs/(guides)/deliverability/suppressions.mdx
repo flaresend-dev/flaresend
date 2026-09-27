@@ -1,0 +1,102 @@
+---
+title: Suppressions
+description: Addresses Flaresend refuses to send to, because they bounced hard, complained, or were added by hand.
+icon: Ban
+---
+
+The suppression list protects your sending reputation. Mailbox providers treat repeated mail to dead addresses, or to people who marked you as spam, as a sign of a bad sender. Once an address is on the list, every live send to it is refused before anything is queued.
+
+## How addresses get on the list
+
+| Reason | Added when |
+|---|---|
+| `hard_bounce` | Cloudflare reports a **hard** bounce for the address. Soft bounces (`email.deferred`) don't count. |
+| `hard_bounce` | Cloudflare's send call fails with `E_RECIPIENT_SUPPRESSED`. Every recipient of that email is added. |
+| `complaint` | The recipient marks an email as spam. A complaint replaces an earlier `hard_bounce` or `manual` reason. |
+| `manual` | You add it in the dashboard, with the admin API or the CLI. |
+
+Each entry keeps the ID of the email that caused it (`sourceEmailId`), when there is one.
+
+## What happens on a send
+
+A live send (with an `fs_live_` key, or over RPC) that includes a suppressed address in `to`, `cc` or `bcc` fails with:
+
+```json
+{
+  "error": {
+    "type": "unprocessable",
+    "code": "recipient_suppressed",
+    "message": "ada@example.com is on the suppression list (hard_bounce)",
+    "param": "ada@example.com"
+  }
+}
+```
+
+The status is `422`. `param` is the address. **The whole email is refused**, not just that one recipient: remove the address and send again. In a [batch](/docs/emails/batch), only that item fails.
+
+Test keys skip the check, so you can test with any address.
+
+Broadcasts check the list too, and skip suppressed contacts without failing the broadcast.
+
+## One list for all projects
+
+The suppression list is shared by every project on the mailer. An address that hard-bounced for one app is suppressed for all of them, because they all send through the same Cloudflare account and share its reputation.
+
+That is also why managing the list needs the **admin** key: project API keys can't read or change it.
+
+## Two lists: Flaresend's and Cloudflare's
+
+Cloudflare Email Service keeps its own suppression list for your account. Flaresend's list is a local mirror that it fills from Cloudflare's events, plus your manual entries.
+
+- Removing an address from Flaresend's list doesn't remove it from Cloudflare's. If Cloudflare still has it, the send fails later with `E_RECIPIENT_SUPPRESSED` and the email ends as `rejected` (and the address is added back to Flaresend's list).
+- To fully unblock an address, remove it in both places. Cloudflare's list is edited in the Cloudflare dashboard, under Email Service.
+
+## Manage the list
+
+<Tabs items={['Dashboard', 'Admin API', 'CLI']}>
+<Tab value="Dashboard">
+
+Open **Suppressions** in any project. Search, add an address, or remove one. The page shows the shared list.
+
+</Tab>
+<Tab value="Admin API">
+
+```bash
+# List, optionally searching by part of the address
+curl "https://mailer.example.com/v1/admin/suppressions?q=example.com&limit=50" \
+  -H "Authorization: Bearer $FLARESEND_ADMIN_KEY"
+
+# Add
+curl -X POST https://mailer.example.com/v1/admin/suppressions \
+  -H "Authorization: Bearer $FLARESEND_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "address": "ada@example.com", "reason": "manual" }'
+
+# Remove
+curl -X DELETE https://mailer.example.com/v1/admin/suppressions/ada%40example.com \
+  -H "Authorization: Bearer $FLARESEND_ADMIN_KEY"
+```
+
+Every response includes a `note` field reminding you that Cloudflare keeps its own list. See [List suppressions](/docs/api-reference/admin/list-suppressions), [Add](/docs/api-reference/admin/add-suppression) and [Remove](/docs/api-reference/admin/remove-suppression).
+
+</Tab>
+<Tab value="CLI">
+
+```bash
+flaresend suppressions list [--q text] [--limit 25] [--cursor <nextCursor>]
+flaresend suppressions add ada@example.com [--reason manual|hard_bounce|complaint]
+flaresend suppressions remove ada@example.com
+```
+
+See [CLI](/docs/self-hosting/cli).
+
+</Tab>
+</Tabs>
+
+<Callout type="warn" title="Think before removing a complaint">
+  An address with the reason `complaint` belongs to someone who said your email was spam. Only remove it if the person asked to get email again.
+</Callout>
+
+## Watch your rates
+
+[Analytics](/docs/api-reference/analytics/retrieve) returns `bounceRate` and `complaintRate` for the project, and `topBouncedDomains`. See [Best practices](/docs/deliverability/best-practices) for what to look for.

@@ -1,0 +1,25 @@
+{
+  "name": "@flaresend/cli",
+  "version": "0.1.0",
+  "description": "flaresend command line tool for the Flaresend admin API",
+  "type": "module",
+  "bin": { "flaresend": "./dist/index.js" },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "start": "node dist/index.js",
+    "dev:event": "node dist/index.js dev event"
+  },
+  "dependencies": {
+    "@flaresend/types": "workspace:*",
+    "commander": "^14.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.0"
+  }
+}

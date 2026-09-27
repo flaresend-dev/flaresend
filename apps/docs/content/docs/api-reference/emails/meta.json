@@ -1,0 +1,1 @@
+{ "title": "Emails", "icon": "Mail", "defaultOpen": true, "pages": ["send", "send-batch", "list", "retrieve", "content", "update", "cancel"] }

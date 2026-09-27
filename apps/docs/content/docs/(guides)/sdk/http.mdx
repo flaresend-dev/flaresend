@@ -1,0 +1,226 @@
+---
+title: HTTP client
+description: Reference for the Flaresend class. Every namespace and method, with retries and idempotency explained.
+icon: Globe
+---
+
+```ts
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+```
+
+## Options
+
+<TypeTable
+  type={{
+    apiKey: { type: 'string', required: true, description: 'A project API key, fs_live_… or fs_test_…. The constructor throws a TypeError when it is empty.' },
+    baseUrl: { type: 'string', required: true, description: 'Where your mailer Worker is deployed. There is no default. A trailing slash is removed.' },
+    fetch: { type: 'typeof fetch', default: 'globalThis.fetch', description: 'A custom fetch. Always called with globalThis as `this`, so passing the Workers fetch directly is safe.' },
+    maxRetries: { type: 'number', default: '2', description: 'Retries after the first attempt for requests that can be retried. 0 turns retries off.' },
+    sleep: { type: '(ms: number) => Promise<void>', description: 'Replaces the timer between retries. For tests.' },
+  }}
+/>
+
+Every request sends `Authorization: Bearer <apiKey>` and `Accept: application/json`, and JSON bodies with `Content-Type: application/json`.
+
+## Retries
+
+| Request | Retried on 429, 5xx and network errors? |
+|---|---|
+| Every `GET` | Yes |
+| `emails.send`, `emails.sendBatch` | Yes. Each call carries an idempotency key, so a retry never sends twice. |
+| Every other `POST`, `PATCH`, `DELETE` | No. Tried once. |
+
+- The wait between tries is exponential backoff with jitter: about 0.5 s, 1 s, 2 s and so on, capped at 8 s.
+- If the response has a `Retry-After` header, the client waits that long instead. If `Retry-After` is more than 60 seconds, it doesn't wait and throws the error.
+- `429 daily_limit_exceeded` is never retried: waiting a few seconds won't help.
+- Any other `4xx` is thrown at once.
+
+## Idempotency
+
+Every `emails.send` call gets an idempotency key, sent as the `Idempotency-Key` header. The key is, in order:
+
+1. `opts.idempotencyKey`, the second argument.
+2. `input.idempotencyKey`, in the email itself.
+3. A random `auto_<uuid>` made for this call.
+
+The same key is reused for that call's retries, so a timeout followed by a retry sends one email, not two. The random key does **not** protect you from your own code calling `send` twice. For that, pass a key that is stable for the thing you're sending:
+
+```ts
+await flaresend.emails.send(input, { idempotencyKey: `welcome-${user.id}` });
+```
+
+A second call with the same key and the same content returns the first email with `idempotent: true`. The same key with different content throws `409 idempotency_payload_mismatch`. Keys don't expire. See [Idempotency](/docs/emails/idempotency).
+
+`emails.sendBatch` works the same way with one key for the whole batch; the mailer stores it per item as `<key>:<index>`.
+
+## Methods
+
+Paginated methods return `{ data, nextCursor }`. Pass `nextCursor` back as `cursor` for the next page; it is `null` on the last page. Other `list` methods return a plain array.
+
+### `me()`
+
+```ts
+me(): Promise<MeRecord>
+```
+
+`GET /v1/me`. Returns `{ project: { id, slug, name }, key: { id, name, mode } }`. A cheap way to check the key and URL work.
+
+### `emails`
+
+| Method | Endpoint | Returns |
+|---|---|---|
+| `send(input, opts?)` | [`POST /v1/emails`](/docs/api-reference/emails/send) | `{ id, status, idempotent? }` |
+| `sendBatch(inputs, opts?)` | [`POST /v1/emails/batch`](/docs/api-reference/emails/send-batch) | `{ data }`, or `{ dryRun: true, data }` with `opts.dryRun` |
+| `get(id)` | [`GET /v1/emails/:id`](/docs/api-reference/emails/retrieve) | `EmailRecord` with recipients and events |
+| `list(query?)` | [`GET /v1/emails`](/docs/api-reference/emails/list) | `ListResponse<EmailRecord>` |
+| `content(id)` | [`GET /v1/emails/:id/content`](/docs/api-reference/emails/content) | `EmailContent` |
+| `cancel(id)` | [`DELETE /v1/emails/:id`](/docs/api-reference/emails/cancel) | `{ id, status: 'canceled' }` |
+| `reschedule(id, scheduledAt)` | [`PATCH /v1/emails/:id`](/docs/api-reference/emails/update) | `EmailRecord` |
+
+`opts` for `send` is `{ idempotencyKey?: string }`. For `sendBatch` it is `{ idempotencyKey?: string; dryRun?: boolean }`.
+
+`list` takes `{ limit, cursor, status, to, from, q, tag, since, until }`. `to` matches any of to, cc and bcc. `q` searches the subject. `tag` is `key:value`.
+
+```ts
+const page = await flaresend.emails.list({ status: 'bounced', since: '2026-09-01T00:00:00Z', limit: 50 });
+```
+
+### `events`
+
+| Method | Endpoint | Returns |
+|---|---|---|
+| `list(query?)` | [`GET /v1/events`](/docs/api-reference/events/list) | `ListResponse<EventRecord>` |
+
+`query` is `{ limit, cursor, type, emailId, since }`.
+
+### `domains`
+
+| Method | Endpoint | Returns |
+|---|---|---|
+| `list()` | [`GET /v1/domains`](/docs/api-reference/domains/list) | `DomainRecord[]` |
+
+### `apiKeys`
+
+| Method | Endpoint | Returns |
+|---|---|---|
+| `list()` | [`GET /v1/api-keys`](/docs/api-reference/api-keys/list) | `ApiKeyRecord[]` |
+
+### `webhooks`
+
+| Method | Endpoint | Returns |
+|---|---|---|
+| `list()` | [`GET /v1/webhooks`](/docs/api-reference/webhooks/list) | `WebhookRecord[]` |
+| `create(input)` | [`POST /v1/webhooks`](/docs/api-reference/webhooks/create) | `WebhookRecord` including `secret` |
+| `get(id)` | [`GET /v1/webhooks/:id`](/docs/api-reference/webhooks/retrieve) | `WebhookRecord` |
+| `update(id, input)` | [`PATCH /v1/webhooks/:id`](/docs/api-reference/webhooks/update) | `WebhookRecord` |
+| `remove(id)` | [`DELETE /v1/webhooks/:id`](/docs/api-reference/webhooks/delete) | `{ id, deleted: true }` |
+| `test(id)` | [`POST /v1/webhooks/:id/test`](/docs/api-reference/webhooks/test) | `{ deliveryId }` |
+| `rotateSecret(id)` | [`POST /v1/webhooks/:id/rotate-secret`](/docs/api-reference/webhooks/rotate-secret) | `WebhookRecord` including the new `secret` |
+| `deliveries(id, query?)` | [`GET /v1/webhooks/:id/deliveries`](/docs/api-reference/webhooks/deliveries) | `ListResponse<WebhookDeliveryRecord>` |
+
+### `templates`
+
+| Method | Endpoint | Returns |
+|---|---|---|
+| `list()` | [`GET /v1/templates`](/docs/api-reference/templates/list) | `TemplateRecord[]`, stored and built-in |
+| `get(name)` | [`GET /v1/templates/:name`](/docs/api-reference/templates/retrieve) | `TemplateRecord` |
+| `create(input)` | [`POST /v1/templates`](/docs/api-reference/templates/create) | `TemplateRecord` |
+| `update(name, input)` | [`PATCH /v1/templates/:name`](/docs/api-reference/templates/update) | `TemplateRecord` |
+| `remove(name)` | [`DELETE /v1/templates/:name`](/docs/api-reference/templates/delete) | `{ name, deleted: true }` |
+| `versions(name)` | [`GET /v1/templates/:name/versions`](/docs/api-reference/templates/versions) | `TemplateVersionRecord[]` |
+| `restore(name, version)` | [`POST /v1/templates/:name/restore`](/docs/api-reference/templates/restore) | `TemplateRecord` |
+| `render(name, data?)` | [`POST /v1/templates/:name/render`](/docs/api-reference/templates/render) | `{ subject, html, text }` |
+
+### `analytics`
+
+| Method | Endpoint | Returns |
+|---|---|---|
+| `get(query?)` | [`GET /v1/analytics`](/docs/api-reference/analytics/retrieve) | `AnalyticsResult` |
+
+`query` is `{ range: '7d' | '30d' | '90d', interval: 'day' | 'hour' }`, defaults `7d` and `day`.
+
+### `contacts`
+
+| Method | Endpoint | Returns |
+|---|---|---|
+| `list(query?)` | [`GET /v1/contacts`](/docs/api-reference/contacts/list) | `ListResponse<ContactRecord>`. `query` is `{ limit, cursor, q }` |
+| `create(input)` | [`POST /v1/contacts`](/docs/api-reference/contacts/create) | `ContactRecord`. Upserts by email |
+| `get(id)` | [`GET /v1/contacts/:id`](/docs/api-reference/contacts/retrieve) | `ContactRecord` |
+| `update(id, input)` | [`PATCH /v1/contacts/:id`](/docs/api-reference/contacts/update) | `ContactRecord` |
+| `remove(id)` | [`DELETE /v1/contacts/:id`](/docs/api-reference/contacts/delete) | `{ id, deleted: true }` |
+| `import(contacts)` | [`POST /v1/contacts/import`](/docs/api-reference/contacts/import) | `{ created, updated }`. Up to 5,000 |
+
+### `audiences`
+
+| Method | Endpoint | Returns |
+|---|---|---|
+| `list()` | [`GET /v1/audiences`](/docs/api-reference/audiences/list) | `AudienceRecord[]` |
+| `create({ name })` | [`POST /v1/audiences`](/docs/api-reference/audiences/create) | `AudienceRecord` |
+| `get(id)` | [`GET /v1/audiences/:id`](/docs/api-reference/audiences/retrieve) | `AudienceRecord` |
+| `update(id, { name })` | [`PATCH /v1/audiences/:id`](/docs/api-reference/audiences/update) | `AudienceRecord` |
+| `remove(id)` | [`DELETE /v1/audiences/:id`](/docs/api-reference/audiences/delete) | `{ id, deleted: true }` |
+| `contacts(id, query?)` | [`GET /v1/audiences/:id/contacts`](/docs/api-reference/audiences/list-contacts) | `ListResponse<ContactRecord>` |
+| `addContacts(id, contactIds)` | [`POST /v1/audiences/:id/contacts`](/docs/api-reference/audiences/add-contacts) | `{ added }` |
+| `removeContacts(id, contactIds)` | [`DELETE /v1/audiences/:id/contacts`](/docs/api-reference/audiences/remove-contacts) | `{ removed }` |
+
+### `broadcasts`
+
+| Method | Endpoint | Returns |
+|---|---|---|
+| `list()` | [`GET /v1/broadcasts`](/docs/api-reference/broadcasts/list) | `BroadcastRecord[]` |
+| `create(input)` | [`POST /v1/broadcasts`](/docs/api-reference/broadcasts/create) | `BroadcastRecord`, a draft |
+| `get(id)` | [`GET /v1/broadcasts/:id`](/docs/api-reference/broadcasts/retrieve) | `BroadcastRecord` with `counts` |
+| `update(id, input)` | [`PATCH /v1/broadcasts/:id`](/docs/api-reference/broadcasts/update) | `BroadcastRecord` |
+| `remove(id)` | [`DELETE /v1/broadcasts/:id`](/docs/api-reference/broadcasts/delete) | `{ id, deleted: true }` |
+| `send(id, { scheduledAt? })` | [`POST /v1/broadcasts/:id/send`](/docs/api-reference/broadcasts/send) | `BroadcastRecord` |
+| `cancel(id)` | [`POST /v1/broadcasts/:id/cancel`](/docs/api-reference/broadcasts/cancel) | `BroadcastRecord` |
+
+## Helpers
+
+### `attachmentFromBytes(filename, bytes, type?)`
+
+Builds an attachment from an `ArrayBuffer` or `Uint8Array`. The API needs attachment content as base64; this does the encoding without `Buffer`, so it works in Workers and browsers too.
+
+```ts
+import { attachmentFromBytes } from '@flaresend/client';
+
+const pdf = new Uint8Array(await file.arrayBuffer());
+await flaresend.emails.send({
+  from: 'Acme <billing@acme.com>',
+  to: 'ada@example.com',
+  subject: 'Your invoice',
+  text: 'Your invoice is attached.',
+  attachments: [attachmentFromBytes('invoice.pdf', pdf, 'application/pdf')],
+});
+```
+
+`bytesToBase64(bytes)` is exported too, if you only need the encoding.
+
+### Typed templates
+
+Pass a map of template name to data type as the type argument of `send`, and `data` is checked against the template you name:
+
+```ts
+type Templates = {
+  welcome: { name: string; appName: string; loginUrl: string };
+  'magic-link': { loginUrl: string; expiresInMinutes?: number };
+};
+
+await flaresend.emails.send<Templates>({
+  from: 'Acme <hello@acme.com>',
+  to: 'ada@example.com',
+  template: 'welcome',
+  data: { name: 'Ada', appName: 'Acme', loginUrl: 'https://acme.com/login' },
+});
+```
+
+`TypedSend<Templates>` is the input type on its own. See [Typed templates](/docs/templates/typed).
+
+## Exported types
+
+The package re-exports the request and response types from `@flaresend/types`, including `SendEmailInput`, `SendEmailResult`, `EmailRecord`, `EmailContent`, `EventRecord`, `ListResponse`, `BatchResult`, `BatchDryRunResult`, `WebhookRecord`, `WebhookPayload`, `TemplateRecord`, `ContactRecord`, `AudienceRecord`, `BroadcastRecord` and `AnalyticsResult`.

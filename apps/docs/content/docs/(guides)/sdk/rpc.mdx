@@ -1,0 +1,119 @@
+---
+title: RPC client
+description: Send from another Cloudflare Worker over a service binding. No API key, no public network hop.
+icon: Cloud
+---
+
+A Worker in the same Cloudflare account as the mailer can call it directly through a [service binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/rpc/). The call runs inside Cloudflare, so there is no API key to store and no request over the public internet.
+
+## Set up the binding
+
+In the **calling** Worker's `wrangler.jsonc`:
+
+```jsonc title="wrangler.jsonc"
+{
+  "services": [
+    { "binding": "MAILER", "service": "flaresend", "entrypoint": "MailerRpc" }
+  ]
+}
+```
+
+`service` is the name of your mailer Worker (`flaresend` unless you renamed it) and `entrypoint` must be `MailerRpc`.
+
+Then install the client:
+
+```bash
+npm install @flaresend/client
+```
+
+## Send
+
+```ts
+import { rpcClient, type MailerRpcBinding } from '@flaresend/client/rpc';
+
+interface Env {
+  MAILER: MailerRpcBinding;
+}
+
+export default {
+  async fetch(req: Request, env: Env) {
+    const mail = rpcClient(env.MAILER, { project: 'acme' });
+
+    const { id, status } = await mail.send(
+      {
+        from: 'Acme <hello@acme.com>',
+        to: 'ada@example.com',
+        subject: 'Welcome to Acme',
+        html: '<p>Thanks for signing up.</p>',
+      },
+      { idempotencyKey: 'welcome-42' },
+    );
+
+    return Response.json({ id, status });
+  },
+};
+```
+
+`project` is the project's **slug**. The mailer trusts it, because only Workers in the same account can bind to the mailer. The project must have `rpcEnabled` on (the default); otherwise calls fail with `403 rpc_disabled`.
+
+`rpcClient` throws a `TypeError` at once if the binding or `project` is missing.
+
+## Methods
+
+| Method | Does | Returns |
+|---|---|---|
+| `send(input, opts?)` | Same as [`POST /v1/emails`](/docs/api-reference/emails/send) | `{ id, status, idempotent? }` |
+| `sendBatch(inputs)` | Same as [`POST /v1/emails/batch`](/docs/api-reference/emails/send-batch), up to 100 | `{ data }`, results in input order |
+| `get(emailId)` | Same as [`GET /v1/emails/:id`](/docs/api-reference/emails/retrieve) | `EmailRecord`, or **`null`** when the email doesn't exist in this project |
+| `list(query?)` | Same as [`GET /v1/emails`](/docs/api-reference/emails/list) | `{ data, nextCursor }` |
+| `cancel(emailId)` | Same as [`DELETE /v1/emails/:id`](/docs/api-reference/emails/cancel) | `{ id, status: 'canceled' }` |
+
+That's the whole RPC surface. For templates, webhooks, contacts and the rest, use the [HTTP client](/docs/sdk/http) with an API key.
+
+## How RPC differs from HTTP
+
+| | RPC | HTTP |
+|---|---|---|
+| Authentication | The binding. No key. | `fs_live_` / `fs_test_` API key |
+| Project | Passed as `project: 'acme'` | Decided by the key |
+| Test mode | Not available. Every RPC send is live. | Use a `fs_test_` key |
+| Idempotency key | `opts.idempotencyKey` is copied into `input.idempotencyKey` (it wins if both are set). No automatic key. | Sent as a header; a random key is added to every call |
+| Retries | None. The client calls once. | 429, 5xx and network errors are retried |
+| Rate and daily limits | Apply | Apply |
+| Email `source` in the log | `rpc` (`batch` for `sendBatch`) | `http` (`batch` for batch) |
+
+Because RPC calls don't retry, and a failed call might still have queued the email, pass an `idempotencyKey` when you retry yourself:
+
+```ts
+await mail.send(input, { idempotencyKey: `order-confirmation-${order.id}` });
+```
+
+## Errors
+
+Errors lose their class when they cross a service binding. The mailer encodes the error into the message, and the client rebuilds it, so you get a normal [`FlaresendError`](/docs/sdk/errors) with `type`, `code`, `message` and `param`. `status` is taken from the error type (for example `403` for `permission_error`).
+
+```ts
+import { FlaresendError } from '@flaresend/client/rpc';
+
+try {
+  await mail.send(input);
+} catch (e) {
+  if (e instanceof FlaresendError && e.code === 'recipient_suppressed') {
+    // e.param is the suppressed address
+  }
+  throw e;
+}
+```
+
+An error that can't be decoded (for example the binding itself failing) is rethrown unchanged.
+
+## Binding without the client
+
+`MailerRpcBinding` describes the raw methods if you want to call them directly. Each takes the project slug first:
+
+```ts
+await env.MAILER.send('acme', { from, to, subject, html });
+await env.MAILER.get('acme', 'email_01K6B2Y4ZP9R3M7T8V5N2QXW4C');
+```
+
+Errors thrown this way are plain `Error`s whose message contains `FLARESEND_ERROR:` followed by the error as JSON. Use `decodeRpcError` from `@flaresend/types` to turn them into `FlaresendError`s, or use `rpcClient`, which does it for you.

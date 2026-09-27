@@ -1,0 +1,81 @@
+---
+title: Projects
+description: A project is one app or service that sends email. It owns its keys, domains, limits, templates, webhooks and contacts.
+icon: FolderKanban
+---
+
+One mailer can serve many apps. Each app gets a **project**. A project decides which addresses the app may send from, how much it may send, and whether it can use RPC, tracking and broadcasts. Everything the app sends is logged under its project.
+
+Projects are created with the admin key: in the dashboard (**Projects**, then **New project**), with the [admin API](/docs/api-reference/admin/create-project), or with the [CLI](/docs/self-hosting/cli):
+
+```bash
+flaresend projects create --slug acme --name Acme --domains acme.com \
+  --default-from "Acme <hello@acme.com>"
+```
+
+## Settings
+
+| Field | Default | What it does |
+|---|---|---|
+| `slug` | required | Lowercase letters, digits and dashes, up to 63 characters. The project's ID in URLs and in RPC calls. Can't be changed. |
+| `name` | required | Display name, 1–200 characters. |
+| `allowedDomains` | required | Domains `from` may use. At least one. A send from any other domain fails with `403 invalid_sender`. |
+| `allowedSenders` | `null` | Optional exact list of addresses allowed as `from`. When set, other addresses fail with `invalid_sender`, even on an allowed domain. |
+| `defaultFrom` | `null` | Sender used when a request has no `from`, like `Acme <hello@acme.com>`. Must be on an allowed domain. |
+| `domainSenders` | `{}` | A default sender per domain, like `{ "acme.com": "Acme <hello@acme.com>" }`. Each must be on its own domain. Used by the dashboard for test emails. |
+| `dailyLimit` | `5000` | Most emails the project may send per UTC day. `0` means no limit. |
+| `rpcEnabled` | `true` | Whether Workers may send for this project over the service binding. When off, RPC calls fail with `403 rpc_disabled`. |
+| `trackOpens` | `false` | Default for open tracking. A send can override it with `trackOpens`. |
+| `trackClicks` | `false` | Default for click tracking. A send can override it with `trackClicks`. |
+| `broadcastsEnabled` | `false` | Allows [broadcasts](/docs/contacts/broadcasts). |
+| `disabledAt` | `null` | When set, the project is paused. See below. |
+
+Change settings in the dashboard (**Settings** and **Domains**), with [Update a project](/docs/api-reference/admin/update-project), or `flaresend projects update`.
+
+Rules on update:
+
+- Changing `allowedDomains` fails if the current `defaultFrom` would no longer be on an allowed domain. Per-domain senders for removed domains are dropped.
+- `domainSenders` is merged: a domain set to `null` loses its sender, domains you don't mention keep theirs, and `domainSenders: null` clears them all.
+- `allowedSenders: null` and `defaultFrom: null` clear those settings.
+
+## Pausing a project
+
+Setting `disabled: true` (the dashboard's **Pause sending**, `DELETE /v1/admin/projects/:slug`, or `flaresend projects disable acme`) pauses the project:
+
+- Every request with the project's API keys fails with `403 project_disabled`, including reads.
+- RPC calls for the project fail with `403 project_disabled`.
+- Broadcasts that are sending are canceled on the next cron run.
+
+Nothing is deleted. Emails that were already queued still go out. Resume with **Resume sending**, `PATCH { "disabled": false }` or `flaresend projects enable acme`.
+
+## What belongs to a project
+
+| Belongs to one project | Shared by all projects |
+|---|---|
+| API keys, emails and events, templates, webhooks, contacts, audiences, broadcasts, analytics, the daily limit and the rate limit | The [suppression list](/docs/deliverability/suppressions) |
+
+A project's API key can only see and change its own project's data. The admin key sees everything.
+
+## The project record
+
+```json
+{
+  "id": "proj_01K6A9W3N5R8T2M6Q1V4X7P9ZB",
+  "slug": "acme",
+  "name": "Acme",
+  "defaultFrom": "Acme <hello@acme.com>",
+  "allowedDomains": ["acme.com"],
+  "allowedSenders": null,
+  "domainSenders": {},
+  "rpcEnabled": true,
+  "dailyLimit": 5000,
+  "trackOpens": false,
+  "trackClicks": false,
+  "broadcastsEnabled": false,
+  "createdAt": "2026-09-25T10:00:00.000Z",
+  "updatedAt": "2026-09-25T10:00:00.000Z",
+  "disabledAt": null
+}
+```
+
+Your app can check which project and key it is using with [`GET /v1/me`](/docs/api-reference/api-keys/me).

@@ -1,0 +1,90 @@
+---
+title: Retrieve stats
+description: Email counts by status for every project, for today, the last 7 days and the last 30 days.
+method: GET
+---
+
+<Endpoint method="GET" path="/v1/admin/stats" auth="admin" />
+
+<ApiPage>
+<ApiMain>
+
+A quick health view across projects. Emails are counted by their **current** status and by when they were created. For charts over time, rates and delivery times, use analytics instead (`GET /v1/admin/analytics`, same shape as [Retrieve analytics](/docs/api-reference/analytics/retrieve)).
+
+Every project is listed, including disabled ones, oldest project first.
+
+## Response
+
+<Fields>
+
+<ResponseField name="data" type="Stats[]">
+  One entry per project.
+
+  <Expandable title="stats properties">
+    <ResponseField name="projectId" type="string">
+      The project ID.
+    </ResponseField>
+    <ResponseField name="slug" type="string">
+      The project slug.
+    </ResponseField>
+    <ResponseField name="name" type="string">
+      The project name.
+    </ResponseField>
+    <ResponseField name="today" type="Record<string, number>">
+      Emails created since 00:00 UTC today, by status. Statuses with no emails are left out, so a quiet project has `{}`.
+    </ResponseField>
+    <ResponseField name="last7d" type="Record<string, number>">
+      Emails created in the last 7 × 24 hours, by status.
+    </ResponseField>
+    <ResponseField name="last30d" type="Record<string, number>">
+      Emails created in the last 30 × 24 hours, by status.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+</Fields>
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+const res = await fetch('https://mailer.example.com/v1/admin/stats', {
+  headers: { Authorization: `Bearer ${process.env.FLARESEND_ADMIN_KEY}` },
+});
+const { data } = await res.json();
+```
+
+```bash tab="cURL" tab-group="lang"
+curl https://mailer.example.com/v1/admin/stats \
+  -H "Authorization: Bearer $FLARESEND_ADMIN_KEY"
+```
+
+```bash tab="CLI" tab-group="lang"
+flaresend stats
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "data": [
+    {
+      "projectId": "proj_01K6B1QZ3M8H2V5T7R9N4XW6CD",
+      "slug": "acme",
+      "name": "Acme",
+      "today": { "delivered": 41, "queued": 2 },
+      "last7d": { "delivered": 318, "bounced": 3, "queued": 2 },
+      "last30d": { "delivered": 1204, "bounced": 11, "complained": 1, "queued": 2 }
+    }
+  ]
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

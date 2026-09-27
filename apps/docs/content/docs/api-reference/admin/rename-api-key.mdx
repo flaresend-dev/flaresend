@@ -1,0 +1,108 @@
+---
+title: Rename an API key
+description: Change a key's label. The key itself does not change.
+method: PATCH
+---
+
+<Endpoint method="PATCH" path="/v1/admin/api-keys/:id" auth="admin" />
+
+<ApiPage>
+<ApiMain>
+
+Only the name can change. Mode, expiry and the key value are fixed; to change those, create a new key and revoke the old one.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="id" type="string" required>
+  The key ID, for example `key_01K6B1T8W2N5R7X9Q3M6V4ZP8H`.
+</ParamField>
+
+</Fields>
+
+## Body parameters
+
+<Fields>
+
+<ParamField body="name" type="string" required>
+  The new label, 1 to 200 characters.
+</ParamField>
+
+</Fields>
+
+## Response
+
+Status `200` with the key record (no full key), as described in [Create an API key](/docs/api-reference/admin/create-api-key#response).
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_body` | `name` is missing, empty or longer than 200 characters. |
+| 404 | `api_key_not_found` | No key has this ID. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+const res = await fetch(
+  'https://mailer.example.com/v1/admin/api-keys/key_01K6B1T8W2N5R7X9Q3M6V4ZP8H',
+  {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${process.env.FLARESEND_ADMIN_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ name: 'production-api' }),
+  },
+);
+const key = await res.json();
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X PATCH https://mailer.example.com/v1/admin/api-keys/key_01K6B1T8W2N5R7X9Q3M6V4ZP8H \
+  -H "Authorization: Bearer $FLARESEND_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "production-api" }'
+```
+
+```bash tab="CLI" tab-group="lang"
+flaresend keys rename key_01K6B1T8W2N5R7X9Q3M6V4ZP8H production-api
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "id": "key_01K6B1T8W2N5R7X9Q3M6V4ZP8H",
+  "projectId": "proj_01K6B1QZ3M8H2V5T7R9N4XW6CD",
+  "name": "production-api",
+  "mode": "live",
+  "prefix": "fs_live_7Hq2",
+  "lastUsedAt": "2026-09-26T14:02:11.000Z",
+  "createdAt": "2026-09-26T10:05:00.000Z",
+  "revokedAt": null,
+  "expiresAt": null
+}
+```
+
+```json tab="404" tab-group="status"
+{
+  "error": {
+    "type": "not_found",
+    "code": "api_key_not_found",
+    "message": "API key key_01K6B1T8W2N5R7X9Q3M6V4ZP8H not found",
+    "param": "id"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

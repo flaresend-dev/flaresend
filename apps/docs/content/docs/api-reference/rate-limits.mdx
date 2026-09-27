@@ -1,0 +1,78 @@
+---
+title: Rate limits
+description: The per-minute send limit, the daily limit, and how to handle 429 responses.
+icon: Gauge
+---
+
+Flaresend has two limits, both per project and both only on emails sent with a live key or over RPC. Reading emails, managing webhooks and every other call is not limited.
+
+| Limit | Default | Error | Resets |
+|---|---|---|---|
+| Per-minute rate | 300 emails per 60 seconds | `429 rate_limited` | Rolling 60-second window |
+| Daily limit | 5,000 emails per day for a new project | `429 daily_limit_exceeded` | 00:00 UTC |
+
+Test keys (`fs_test_…`) never count against either limit.
+
+## Per-minute rate
+
+Every live email passes through a [Workers rate limiting binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/) keyed by the project. The limit is set in the mailer's `wrangler.jsonc`:
+
+```jsonc
+"ratelimits": [
+  { "name": "RATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 300, "period": 60 } }
+]
+```
+
+It is a safety valve against a runaway loop, not a quota. Cloudflare counts it per location, so the real ceiling can be a little higher than 300. When it trips, `POST /v1/emails` returns:
+
+```http
+HTTP/1.1 429 Too Many Requests
+Retry-After: 60
+```
+
+```json
+{
+  "error": {
+    "type": "rate_limit_error",
+    "code": "rate_limited",
+    "message": "too many requests for this project; slow down and retry"
+  }
+}
+```
+
+To change the limit, edit `limit` (and `period`, which must be `10` or `60`) and redeploy the mailer. See [Configuration](/docs/self-hosting/configuration).
+
+## Daily limit
+
+Each project has a `dailyLimit`: the most live emails it may send in one UTC day. New projects get 5,000. Set it to `0` for no limit. Change it in the dashboard's project settings, with `flaresend projects update acme --daily-limit 20000`, or with [Update a project](/docs/api-reference/admin/update-project).
+
+Every email counts once, when it is accepted, including each item in a batch, each email of a broadcast, and a scheduled email (counted on the day you schedule it, not the day it goes out). When the limit is reached:
+
+```json
+{
+  "error": {
+    "type": "rate_limit_error",
+    "code": "daily_limit_exceeded",
+    "message": "daily limit of 5000 emails reached for this project (resets 00:00 UTC)"
+  }
+}
+```
+
+Retrying won't help until 00:00 UTC.
+
+## Batches and broadcasts
+
+- In a [batch](/docs/api-reference/emails/send-batch), limits apply to each item. The request itself still returns `200`, and the items over the limit carry the error in place of an ID.
+- A [broadcast](/docs/contacts/broadcasts) that hits a limit pauses and continues on the next cron run, five minutes later, from the contact where it stopped.
+
+## Handling 429 in your code
+
+The [`@flaresend/client`](/docs/sdk/http) handles `rate_limited` for you: it waits for `Retry-After` and tries again, up to `maxRetries` times (default 2). Every send carries an idempotency key, so a retry never sends the same email twice. It does not retry `daily_limit_exceeded`, and it gives up straight away if `Retry-After` is more than 60 seconds.
+
+If you call the API directly, do the same: on `rate_limited`, wait for the number of seconds in `Retry-After` and resend with the same `Idempotency-Key`. On `daily_limit_exceeded`, stop and alert someone.
+
+The RPC client doesn't retry. Catch the error in your Worker, or send from a [Queue](https://developers.cloudflare.com/queues/) consumer and let the queue retry the message.
+
+<Callout type="info" title="Cloudflare's own limits">
+  Cloudflare Email Service has account-level sending limits of its own. If Cloudflare reports its daily limit while the send queue is working, Flaresend puts the email back to `queued`, adds an `email.retrying` event to its timeline, and tries again an hour later. Like every retry, this counts toward the send queue's 8 retries; after that the email is marked `failed`.
+</Callout>

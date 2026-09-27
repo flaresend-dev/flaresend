@@ -1,0 +1,110 @@
+---
+title: Retrieve a broadcast
+description: Get one broadcast with a count of its emails by status.
+method: GET
+---
+
+<Endpoint method="GET" path="/v1/broadcasts/:id" />
+
+<ApiPage>
+<ApiMain>
+
+Returns the broadcast plus `counts`: how many of the emails it created are in each status. Poll this while a broadcast is `sending` to follow its progress.
+
+Every email a broadcast sends carries the tag `broadcast_id`, so you can also list them with [List emails](/docs/api-reference/emails/list) and `tag=broadcast_id:bc_…`.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="id" type="string" required>
+  The broadcast ID, for example `bc_01K6C3D9G2J4L7N0Q3S5U8W1YZ`.
+</ParamField>
+
+</Fields>
+
+## Response
+
+The broadcast, with the fields described in [Create a broadcast](/docs/api-reference/broadcasts/create#response), and:
+
+<Fields>
+
+<ResponseField name="counts" type="Record<string, number>">
+  Email status to number of emails, for example `{ "delivered": 39, "bounced": 1, "sent": 1 }`. Only statuses that have at least one email are listed. See [Email statuses](/docs/emails/statuses).
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `broadcast_not_found` | No broadcast with that ID in this project. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const broadcast = await flaresend.broadcasts.get('bc_01K6C3D9G2J4L7N0Q3S5U8W1YZ');
+console.log(broadcast.status, broadcast.counts);
+```
+
+```bash tab="cURL" tab-group="lang"
+curl https://mailer.example.com/v1/broadcasts/bc_01K6C3D9G2J4L7N0Q3S5U8W1YZ \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "id": "bc_01K6C3D9G2J4L7N0Q3S5U8W1YZ",
+  "projectId": "proj_01K5Z8W2Q4R6T8V0X2Z4B6D8FG",
+  "audienceId": "aud_01K6C2A7F3H5J8K1M4N6P9Q2RS",
+  "from": "hello@acme.com",
+  "fromName": "Acme",
+  "subject": "The beta is open, {{first_name}}",
+  "html": "<p>Hi {{first_name}}, …</p>",
+  "text": null,
+  "status": "sent",
+  "scheduledAt": null,
+  "startedAt": "2026-09-26T10:15:00.000Z",
+  "completedAt": "2026-09-26T10:20:00.000Z",
+  "total": 42,
+  "sent": 41,
+  "createdAt": "2026-09-26T10:10:00.000Z",
+  "updatedAt": "2026-09-26T10:20:00.000Z",
+  "counts": {
+    "delivered": 39,
+    "bounced": 1,
+    "sent": 1
+  }
+}
+```
+
+```json tab="404" tab-group="status"
+{
+  "error": {
+    "type": "not_found",
+    "code": "broadcast_not_found",
+    "message": "broadcast bc_01K6C3D9G2J4L7N0Q3S5U8W1YZ not found",
+    "param": "id"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

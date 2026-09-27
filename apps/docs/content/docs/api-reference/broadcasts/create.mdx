@@ -1,0 +1,197 @@
+---
+title: Create a broadcast
+description: Create a draft email to one audience. Nothing is sent until you call send.
+method: POST
+---
+
+<Endpoint method="POST" path="/v1/broadcasts" />
+
+<ApiPage>
+<ApiMain>
+
+A broadcast is one email sent to every subscribed contact in an audience, one message per contact. Creating it only saves a `draft`. Start it with [Send a broadcast](/docs/api-reference/broadcasts/send). See [Broadcasts](/docs/contacts/broadcasts).
+
+<Callout type="warn" title="Off by default">
+  Cloudflare Email Service is for transactional email; bulk marketing is not permitted. Broadcasts only work in projects with `broadcastsEnabled: true`, and each one is capped at `BROADCAST_MAX_RECIPIENTS` (500 unless the mailer sets another value). Use them for small lists of people who opted in.
+</Callout>
+
+## Body parameters
+
+<Fields>
+
+<ParamField body="audienceId" type="string" required>
+  The audience to send to.
+</ParamField>
+
+<ParamField body="from" type="string" required>
+  The sender, as `"Name <address>"` or a bare address. Checked against the project's allowed domains and senders now, the same way as [Send an email](/docs/api-reference/emails/send). There is no fallback to the project's default sender.
+</ParamField>
+
+<ParamField body="subject" type="string" required>
+  1 to 998 characters. Can use the per-contact variables below.
+</ParamField>
+
+<ParamField body="html" type="string" required>
+  The HTML body. Can use the per-contact variables below. Values inserted with `{{…}}` are HTML-escaped; `{{{…}}}` inserts them as is.
+</ParamField>
+
+<ParamField body="text" type="string">
+  The plain text body. Can use the per-contact variables below.
+</ParamField>
+
+</Fields>
+
+### Per-contact variables
+
+`subject`, `html` and `text` are rendered once per contact with the [template syntax](/docs/templates/custom) (`{{name}}`, `{{#if}}`, `{{#each}}`). The values available are:
+
+| Variable | Value |
+|---|---|
+| `{{first_name}}` | The contact's `firstName`, or empty. |
+| `{{last_name}}` | The contact's `lastName`, or empty. |
+| `{{email}}` | The contact's address. |
+| `{{unsubscribe_url}}` | The contact's one-click unsubscribe link. Only set when the mailer has a `TRACKING_SECRET`. |
+| any key in `data` | Each top-level key of the contact's `data`, for example `{{plan}}`. |
+
+`first_name`, `last_name`, `email` and `unsubscribe_url` win over keys with the same name in `data`. See [Unsubscribe](/docs/contacts/unsubscribe).
+
+## Response
+
+Status `201` with the broadcast.
+
+<Fields>
+
+<ResponseField name="id" type="string">
+  The broadcast ID, for example `bc_01K6C3D9G2J4L7N0Q3S5U8W1YZ`.
+</ResponseField>
+
+<ResponseField name="projectId" type="string" />
+
+<ResponseField name="audienceId" type="string" />
+
+<ResponseField name="from" type="string">
+  The sender address, lowercased, without the display name.
+</ResponseField>
+
+<ResponseField name="fromName" type="string | null">
+  The display name from `from`, if you gave one.
+</ResponseField>
+
+<ResponseField name="subject" type="string" />
+
+<ResponseField name="html" type="string" />
+
+<ResponseField name="text" type="string | null" />
+
+<ResponseField name="status" type="'draft' | 'scheduled' | 'sending' | 'sent' | 'canceled'">
+  Always `draft` on create.
+</ResponseField>
+
+<ResponseField name="scheduledAt" type="string | null">
+  When a scheduled broadcast starts.
+</ResponseField>
+
+<ResponseField name="startedAt" type="string | null">
+  When sending began.
+</ResponseField>
+
+<ResponseField name="completedAt" type="string | null">
+  When the last contact was processed.
+</ResponseField>
+
+<ResponseField name="total" type="number">
+  Subscribed contacts in the audience when sending was started. `0` for a draft.
+</ResponseField>
+
+<ResponseField name="sent" type="number">
+  Emails queued so far. This counts emails handed to the send queue, not deliveries.
+</ResponseField>
+
+<ResponseField name="createdAt" type="string" />
+
+<ResponseField name="updatedAt" type="string" />
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_body` | A field is missing or malformed, or `from` is not a valid address. |
+| 403 | `broadcasts_disabled` | The project doesn't have broadcasts enabled. |
+| 403 | `invalid_sender` | `from` is not on the project's allowed domains or senders. |
+| 404 | `audience_not_found` | No audience with that ID in this project. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const broadcast = await flaresend.broadcasts.create({
+  audienceId: 'aud_01K6C2A7F3H5J8K1M4N6P9Q2RS',
+  from: 'Acme <hello@acme.com>',
+  subject: 'The beta is open, {{first_name}}',
+  html: '<p>Hi {{first_name}}, your {{plan}} plan now has beta access.</p>'
+    + '<p><a href="{{unsubscribe_url}}">Unsubscribe</a></p>',
+});
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/broadcasts \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "audienceId": "aud_01K6C2A7F3H5J8K1M4N6P9Q2RS",
+    "from": "Acme <hello@acme.com>",
+    "subject": "The beta is open, {{first_name}}",
+    "html": "<p>Hi {{first_name}}, your {{plan}} plan now has beta access.</p><p><a href=\"{{unsubscribe_url}}\">Unsubscribe</a></p>"
+  }'
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="201" tab-group="status"
+{
+  "id": "bc_01K6C3D9G2J4L7N0Q3S5U8W1YZ",
+  "projectId": "proj_01K5Z8W2Q4R6T8V0X2Z4B6D8FG",
+  "audienceId": "aud_01K6C2A7F3H5J8K1M4N6P9Q2RS",
+  "from": "hello@acme.com",
+  "fromName": "Acme",
+  "subject": "The beta is open, {{first_name}}",
+  "html": "<p>Hi {{first_name}}, your {{plan}} plan now has beta access.</p><p><a href=\"{{unsubscribe_url}}\">Unsubscribe</a></p>",
+  "text": null,
+  "status": "draft",
+  "scheduledAt": null,
+  "startedAt": null,
+  "completedAt": null,
+  "total": 0,
+  "sent": 0,
+  "createdAt": "2026-09-26T10:10:00.000Z",
+  "updatedAt": "2026-09-26T10:10:00.000Z"
+}
+```
+
+```json tab="403" tab-group="status"
+{
+  "error": {
+    "type": "permission_error",
+    "code": "broadcasts_disabled",
+    "message": "broadcasts are disabled for this project. Cloudflare Email Service is for transactional email; enable broadcasts only for small, opted-in lists."
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

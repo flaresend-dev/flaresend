@@ -1,0 +1,81 @@
+---
+title: Typed templates
+description: Let TypeScript check that each template gets the data it needs.
+icon: CodeXml
+---
+
+`template` and `data` are plain strings and objects to the API. In TypeScript you can do better: give `emails.send` a map of template names to data types, and it will refuse a send whose `data` doesn't match its `template`.
+
+```ts
+type Templates = {
+  welcome: { name: string; appName: string; loginUrl: string };
+  'magic-link': { loginUrl: string; expiresInMinutes?: number };
+};
+
+await flaresend.emails.send<Templates>({
+  to: 'ada@example.com',
+  template: 'welcome',
+  data: { name: 'Ada', appName: 'Acme', loginUrl },   // checked against Templates['welcome']
+});
+
+await flaresend.emails.send<Templates>({
+  to: 'ada@example.com',
+  template: 'magic-link',
+  data: { name: 'Ada' },   // type error: loginUrl is missing, name doesn't exist
+});
+```
+
+Sends without a template are still allowed with the type argument. `template` and `data` just can't be used on their own.
+
+The RPC client works the same way:
+
+```ts
+const mail = rpcClient(env.MAILER, { project: 'acme' });
+await mail.send<Templates>({ to, template: 'welcome', data: { name, appName: 'Acme', loginUrl } });
+```
+
+## Use the built-in types
+
+`@flaresend/templates` exports `TemplateMap`, the exact data types of the [built-in templates](/docs/templates/built-in), generated from their schemas. Fields with a default (like `expiresInMinutes`) are optional.
+
+```ts
+import type { TemplateMap } from '@flaresend/templates';
+
+await flaresend.emails.send<TemplateMap>({
+  to: 'ada@example.com',
+  template: 'password-reset',
+  data: { resetUrl },
+});
+```
+
+`@flaresend/templates` is a package in the Flaresend repo, not on npm. Use it from apps in the same monorepo (`"@flaresend/templates": "workspace:*"`), or copy the types into your own map.
+
+`TemplateData<'welcome'>` gives the data type of one template.
+
+## Add your custom templates
+
+[Custom templates](/docs/templates/custom) live in D1, so TypeScript can't see them. Add them to the map yourself, next to the built-in ones:
+
+```ts
+import type { TemplateMap } from '@flaresend/templates';
+
+type Templates = TemplateMap & {
+  'order-shipped': { firstName: string; orderNumber: string; trackingUrl?: string };
+};
+```
+
+The types only help at compile time. Flaresend still checks the data when you send.
+
+## `TypedSend`
+
+The input type on its own is exported as `TypedSend<Map>`, for helpers that build sends:
+
+```ts
+import type { TypedSend } from '@flaresend/client';
+
+function sendLater(input: TypedSend<Templates>) {
+  return flaresend.emails.send<Templates>({ ...input, scheduledAt: tomorrow() });
+}
+```
+
+For each name `K` in the map, `template: K` requires `data: Map[K]`. The client itself doesn't depend on `@flaresend/templates`; you bring the map.

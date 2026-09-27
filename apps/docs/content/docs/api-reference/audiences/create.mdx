@@ -1,0 +1,108 @@
+---
+title: Create an audience
+description: Create a named list of contacts that a broadcast can be sent to.
+method: POST
+---
+
+<Endpoint method="POST" path="/v1/audiences" />
+
+<ApiPage>
+<ApiMain>
+
+An audience is a named group of contacts in the project. A contact can be in any number of audiences. New audiences are empty; add contacts with [Add contacts to an audience](/docs/api-reference/audiences/add-contacts). See [Audiences](/docs/contacts/audiences).
+
+## Body parameters
+
+<Fields>
+
+<ParamField body="name" type="string" required>
+  1 to 200 characters. Must be unique in the project.
+</ParamField>
+
+</Fields>
+
+## Response
+
+Status `201` with the audience.
+
+<Fields>
+
+<ResponseField name="id" type="string">
+  The audience ID, for example `aud_01K6C2A7F3H5J8K1M4N6P9Q2RS`.
+</ResponseField>
+
+<ResponseField name="projectId" type="string">
+  The project the audience belongs to.
+</ResponseField>
+
+<ResponseField name="name" type="string" />
+
+<ResponseField name="contactCount" type="number">
+  How many contacts are in the audience, subscribed or not.
+</ResponseField>
+
+<ResponseField name="createdAt" type="string">
+  ISO 8601 creation time.
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_body` | `name` is missing, empty or over 200 characters. |
+| 409 | `audience_exists` | The project already has an audience with this name. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const audience = await flaresend.audiences.create({ name: 'Beta testers' });
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/audiences \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "Beta testers" }'
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="201" tab-group="status"
+{
+  "id": "aud_01K6C2A7F3H5J8K1M4N6P9Q2RS",
+  "projectId": "proj_01K5Z8W2Q4R6T8V0X2Z4B6D8FG",
+  "name": "Beta testers",
+  "contactCount": 0,
+  "createdAt": "2026-09-26T10:05:00.000Z"
+}
+```
+
+```json tab="409" tab-group="status"
+{
+  "error": {
+    "type": "conflict",
+    "code": "audience_exists",
+    "message": "audience \"Beta testers\" already exists",
+    "param": "name"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

@@ -1,0 +1,144 @@
+---
+title: Send emails with Go
+description: Call the Flaresend REST API from Go with net/http.
+---
+
+There is no Go SDK. The standard library is enough.
+
+## Prerequisites
+
+- A deployed mailer and its URL, for example `https://mailer.example.com`. See [Deploy](/docs/self-hosting/deploy).
+- An API key for your project in `FLARESEND_API_KEY`. See [API keys](/docs/api-keys).
+
+## Send an email
+
+```go title="main.go"
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"os"
+	"time"
+)
+
+const flaresendURL = "https://mailer.example.com"
+
+type SendEmail struct {
+	From    string            `json:"from"`
+	To      []string          `json:"to"`
+	Subject string            `json:"subject"`
+	HTML    string            `json:"html,omitempty"`
+	Text    string            `json:"text,omitempty"`
+	Tags    map[string]string `json:"tags,omitempty"`
+}
+
+type SendResult struct {
+	ID         string `json:"id"`
+	Status     string `json:"status"`
+	Idempotent bool   `json:"idempotent,omitempty"`
+}
+
+type APIError struct {
+	Type    string `json:"type"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Param   string `json:"param,omitempty"`
+	Status  int    `json:"-"`
+}
+
+func (e *APIError) Error() string { return fmt.Sprintf("%d %s: %s", e.Status, e.Code, e.Message) }
+
+var client = &http.Client{Timeout: 30 * time.Second}
+
+func send(email SendEmail, idempotencyKey string) (*SendResult, error) {
+	body, err := json.Marshal(email)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequest("POST", flaresendURL+"/v1/emails", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("FLARESEND_API_KEY"))
+	req.Header.Set("Content-Type", "application/json")
+	if idempotencyKey != "" {
+		req.Header.Set("Idempotency-Key", idempotencyKey)
+	}
+
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode >= 300 {
+		var wrapper struct {
+			Error APIError `json:"error"`
+		}
+		if err := json.NewDecoder(res.Body).Decode(&wrapper); err != nil {
+			return nil, fmt.Errorf("flaresend: HTTP %d", res.StatusCode)
+		}
+		wrapper.Error.Status = res.StatusCode
+		return nil, &wrapper.Error
+	}
+
+	var result SendResult
+	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func main() {
+	result, err := send(SendEmail{
+		From:    "Acme <hello@acme.com>",
+		To:      []string{"ada@example.com"},
+		Subject: "Hello from Go",
+		HTML:    "<p>It works.</p>",
+		Text:    "It works.",
+	}, "hello-go-1")
+	if err != nil {
+		fmt.Println("send failed:", err)
+		os.Exit(1)
+	}
+	fmt.Println(result.ID, result.Status) // email_01K6B2Y4ZP9R3M7T8V5N2QXW4C queued
+}
+```
+
+`to` accepts a single string or an array. A slice is simplest in Go.
+
+## Idempotency
+
+The second argument to `send` becomes the `Idempotency-Key` header. Repeating a request with the same key and the same body returns `200` with the first email's ID and `"idempotent": true` instead of sending again. The same key with a different body returns `409 idempotency_payload_mismatch`. Use a key tied to what the email is for, such as `welcome-<userID>`. See [Idempotency](/docs/emails/idempotency).
+
+## Errors
+
+Error responses always look like this, and `send` above decodes them into `*APIError`:
+
+```json
+{
+  "error": {
+    "type": "unprocessable",
+    "code": "recipient_suppressed",
+    "message": "ada@example.com is on the suppression list (hard_bounce)",
+    "param": "ada@example.com"
+  }
+}
+```
+
+```go
+var apiErr *APIError
+if errors.As(err, &apiErr) && apiErr.Code == "recipient_suppressed" {
+	// don't retry; the address bounced or complained before
+}
+```
+
+`429` and `5xx` responses are safe to retry for a send that has an idempotency key. Wait for the `Retry-After` header on `429`. Never retry `daily_limit_exceeded` before 00:00 UTC. See [Errors](/docs/api-reference/errors).
+
+## Next steps
+
+- [Send an email](/docs/api-reference/emails/send): every field, including `attachments` (base64 with `encoding/base64`).
+- [Batch sending](/docs/emails/batch): up to 100 emails per request.

@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // The docs are a static export (next build -> out/). This Worker only serves those files.
+  "name": "flaresend-docs",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  // Cloudflare creates the DNS record on the first deploy. The deploy token needs
+  // Zone > Workers Routes > Write on flaresend.dev.
+  "routes": [{ "pattern": "docs.flaresend.dev", "custom_domain": true }],
+  "assets": {
+    "directory": "./out",
+    "not_found_handling": "404-page",
+    "html_handling": "auto-trailing-slash"
+  }
+}

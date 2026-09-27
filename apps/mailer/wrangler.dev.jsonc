@@ -1,0 +1,45 @@
+// Local development config: `wrangler dev --config wrangler.dev.jsonc`.
+// "remote": true on send_email means REAL emails are sent. Only send to addresses you control.
+// Never put "remote": true in wrangler.jsonc.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "flaresend",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Keep prettier (pulled in by @react-email/render, never used) out of the bundle.
+  "alias": {
+    "prettier/standalone": "./src/stubs/prettier.ts",
+    "prettier/plugins/html": "./src/stubs/prettier.ts"
+  },
+
+  "vars": {
+    "ENVIRONMENT": "development",
+    "PUBLIC_BASE_URL": "http://localhost:8787",
+    "BROADCAST_MAX_RECIPIENTS": "500"
+  },
+
+  "send_email": [{ "name": "EMAIL", "remote": true }],
+
+  "d1_databases": [
+    { "binding": "DB", "database_name": "flaresend", "migrations_dir": "migrations" }
+  ],
+  "r2_buckets": [{ "binding": "PAYLOADS", "bucket_name": "flaresend-payloads" }],
+  "queues": {
+    "producers": [
+      { "binding": "SEND_QUEUE", "queue": "flaresend-send" },
+      { "binding": "WEBHOOK_QUEUE", "queue": "flaresend-webhooks" }
+    ],
+    "consumers": [
+      { "queue": "flaresend-send", "max_batch_size": 10, "max_batch_timeout": 2, "max_retries": 8, "dead_letter_queue": "flaresend-dlq" },
+      { "queue": "flaresend-events", "max_batch_size": 50, "max_batch_timeout": 5, "max_retries": 10, "dead_letter_queue": "flaresend-dlq" },
+      { "queue": "flaresend-webhooks", "max_batch_size": 10, "max_batch_timeout": 2, "max_retries": 8, "dead_letter_queue": "flaresend-dlq" },
+      { "queue": "flaresend-dlq", "max_batch_size": 50, "max_retries": 0 }
+    ]
+  },
+  "ratelimits": [
+    { "name": "RATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 300, "period": 60 } }
+  ],
+  "triggers": { "crons": ["*/5 * * * *"] }
+}

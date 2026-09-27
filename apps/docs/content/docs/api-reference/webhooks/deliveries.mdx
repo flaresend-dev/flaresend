@@ -1,0 +1,159 @@
+---
+title: List webhook deliveries
+description: The delivery attempts for one webhook, newest first.
+method: GET
+---
+
+<Endpoint method="GET" path="/v1/webhooks/:id/deliveries" />
+
+<ApiPage>
+<ApiMain>
+
+Each delivery is one event sent to this webhook. A delivery stays `pending` while it is being retried, and ends as `success` (your endpoint answered with a 2xx status) or `failed`. Results are ordered by creation time, newest first, and [paginated](/docs/api-reference/pagination) with a cursor.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="id" type="string" required>
+  The webhook ID.
+</ParamField>
+
+</Fields>
+
+## Query parameters
+
+<Fields>
+
+<ParamField query="limit" type="number" default="25">
+  How many deliveries to return, from 1 to 100.
+</ParamField>
+
+<ParamField query="cursor" type="string">
+  The `nextCursor` from the previous page.
+</ParamField>
+
+</Fields>
+
+## Response
+
+<Fields>
+
+<ResponseField name="data" type="WebhookDelivery[]">
+  The deliveries.
+
+  <Expandable title="delivery properties">
+    <ResponseField name="id" type="string">
+      The delivery ID, `whd_…`. Sent to your endpoint in the `Flaresend-Delivery-Id` header.
+    </ResponseField>
+    <ResponseField name="webhookId" type="string">
+      The webhook ID.
+    </ResponseField>
+    <ResponseField name="eventId" type="string">
+      The event ID, `evt_…`. Sent in the `Flaresend-Event-Id` header and as `id` in the payload. Test events start with `evt_test_`.
+    </ResponseField>
+    <ResponseField name="eventType" type="string | null">
+      For example `email.delivered`.
+    </ResponseField>
+    <ResponseField name="attempt" type="number">
+      How many times the delivery has been tried. `0` before the first try.
+    </ResponseField>
+    <ResponseField name="status" type="'pending' | 'success' | 'failed'">
+      `pending` while waiting or retrying.
+    </ResponseField>
+    <ResponseField name="responseCode" type="number | null">
+      The HTTP status of the last try. `null` when there was no response (timeout or network error).
+    </ResponseField>
+    <ResponseField name="responseBody" type="string | null">
+      The first 1,024 characters of the last response body, or the error, for example `timeout after 10s`.
+    </ResponseField>
+    <ResponseField name="nextAttemptAt" type="string | null">
+      When the next retry is due. `null` once the delivery is finished.
+    </ResponseField>
+    <ResponseField name="createdAt" type="string">
+      ISO 8601 timestamp.
+    </ResponseField>
+    <ResponseField name="completedAt" type="string | null">
+      When it ended as `success` or `failed`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="nextCursor" type="string | null">
+  Pass it as `cursor` to get the next page. `null` on the last page.
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `webhook_not_found` | No webhook with this ID in the project. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const { data, nextCursor } = await flaresend.webhooks.deliveries(
+  'wh_01K6B3C8R2M5T7V9X1Z3B5D7F9',
+  { limit: 50 },
+);
+```
+
+```bash tab="cURL" tab-group="lang"
+curl "https://mailer.example.com/v1/webhooks/wh_01K6B3C8R2M5T7V9X1Z3B5D7F9/deliveries?limit=50" \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "data": [
+    {
+      "id": "whd_01K6B4F2H6K8M0P2R4T6V8X0Z2",
+      "webhookId": "wh_01K6B3C8R2M5T7V9X1Z3B5D7F9",
+      "eventId": "evt_01K6B4F1G5J7L9N1Q3S5U7W9Y1",
+      "eventType": "email.delivered",
+      "attempt": 1,
+      "status": "success",
+      "responseCode": 200,
+      "responseBody": "ok",
+      "nextAttemptAt": null,
+      "createdAt": "2026-09-26T10:05:00.000Z",
+      "completedAt": "2026-09-26T10:05:01.000Z"
+    },
+    {
+      "id": "whd_01K6B4E9D3F5H7K9M1P3R5T7V9",
+      "webhookId": "wh_01K6B3C8R2M5T7V9X1Z3B5D7F9",
+      "eventId": "evt_01K6B4E8C2E4G6J8L0N2Q4S6U8",
+      "eventType": "email.bounced",
+      "attempt": 2,
+      "status": "pending",
+      "responseCode": 503,
+      "responseBody": "Service Unavailable",
+      "nextAttemptAt": "2026-09-26T10:06:30.000Z",
+      "createdAt": "2026-09-26T10:04:00.000Z",
+      "completedAt": null
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

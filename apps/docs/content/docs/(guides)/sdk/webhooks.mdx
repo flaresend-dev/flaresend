@@ -1,0 +1,99 @@
+---
+title: Webhook helpers
+description: Verify and sign Flaresend-Signature headers with Web Crypto, in any JavaScript runtime.
+icon: ShieldCheck
+---
+
+```ts
+import { verifyWebhookSignature, signWebhookPayload, computeWebhookSignature } from '@flaresend/client/webhooks';
+```
+
+The same three functions are also exported from `@flaresend/client`. Import from `/webhooks` when you only need these, to keep the HTTP client out of your bundle.
+
+They use Web Crypto (`globalThis.crypto.subtle`), so they work in Node.js 18+, Bun, Deno, browsers and Workers. All three are async because Web Crypto's HMAC is async. If Web Crypto is missing, they throw `Flaresend: Web Crypto (globalThis.crypto.subtle) is not available in this runtime`.
+
+For the algorithm itself, and code in other languages, see [Verify signatures](/docs/webhooks/verify).
+
+## `verifyWebhookSignature`
+
+```ts
+verifyWebhookSignature(
+  secret: string,
+  signatureHeader: string | null | undefined,
+  rawBody: string | ArrayBuffer | Uint8Array,
+  toleranceSeconds?: number, // default 300
+): Promise<boolean>
+```
+
+Returns `true` when the header has a `t` within `toleranceSeconds` of now and at least one `v1` that matches `HMAC-SHA256(secret, t + "." + rawBody)`. Returns `false` for anything else, including a missing secret, a missing or malformed header, or an old timestamp. It never throws for bad input.
+
+- `secret` is the full secret, including `whsec_`.
+- `rawBody` must be the exact bytes you received. Don't pass `JSON.stringify(await req.json())`.
+- Every `v1` is checked, and the comparison doesn't reveal which one matched.
+
+```ts
+const raw = await req.text();
+if (!(await verifyWebhookSignature(env.FLARESEND_WEBHOOK_SECRET, req.headers.get('Flaresend-Signature'), raw))) {
+  return new Response('bad signature', { status: 401 });
+}
+```
+
+## `signWebhookPayload`
+
+```ts
+signWebhookPayload(
+  secret: string | string[],
+  body: string | ArrayBuffer | Uint8Array,
+  timestamp?: number, // unix seconds, default now
+): Promise<string>
+```
+
+Builds a `Flaresend-Signature` header value, `t=<timestamp>,v1=<hex>`. Pass an array of secrets to get one `v1` per secret. It is the reference implementation of the algorithm, and the easiest way to write tests for your webhook handler:
+
+```ts
+import { signWebhookPayload } from '@flaresend/client/webhooks';
+
+const body = JSON.stringify({
+  id: 'evt_test',
+  type: 'email.bounced',
+  createdAt: new Date().toISOString(),
+  data: { emailId: 'email_test', recipient: 'ada@example.com', from: 'hello@acme.com', subject: 'Hi', tags: {} },
+});
+
+// app is your Hono app; app.request() calls a route without a server.
+const res = await app.request('/api/flaresend-webhook', {
+  method: 'POST',
+  headers: { 'Flaresend-Signature': await signWebhookPayload('whsec_test', body) },
+  body,
+});
+```
+
+## `computeWebhookSignature`
+
+```ts
+computeWebhookSignature(secret: string, timestamp: number, body: string | ArrayBuffer | Uint8Array): Promise<string>
+```
+
+The lowercase hex HMAC-SHA256 of `${timestamp}.${body}`, keyed with the secret's UTF-8 bytes. The two functions above are built on it.
+
+## `WebhookPayload`
+
+The type of the parsed body, exported from `@flaresend/client`:
+
+```ts
+interface WebhookPayload {
+  id: string;
+  type: string;
+  createdAt: string;
+  data: {
+    emailId: string;
+    recipient: string | null;
+    from: string;
+    subject: string;
+    tags: Record<string, string>;
+    [key: string]: unknown;
+  };
+}
+```
+
+See [Event types](/docs/webhooks/event-types) for the extra fields in `data` for each type.

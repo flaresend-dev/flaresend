@@ -1,0 +1,81 @@
+---
+title: Delete a template
+description: Remove a stored template and all its versions.
+method: DELETE
+---
+
+<Endpoint method="DELETE" path="/v1/templates/:name" />
+
+<ApiPage>
+<ApiMain>
+
+Deletes the stored template and its whole version history. This can't be undone. Emails already sent are not affected.
+
+If a [built-in template](/docs/templates/built-in) has the same name, sends with that name use the built-in template again from now on. Built-in templates themselves can't be deleted and return `404 template_not_found`.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="name" type="string" required>
+  The template name.
+</ParamField>
+
+</Fields>
+
+## Response
+
+<Fields>
+
+<ResponseField name="name" type="string">
+  The name of the deleted template.
+</ResponseField>
+
+<ResponseField name="deleted" type="true">
+  Always `true`.
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `template_not_found` | No stored template with this name. Built-in templates also return this. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+await flaresend.templates.remove('order-shipped');
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X DELETE https://mailer.example.com/v1/templates/order-shipped \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "name": "order-shipped",
+  "deleted": true
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

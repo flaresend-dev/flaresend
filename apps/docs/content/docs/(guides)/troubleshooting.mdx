@@ -1,0 +1,151 @@
+---
+title: Troubleshooting
+description: The problems people hit most often, what causes each one, and how to fix it.
+icon: Wrench
+---
+
+Start with the email's timeline: open it in the dashboard, or call [Retrieve an email](/docs/api-reference/emails/retrieve) and read `status`, `lastError`, `recipients` and `events`. Most problems show up there.
+
+## Emails stay at `sent` forever
+
+**Cause:** Cloudflare's delivery events aren't reaching the mailer. The email was handed to Cloudflare (`sent`), but nothing reports `delivered`, `bounced` or `complained`.
+
+**Fix:** subscribe the sending domain's events to the `flaresend-events` queue, once per domain. Either run **Set up in Cloudflare** on the domain in the dashboard, or:
+
+```bash
+npx wrangler queues subscription create flaresend-events \
+  --source email.sending \
+  --events message.delivered,message.deferred,message.bounced,message.failed,message.rejected,message.complained \
+  --zone-id <ZONE_ID> --domain acme.com \
+  --name flaresend-acme-com
+```
+
+In local development, Cloudflare never delivers events to `wrangler dev`. Fake them with `pnpm dev:event delivered <emailId>`. See [Local development](/docs/self-hosting/local-development).
+
+## `403 invalid_sender`
+
+```text
+invalid_sender: from must be an address on acme.com
+```
+
+**Cause:** the `from` address's domain isn't in the project's `allowedDomains`, or the project has `allowedSenders` and the address isn't in it. Subdomains count as different domains: `acme.com` doesn't allow `hello@mail.acme.com`.
+
+**Fix:** add the domain (or address) to the project on the **Domains** page, or send from an allowed address. See [Projects](/docs/projects).
+
+## `400 invalid_body` with `param: "from"`
+
+```text
+invalid_body: from is required (the project has no default_from)
+```
+
+**Cause:** the request has no `from`, and the project has no default sender.
+
+**Fix:** pass `from`, or set the project's default sender.
+
+## `422 recipient_suppressed`
+
+**Cause:** a recipient is on the [suppression list](/docs/deliverability/suppressions), because it hard-bounced, complained, or was added by hand. `param` is the address. The whole email is refused.
+
+**Fix:** remove that address from the recipients. Only take it off the suppression list if you're sure the address works now, and for complaints only if the person asked.
+
+## An email ends as `rejected` with `E_RECIPIENT_SUPPRESSED`
+
+**Cause:** the address is on **Cloudflare's** suppression list, which is separate from Flaresend's. Flaresend adds the recipients to its own list too, so the next send fails early with `recipient_suppressed`.
+
+**Fix:** to unblock the address, remove it from Cloudflare's list (Cloudflare dashboard, Email Service) **and** from Flaresend's.
+
+## An email ends as `failed`
+
+Read `lastError.code`:
+
+| Code | Meaning |
+|---|---|
+| A Cloudflare code like `E_SENDER_NOT_VERIFIED` | Cloudflare refused the message and the error can't be retried. Usually the sending domain isn't onboarded. Check the **Domains** page. |
+| `max_retries_exhausted` | A retryable Cloudflare error (`E_RATE_LIMIT_EXCEEDED`, `E_INTERNAL_SERVER_ERROR`, `E_DELIVERY_FAILED`, or a network error) kept happening through all 8 retries. |
+| `queue_error` | The email couldn't be put on the send queue. The API call also returned `500`. |
+| `payload_missing` | The body wasn't in R2 when the queue picked the email up. |
+
+## `404 content_expired`
+
+**Cause:** email bodies are kept in R2 for 30 days, then deleted by the bucket's lifecycle rule. After that, [Retrieve email content](/docs/api-reference/emails/content) and **Resend** can't work. The email's metadata, recipients and events are still there.
+
+**Fix:** none for old emails. If you need bodies longer, change the lifecycle rule on the `flaresend-payloads` bucket (and accept the storage cost).
+
+## Opens are never recorded
+
+**Causes, in order of likelihood:**
+
+1. Open tracking is off. It is off by default: turn on `trackOpens` for the project, or pass `trackOpens: true` on the send.
+2. The mailer has no `TRACKING_SECRET` secret. Without it, the pixel isn't added (the mailer logs `TRACKING_SECRET is not set; open tracking skipped`).
+3. The email has no `html`. Tracking only applies to HTML bodies.
+4. The recipient's mail client blocks images.
+
+Click tracking doesn't need `TRACKING_SECRET`, but it also needs `html` and `trackClicks`. Links containing `{{` and non-`http(s)` links (`mailto:`, `tel:`, `#…`) are never rewritten.
+
+`PUBLIC_BASE_URL` must be the public URL of your mailer, or the pixel and links point at the wrong host.
+
+## Domains show `unknown`
+
+**Cause:** the mailer has no `CF_API_TOKEN`, so it can't ask Cloudflare. Or the token lacks permission, or the Cloudflare API failed; the domain's `details.error` says which.
+
+**Fix:** create the token and set it as a secret on the mailer. See [Configuration](/docs/self-hosting/configuration#cf_api_token). Sending works without it; only the status check and one-click setup need it.
+
+## `403 rpc_disabled` from a Worker
+
+**Cause:** the project has `rpcEnabled` turned off.
+
+**Fix:** turn on RPC access in the project's **Settings**, or `PATCH /v1/admin/projects/:slug` with `{ "rpcEnabled": true }`.
+
+## `404 project_not_found` from a Worker
+
+**Cause:** the `project` passed to `rpcClient` isn't the slug of an existing project. It is the slug (`acme`), not the display name or the project ID.
+
+## `403 project_disabled`
+
+**Cause:** the project is paused. Every API-key request and RPC call for it fails.
+
+**Fix:** **Resume sending** in the project's **Settings**, or `flaresend projects enable <slug>`.
+
+## `401` errors
+
+| Code | Fix |
+|---|---|
+| `missing_api_key` | Send `Authorization: Bearer fs_live_…`. |
+| `invalid_api_key` | Check for a typo or a truncated key. Admin routes need the admin key, project routes need a project key. They aren't interchangeable. |
+| `revoked_api_key` | Create a new key. |
+| `expired_api_key` | Create a new key, with a later or no expiry. |
+
+## `404 route_not_found`
+
+**Cause:** the URL doesn't match a route. Usually `baseUrl` includes a path it shouldn't (`https://mailer.example.com/v1`) or the method is wrong. `baseUrl` is only the origin, `https://mailer.example.com`.
+
+## `429 rate_limited` or `daily_limit_exceeded`
+
+`rate_limited` means more than 300 sends per minute for the project; wait for `Retry-After` (60 seconds). `daily_limit_exceeded` means the project's `dailyLimit` is used up until 00:00 UTC; raise it in **Settings** if the volume is expected. See [Limits](/docs/limits).
+
+## `409 idempotency_payload_mismatch`
+
+**Cause:** the idempotency key was already used for an email with different content. Keys never expire.
+
+**Fix:** make the key describe the one email it protects, like `welcome-${user.id}`, not something reused like `welcome`.
+
+## Webhooks aren't arriving
+
+1. Open the webhook in the dashboard and check its **Deliveries**. Each attempt shows the response code and body, or the error.
+2. `timeout after 10s`: your endpoint must answer within 10 seconds. Do slow work after answering.
+3. A `3xx` response counts as a failure. Redirects aren't followed, so use the final URL (watch for `http` → `https` and trailing-slash redirects).
+4. `401` from your own endpoint: see the next section.
+5. No deliveries at all: check the webhook is enabled and subscribed to the event type, and that the email belongs to the same project.
+
+## My endpoint rejects every signature
+
+- You verified a re-serialized body. Verify the raw bytes: `await req.text()`, or `express.raw()` in Express.
+- You used the wrong secret, or stripped the `whsec_` prefix. The whole string is the key.
+- The secret was rotated. Only the newest secret works.
+- Your server clock is more than 5 minutes off.
+
+## The dashboard answers "Access is not configured"
+
+**Cause:** the dashboard is a production build and `ACCESS_AUD` or `ACCESS_TEAM_DOMAIN` is empty.
+
+**Fix:** set both vars in `apps/dashboard/wrangler.jsonc` and redeploy. See [Deploy the dashboard](/docs/self-hosting/dashboard).

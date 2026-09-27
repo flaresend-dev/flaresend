@@ -1,0 +1,15 @@
+// The landing page: static files from `next build` (out/), served by their own Worker.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "flaresend-web",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  // Cloudflare creates the DNS record on the first deploy. The deploy token needs
+  // Zone > Workers Routes > Write on flaresend.dev.
+  "routes": [{ "pattern": "flaresend.dev", "custom_domain": true }],
+  "assets": {
+    "directory": "./out",
+    "not_found_handling": "404-page",
+    "html_handling": "auto-trailing-slash"
+  }
+}

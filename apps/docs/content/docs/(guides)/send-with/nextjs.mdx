@@ -1,0 +1,138 @@
+---
+title: Send emails with Next.js
+description: Send email from a Next.js Route Handler or Server Action with @flaresend/client.
+---
+
+## Prerequisites
+
+- A deployed mailer and its URL, for example `https://mailer.example.com`. See [Deploy](/docs/self-hosting/deploy).
+- An API key for your project. See [API keys](/docs/api-keys).
+- A Next.js app using the App Router.
+
+## Install
+
+```bash tab="npm" tab-group="pm"
+npm install @flaresend/client
+```
+
+```bash tab="pnpm" tab-group="pm"
+pnpm add @flaresend/client
+```
+
+```bash tab="yarn" tab-group="pm"
+yarn add @flaresend/client
+```
+
+```bash tab="bun" tab-group="pm"
+bun add @flaresend/client
+```
+
+Add the key and the mailer URL to `.env.local`. Don't prefix them with `NEXT_PUBLIC_`: the key must stay on the server.
+
+```bash title=".env.local"
+FLARESEND_API_KEY=fs_live_...
+FLARESEND_BASE_URL=https://mailer.example.com
+```
+
+## Create the client once
+
+```ts title="lib/flaresend.ts"
+import 'server-only';
+import { Flaresend } from '@flaresend/client';
+
+export const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: process.env.FLARESEND_BASE_URL!,
+});
+```
+
+`import 'server-only'` makes the build fail if a Client Component ever imports this file. Install it with `npm install server-only`.
+
+## Send from a Route Handler
+
+```ts title="app/api/send/route.ts"
+import { FlaresendError } from '@flaresend/client';
+import { flaresend } from '@/lib/flaresend';
+
+export async function POST(req: Request) {
+  const { email, name } = await req.json();
+
+  try {
+    const { id } = await flaresend.emails.send({
+      from: 'Acme <hello@acme.com>',
+      to: email,
+      template: 'welcome',
+      data: { name, appName: 'Acme', loginUrl: 'https://acme.com/login' },
+    });
+    return Response.json({ id });
+  } catch (err) {
+    if (err instanceof FlaresendError) {
+      return Response.json({ error: err.toJSON() }, { status: err.status || 500 });
+    }
+    throw err;
+  }
+}
+```
+
+## Send from a Server Action
+
+```tsx title="app/contact/page.tsx"
+import { flaresend } from '@/lib/flaresend';
+
+async function sendMessage(formData: FormData) {
+  'use server';
+  await flaresend.emails.send(
+    {
+      from: 'Acme <hello@acme.com>',
+      to: 'support@acme.com',
+      replyTo: String(formData.get('email')),
+      subject: 'New contact form message',
+      text: String(formData.get('message')),
+    },
+    // One email per form submission, even if the action runs twice.
+    { idempotencyKey: `contact-${formData.get('submissionId')}` },
+  );
+}
+
+export default function ContactPage() {
+  return (
+    <form action={sendMessage}>
+      <input type="hidden" name="submissionId" value={crypto.randomUUID()} />
+      <input name="email" type="email" required />
+      <textarea name="message" required />
+      <button type="submit">Send</button>
+    </form>
+  );
+}
+```
+
+`support@acme.com` is a recipient here, and `from` must still be on one of your project's allowed domains.
+
+## Idempotency
+
+Each `emails.send` call gets a random idempotency key by default, which protects against the client's own retries. Pass `{ idempotencyKey }` yourself, as in the Server Action above, to also protect against double submits. See [Idempotency](/docs/emails/idempotency).
+
+## Errors
+
+A failed call throws `FlaresendError` with `status`, `type`, `code`, `message` and `param`. `err.toJSON()` returns the same shape as the API error body:
+
+```json
+{
+  "type": "permission_error",
+  "code": "invalid_sender",
+  "message": "from must be an address on acme.com",
+  "param": "from"
+}
+```
+
+See [Errors](/docs/sdk/errors).
+
+<Callout type="info" title="Running Next.js on Cloudflare Workers?">
+  If your app is deployed to Workers (for example with OpenNext) in the same Cloudflare account as the mailer, you can skip the API key and call the mailer over a service binding. See [Send with Cloudflare Workers](/docs/send-with/cloudflare-workers).
+</Callout>
+
+## Next steps
+
+- [Templates](/docs/templates)
+- [Scheduling](/docs/emails/scheduling)
+- [Webhooks](/docs/webhooks)

@@ -1,0 +1,120 @@
+---
+title: Send emails with PHP
+description: Call the Flaresend REST API from PHP with the curl extension.
+---
+
+There is no PHP SDK. PHP's `curl` extension is enough.
+
+## Prerequisites
+
+- A deployed mailer and its URL, for example `https://mailer.example.com`. See [Deploy](/docs/self-hosting/deploy).
+- An API key for your project in `FLARESEND_API_KEY`. See [API keys](/docs/api-keys).
+- PHP 8 with the `curl` and `json` extensions.
+
+## Send an email
+
+```php title="send.php"
+<?php
+
+const FLARESEND_URL = 'https://mailer.example.com';
+
+final class FlaresendError extends RuntimeException
+{
+    public function __construct(
+        public readonly int $status,
+        public readonly string $type,
+        public readonly string $errorCode,
+        string $message,
+        public readonly ?string $param = null,
+    ) {
+        parent::__construct($message);
+    }
+}
+
+function flaresend_send(array $email, ?string $idempotencyKey = null): array
+{
+    $headers = [
+        'Authorization: Bearer ' . getenv('FLARESEND_API_KEY'),
+        'Content-Type: application/json',
+    ];
+    if ($idempotencyKey !== null) {
+        $headers[] = 'Idempotency-Key: ' . $idempotencyKey;
+    }
+
+    $ch = curl_init(FLARESEND_URL . '/v1/emails');
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_POSTFIELDS => json_encode($email, JSON_THROW_ON_ERROR),
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 30,
+    ]);
+    $body = curl_exec($ch);
+    if ($body === false) {
+        throw new RuntimeException('network error: ' . curl_error($ch));
+    }
+    $status = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    curl_close($ch);
+
+    $json = json_decode($body, true);
+    if ($status >= 300) {
+        $e = $json['error'] ?? ['type' => 'internal_error', 'code' => "http_$status", 'message' => substr($body, 0, 200)];
+        throw new FlaresendError($status, $e['type'], $e['code'], $e['message'], $e['param'] ?? null);
+    }
+    return $json;
+}
+
+$result = flaresend_send([
+    'from' => 'Acme <hello@acme.com>',
+    'to' => 'ada@example.com',
+    'subject' => 'Hello from PHP',
+    'html' => '<p>It works.</p>',
+    'text' => 'It works.',
+], 'hello-php-1');
+
+echo $result['id'], ' ', $result['status'], PHP_EOL; // email_01K6B2Y4ZP9R3M7T8V5N2QXW4C queued
+```
+
+## Idempotency
+
+The second argument becomes the `Idempotency-Key` header. A repeat with the same key and the same body returns `200` with the first email's ID and `"idempotent": true`. The same key with a different body throws `409 idempotency_payload_mismatch`. Tie the key to what the email is for, for example `'order-confirmation-' . $orderId`. See [Idempotency](/docs/emails/idempotency).
+
+## Errors
+
+Error responses always have this shape, which `flaresend_send` turns into a `FlaresendError`:
+
+```json
+{
+  "error": {
+    "type": "validation_error",
+    "code": "invalid_body",
+    "message": "subject is required",
+    "param": "subject"
+  }
+}
+```
+
+```php
+try {
+    flaresend_send($email, "welcome-$userId");
+} catch (FlaresendError $e) {
+    error_log("$e->status $e->errorCode: {$e->getMessage()}");
+}
+```
+
+The property is `errorCode` because `Exception` already has a `code` property of type `int`. See [Errors](/docs/api-reference/errors).
+
+## Attachments
+
+```php
+$email['attachments'] = [[
+    'filename' => 'invoice.pdf',
+    'content' => base64_encode(file_get_contents('invoice.pdf')),
+    'type' => 'application/pdf',
+]];
+```
+
+## Next steps
+
+- [Send an email](/docs/api-reference/emails/send): every field.
+- [Templates](/docs/templates): send `template` and `data` instead of HTML.

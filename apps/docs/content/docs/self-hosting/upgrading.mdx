@@ -1,0 +1,76 @@
+---
+title: Upgrading
+description: Update a running Flaresend deployment to a newer version of the repo.
+icon: CircleArrowUp
+---
+
+If [CI](/docs/self-hosting/ci) deploys for you, upgrading is merging into `main`. The steps below are for deploying by hand.
+
+<Steps>
+<Step>
+
+### Pull and install
+
+```bash
+git pull
+pnpm install
+pnpm build
+```
+
+</Step>
+<Step>
+
+### Check what changed
+
+Look at new files in `apps/mailer/migrations` and at changes to `apps/mailer/wrangler.jsonc`. A new binding, queue or secret has to exist in your account before the new code runs. `pnpm bootstrap` creates anything that is missing and keeps what exists, so running it after a pull is a safe way to catch up.
+
+<Callout type="warn" title="Deployments made before the move to secrets">
+  `PUBLIC_BASE_URL` and `CF_ACCOUNT_ID` (mailer) and `ACCESS_AUD` and `ACCESS_TEAM_DOMAIN` (dashboard) used to be `vars` in `wrangler.jsonc`. They are secrets now, and deploying the new config removes the old vars. Set them as secrets. The easiest way is `pnpm bootstrap`, which only adds what is missing. To avoid a gap on the mailer, put its two values in a JSON file and deploy with `npx wrangler deploy --secrets-file <file>`, which uploads them with the new version. For the dashboard, run `npx wrangler secret put` for both values right after it deploys.
+</Callout>
+
+</Step>
+<Step>
+
+### Apply migrations, then deploy the mailer
+
+```bash
+cd apps/mailer
+npx wrangler d1 migrations apply flaresend --remote
+npx wrangler deploy
+```
+
+Always migrate first. Wrangler records applied migrations in D1 and only runs new ones. From the repo root, `pnpm run deploy` runs both commands.
+
+</Step>
+<Step>
+
+### Deploy the dashboard
+
+```bash
+pnpm --filter @flaresend/dashboard run deploy
+```
+
+Deploy it after the mailer: the dashboard calls the mailer's `AdminRpc` methods, so a new dashboard may call methods an old mailer doesn't have yet.
+
+</Step>
+<Step>
+
+### Check it
+
+```bash
+curl https://mailer.example.com/health
+```
+
+`{ "ok": true }` means the Worker is up and can query D1.
+
+</Step>
+</Steps>
+
+## Client package versions
+
+Your apps use `@flaresend/client` from npm. It is released on its own schedule (see [CI and releases](/docs/self-hosting/ci#release-clientyml-publish-the-npm-packages)), and `@flaresend/types` always has the same version.
+
+- Upgrade the mailer before you upgrade the client in your apps, so the server knows any new fields the client sends.
+- While the version is 0.x, breaking changes are released as minor versions. Read the GitHub release notes (tags `client-v*`) before moving to a new minor.
+
+RPC callers bind to the mailer directly, so a mailer upgrade reaches them straight away. Only their TypeScript types come from the client package.

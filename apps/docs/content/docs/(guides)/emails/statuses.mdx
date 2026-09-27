@@ -1,0 +1,102 @@
+---
+title: Statuses and events
+description: What each email and recipient status means, how they change, and the timeline events behind them.
+icon: Activity
+---
+
+Every email has a **status**, every recipient of it has its own **recipient status**, and every change is written to the email's **timeline** as an event. You read all three with [Retrieve an email](/docs/api-reference/emails/retrieve), and [webhooks](/docs/webhooks) push the events to you as they happen.
+
+<LifecycleDiagram />
+
+## Email statuses
+
+| Status | Meaning |
+|---|---|
+| <StatusBadge status="queued" /> | Accepted and on the send queue. |
+| <StatusBadge status="scheduled" /> | Waiting for its `scheduledAt` time. See [Scheduling](/docs/emails/scheduling). |
+| <StatusBadge status="test" /> | Sent with an `fs_test_` key. Recorded, never sent. See [Test mode](/docs/emails/test-mode). |
+| <StatusBadge status="sending" /> | The queue picked it up and is handing it to Cloudflare. |
+| <StatusBadge status="sent" /> | Cloudflare accepted it. `cloudflareMessageId` and `sentAt` are set. |
+| <StatusBadge status="deferred" /> | A receiving server asked Cloudflare to try again later. Usually becomes `delivered`. |
+| <StatusBadge status="delivered" /> | **Every** recipient's server accepted it. |
+| <StatusBadge status="bounced" /> | At least one recipient bounced. |
+| <StatusBadge status="complained" /> | At least one recipient marked it as spam. |
+| <StatusBadge status="rejected" /> | Refused before delivery, for example because Cloudflare's own suppression list has the address. |
+| <StatusBadge status="failed" /> | Could not be sent: a permanent error from Cloudflare, retries ran out, or it couldn't be queued. `lastError` says why. |
+| <StatusBadge status="canceled" /> | A scheduled email that was canceled. |
+
+## How the email status is worked out
+
+Cloudflare reports delivery **per recipient**, so the email status is computed from its recipients each time one changes. The first rule that matches wins:
+
+1. Any recipient `complained` → `complained`
+2. Any recipient `bounced` → `bounced`
+3. Any recipient `rejected` → `rejected`
+4. Any recipient `failed` → `failed`
+5. **Every** recipient `delivered` → `delivered`
+6. Any recipient `deferred` → `deferred`
+
+Two rules keep the status from going backwards:
+
+- An email with a failure status never goes back to `sent`, `deferred` or `delivered`.
+- A lower failure never replaces a higher one. The order is `complained` > `bounced` > `rejected` > `failed`.
+
+So an email to two people where one bounced and one was delivered is `bounced`. Check `recipients` for each person's result.
+
+`deliveredAt` and `failedAt` are set the first time the email reaches `delivered` or a failure status.
+
+## Recipient statuses
+
+Each entry in `recipients` has `address`, `kind` (`to`, `cc` or `bcc`), `status`, and the delivery details Cloudflare reported: `provider`, `smtpStatus`, `smtpResponse`, `deliveryMs`, `bounceType` and `lastEventAt`.
+
+Recipient statuses are `queued`, `sent`, `deferred`, `delivered`, `bounced`, `complained`, `rejected`, `failed`, `test` and `canceled`.
+
+Events can arrive late or out of order. A new status only replaces the current one if it ranks at least as high:
+
+| Rank | Status |
+|---|---|
+| 0 | `queued`, `sent`, `test` |
+| 1 | `deferred` |
+| 2 | `delivered` |
+| 3 | `failed`, `rejected` |
+| 4 | `bounced` |
+| 5 | `complained` |
+
+A late `deferred` never overwrites `delivered`. A complaint after delivery does replace `delivered`, because it ranks higher.
+
+## Timeline events
+
+| Event | Written when | Webhook |
+|---|---|---|
+| `email.queued` | The email was accepted and queued. | yes |
+| `email.scheduled` | The email was accepted with `scheduledAt`, or rescheduled. | no |
+| `email.test` | The email was recorded with a test key. | no |
+| `email.sent` | Cloudflare accepted the message. | yes |
+| `email.retrying` | Sending hit a temporary error and will be retried. Data has `code`, `attempt` and `delaySeconds`. | no |
+| `email.deferred` | A recipient's server deferred it. | yes |
+| `email.delivered` | A recipient's server accepted it. | yes |
+| `email.bounced` | A recipient bounced. | yes |
+| `email.complained` | A recipient complained. | yes |
+| `email.rejected` | Delivery to a recipient was refused. | yes |
+| `email.failed` | The email or a recipient failed permanently. | yes |
+| `email.canceled` | A scheduled email was canceled. | yes |
+| `email.opened` | The first open. See [Tracking](/docs/emails/tracking). | yes |
+| `email.clicked` | A tracked link was clicked. | yes |
+
+Delivery events (`delivered`, `deferred`, `bounced`, `complained`, `rejected`, `failed` from Cloudflare) are per recipient: an email to three people gets up to three `email.delivered` events, each with `recipient` set. Events Flaresend writes itself (`queued`, `sent`, `retrying`, `canceled`, `opened`, `clicked`) have `recipient: null`.
+
+List events across all emails with [List events](/docs/api-reference/events/list), for example `GET /v1/events?type=email.bounced`.
+
+## Sending retries
+
+Once an email is on the queue, a temporary error from Cloudflare (`E_RATE_LIMIT_EXCEEDED`, `E_INTERNAL_SERVER_ERROR`, `E_DELIVERY_FAILED`) or a network error is retried with exponential backoff: `min(2^attempt × 15 s, 1 hour)` plus up to 20% random jitter, up to 8 retries. Each retry writes an `email.retrying` event. After the last one, the email is marked `failed`.
+
+Other errors fail at once. `E_RECIPIENT_SUPPRESSED` from Cloudflare marks the email `rejected` and adds its recipients to Flaresend's [suppression list](/docs/deliverability/suppressions).
+
+## Automatic suppressions
+
+When a recipient hard-bounces or complains, Flaresend adds the address to the suppression list, and later sends to it are refused with `422 recipient_suppressed`. See [Suppressions](/docs/deliverability/suppressions).
+
+<Callout type="info" title="Stuck at sent?">
+  If emails stay at `sent` forever, the mailer isn't receiving Cloudflare's delivery events. Check the event subscription for the sending domain. See [Troubleshooting](/docs/troubleshooting).
+</Callout>

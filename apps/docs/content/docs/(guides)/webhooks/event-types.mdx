@@ -1,0 +1,330 @@
+---
+title: Event types
+description: Every event a webhook can receive, when it fires, and what its data contains.
+---
+
+A webhook subscribes to a list of event types, or to `"*"` for all of them. These are the types you can pick:
+
+| Type | Fires when | `recipient` |
+|---|---|---|
+| `email.queued` | The email was accepted and put on the send queue | `null` |
+| `email.sent` | Cloudflare accepted the message for delivery | `null` |
+| `email.delivered` | A recipient's mail server accepted it | the address |
+| `email.deferred` | A recipient's server asked to try again later | the address |
+| `email.bounced` | A recipient's server refused it | the address |
+| `email.complained` | A recipient marked it as spam | the address |
+| `email.rejected` | Cloudflare refused to deliver it to a recipient | the address |
+| `email.failed` | Flaresend or Cloudflare could not send it at all | `null` or the address |
+| `email.opened` | The open-tracking pixel loaded for the first time | `null` |
+| `email.clicked` | A tracked link was clicked | `null` |
+| `email.canceled` | A scheduled email was canceled | `null` |
+
+Events that only appear on the email's timeline, and never go to webhooks: `email.scheduled`, `email.retrying` and `email.test`.
+
+Delivery events (`delivered`, `deferred`, `bounced`, `complained`, `rejected`, and `failed` when it comes from Cloudflare) arrive **once per recipient**. An email to three people can produce three `email.delivered` events.
+
+## Common fields
+
+Every payload has this shape:
+
+<TypeTable
+  type={{
+    id: { type: 'string', description: 'The event ID (evt_…). The same ID is sent in the Flaresend-Event-Id header. Use it to skip duplicates.' },
+    type: { type: 'string', description: 'One of the types above.' },
+    createdAt: { type: 'string', description: 'ISO 8601 time of the event. For delivery events this is the time Cloudflare reported.' },
+    'data.emailId': { type: 'string', description: 'The email the event belongs to.' },
+    'data.recipient': { type: 'string | null', description: 'The recipient address for per-recipient events, otherwise null.' },
+    'data.from': { type: 'string', description: 'The sender address, without the display name.' },
+    'data.subject': { type: 'string', description: 'The subject as sent.' },
+    'data.tags': { type: 'Record<string, string>', description: 'The tags sent with the email, or {} when there were none.' },
+  }}
+/>
+
+The rest of `data` depends on the type.
+
+## `email.queued`
+
+Only the common fields. Scheduled emails don't fire `email.queued` when they are created; they get `email.scheduled` on the timeline instead.
+
+```json
+{
+  "id": "evt_01K6B2Y5A1T8R4M2V7N9Q3X5WC",
+  "type": "email.queued",
+  "createdAt": "2026-09-26T14:02:08.117Z",
+  "data": {
+    "emailId": "email_01K6B2Y4ZP9R3M7T8V5N2QXW4C",
+    "recipient": null,
+    "from": "hello@acme.com",
+    "subject": "Welcome to Acme",
+    "tags": { "kind": "welcome" }
+  }
+}
+```
+
+## `email.sent`
+
+`data.messageId` is the ID Cloudflare returned for the message.
+
+```json
+{
+  "id": "evt_01K6B2Y7C3M9Q2T5V8N4R6X1PB",
+  "type": "email.sent",
+  "createdAt": "2026-09-26T14:02:09.504Z",
+  "data": {
+    "messageId": "0101018f7d0c4d9a-msg-deadbeef",
+    "emailId": "email_01K6B2Y4ZP9R3M7T8V5N2QXW4C",
+    "recipient": null,
+    "from": "hello@acme.com",
+    "subject": "Welcome to Acme",
+    "tags": { "kind": "welcome" }
+  }
+}
+```
+
+## Delivery events
+
+`email.delivered`, `email.deferred`, `email.bounced`, `email.complained`, `email.rejected`, and `email.failed` when Cloudflare reports it. These carry what Cloudflare sent in its delivery event:
+
+<TypeTable
+  type={{
+    'data.delivery': {
+      type: 'object',
+      description: 'status, and when Cloudflare has them: provider, deliveryTimeMs, smtpStatusCode, smtpEnhancedStatusCode, smtpResponse.',
+    },
+    'data.bounce': { type: 'object', description: 'Bounces and some deferrals: type ("hard" or "soft"), classification, reason.' },
+    'data.failure': { type: 'object', description: 'Failures: reason.' },
+    'data.rejection': { type: 'object', description: 'Rejections: reason, party, detail.' },
+    'data.complaint': { type: 'object', description: 'Complaints: type, for example "abuse".' },
+    'data.terminal': { type: 'boolean | null', description: 'true when Cloudflare will not report anything more for this recipient.' },
+  }}
+/>
+
+<Tabs items={['delivered', 'bounced', 'deferred', 'complained', 'rejected']}>
+<Tab value="delivered">
+
+```json
+{
+  "id": "evt_01K6B2ZC1W7Q3T9M4X8V2N5R6P",
+  "type": "email.delivered",
+  "createdAt": "2026-09-26T14:02:11.482Z",
+  "data": {
+    "delivery": {
+      "status": "delivered",
+      "provider": "gmail",
+      "deliveryTimeMs": 1234,
+      "smtpStatusCode": "250",
+      "smtpEnhancedStatusCode": "2.0.0",
+      "smtpResponse": "250 2.0.0 OK 1714820445 a1b2c3 - gsmtp"
+    },
+    "terminal": true,
+    "emailId": "email_01K6B2Y4ZP9R3M7T8V5N2QXW4C",
+    "recipient": "ada@example.com",
+    "from": "hello@acme.com",
+    "subject": "Welcome to Acme",
+    "tags": { "kind": "welcome" }
+  }
+}
+```
+
+</Tab>
+<Tab value="bounced">
+
+```json
+{
+  "id": "evt_01K6B2ZD4P2V8R1T6M3X9N7Q5B",
+  "type": "email.bounced",
+  "createdAt": "2026-09-26T14:02:12.009Z",
+  "data": {
+    "delivery": {
+      "status": "bounced",
+      "provider": "external_smtp",
+      "deliveryTimeMs": 2143,
+      "smtpStatusCode": "550",
+      "smtpEnhancedStatusCode": "5.1.1",
+      "smtpResponse": "550 5.1.1 User unknown"
+    },
+    "bounce": {
+      "type": "hard",
+      "classification": "permanent_failure",
+      "reason": "550 5.1.1 User unknown"
+    },
+    "terminal": true,
+    "emailId": "email_01K6B2Y4ZP9R3M7T8V5N2QXW4C",
+    "recipient": "grace@example.com",
+    "from": "hello@acme.com",
+    "subject": "Welcome to Acme",
+    "tags": { "kind": "welcome" }
+  }
+}
+```
+
+A hard bounce also adds the address to the [suppression list](/docs/deliverability/suppressions).
+
+</Tab>
+<Tab value="deferred">
+
+```json
+{
+  "id": "evt_01K6B2ZE7R5M1Q9T3V6X2N8P4C",
+  "type": "email.deferred",
+  "createdAt": "2026-09-26T14:02:12.771Z",
+  "data": {
+    "delivery": {
+      "status": "deferred",
+      "provider": "external_smtp",
+      "deliveryTimeMs": 2143,
+      "smtpStatusCode": "451",
+      "smtpEnhancedStatusCode": "4.2.0",
+      "smtpResponse": "451 4.2.0 Temporary mailbox error"
+    },
+    "bounce": {
+      "type": "soft",
+      "classification": "temporary_failure",
+      "reason": "451 4.2.0 Temporary mailbox error"
+    },
+    "terminal": false,
+    "emailId": "email_01K6B2Y4ZP9R3M7T8V5N2QXW4C",
+    "recipient": "ada@example.com",
+    "from": "hello@acme.com",
+    "subject": "Welcome to Acme",
+    "tags": { "kind": "welcome" }
+  }
+}
+```
+
+Cloudflare keeps trying. A later `email.delivered` or `email.bounced` for the same recipient follows.
+
+</Tab>
+<Tab value="complained">
+
+```json
+{
+  "id": "evt_01K6B3A1F8N4T2Q7V5M9X3R6PD",
+  "type": "email.complained",
+  "createdAt": "2026-09-27T08:15:40.220Z",
+  "data": {
+    "delivery": { "status": "complained" },
+    "complaint": { "type": "abuse" },
+    "terminal": true,
+    "emailId": "email_01K6B2Y4ZP9R3M7T8V5N2QXW4C",
+    "recipient": "ada@example.com",
+    "from": "hello@acme.com",
+    "subject": "Welcome to Acme",
+    "tags": { "kind": "welcome" }
+  }
+}
+```
+
+The address is added to the suppression list with the reason `complaint`.
+
+</Tab>
+<Tab value="rejected">
+
+```json
+{
+  "id": "evt_01K6B2ZF2T8Q5M3V9N1X7R4P6E",
+  "type": "email.rejected",
+  "createdAt": "2026-09-26T14:02:10.338Z",
+  "data": {
+    "delivery": { "status": "rejected" },
+    "rejection": {
+      "reason": "suppressed",
+      "party": "recipient",
+      "detail": "Recipient is suppressed"
+    },
+    "terminal": true,
+    "emailId": "email_01K6B2Y4ZP9R3M7T8V5N2QXW4C",
+    "recipient": "ada@example.com",
+    "from": "hello@acme.com",
+    "subject": "Welcome to Acme",
+    "tags": { "kind": "welcome" }
+  }
+}
+```
+
+</Tab>
+</Tabs>
+
+## `email.failed`
+
+There are two sources, and the payload tells you which:
+
+- **From Flaresend**, when the message could not be handed to Cloudflare: `recipient` is `null` and `data` has `code` and `message`. The `code` is either the error code Cloudflare's send call returned (for example `E_SENDER_NOT_VERIFIED`), or one Flaresend sets itself: `queue_error` (the email could not be put on the queue), `payload_missing` (the body was not in R2) or `max_retries_exhausted` (the send was retried the maximum number of times). The email's `lastError` holds the same values.
+- **From Cloudflare**, as a delivery event: `recipient` is set and `data` has `delivery`, `failure` and `terminal`, like the other delivery events.
+
+```json
+{
+  "id": "evt_01K6B2ZG5V1R8T4Q2M6X9N3P7F",
+  "type": "email.failed",
+  "createdAt": "2026-09-26T14:02:09.880Z",
+  "data": {
+    "code": "max_retries_exhausted",
+    "message": "the send was retried the maximum number of times",
+    "emailId": "email_01K6B2Y4ZP9R3M7T8V5N2QXW4C",
+    "recipient": null,
+    "from": "hello@acme.com",
+    "subject": "Welcome to Acme",
+    "tags": { "kind": "welcome" }
+  }
+}
+```
+
+A message that fails with Cloudflare's `E_RECIPIENT_SUPPRESSED` is sent as `email.failed` too, but the email's status becomes `rejected`, not `failed`.
+
+## `email.opened`
+
+Needs [open tracking](/docs/emails/tracking). Fires **once per email**, the first time the pixel loads. Later opens don't fire again. `data.userAgent` is the `User-Agent` of the request that loaded the pixel, or `null`.
+
+```json
+{
+  "id": "evt_01K6B3B6H2Q9T5M1V8X4N7R3PG",
+  "type": "email.opened",
+  "createdAt": "2026-09-26T14:10:02.614Z",
+  "data": {
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    "emailId": "email_01K6B2Y4ZP9R3M7T8V5N2QXW4C",
+    "recipient": null,
+    "from": "hello@acme.com",
+    "subject": "Welcome to Acme",
+    "tags": { "kind": "welcome" }
+  }
+}
+```
+
+Many mail clients and privacy proxies load images automatically, so an open doesn't prove a person read the email.
+
+## `email.clicked`
+
+Needs [click tracking](/docs/emails/tracking). Fires on **every** click of a tracked link. `data.url` is the original link.
+
+```json
+{
+  "id": "evt_01K6B3C9J5T2Q8M4V1X7N3R6PH",
+  "type": "email.clicked",
+  "createdAt": "2026-09-26T14:10:31.052Z",
+  "data": {
+    "url": "https://acme.com/login",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    "emailId": "email_01K6B2Y4ZP9R3M7T8V5N2QXW4C",
+    "recipient": null,
+    "from": "hello@acme.com",
+    "subject": "Welcome to Acme",
+    "tags": { "kind": "welcome" }
+  }
+}
+```
+
+## `email.canceled`
+
+A [scheduled email](/docs/emails/scheduling) was canceled before it was sent. Only the common fields.
+
+## Types in TypeScript
+
+`@flaresend/client` exports the payload type, and `@flaresend/types` exports the list of types:
+
+```ts
+import type { WebhookPayload } from '@flaresend/client';
+import { WEBHOOK_EVENT_TYPES, type WebhookEventType } from '@flaresend/types';
+```
+
+`WebhookPayload['data']` is typed with the common fields and an index signature for the rest, so narrow on `type` before reading type-specific fields.

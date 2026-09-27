@@ -1,0 +1,182 @@
+---
+title: Built-in templates
+description: The five React Email templates that ship with the mailer, their data, and how to add your own.
+icon: Blocks
+---
+
+Built-in templates are [React Email](https://react.email) components in `packages/templates`. The mailer renders them to HTML and plain text when a send names one. Every project can use them, and a project can replace one with a [custom template](/docs/templates/custom) of the same name.
+
+| Name | Subject | Use it for |
+|---|---|---|
+| `welcome` | `Welcome to {appName}` | After sign-up. Greets the user and links to the login page. |
+| `password-reset` | `Reset your password` | A password reset link with an expiry time. |
+| `magic-link` | `Your sign-in link` | A one-time sign-in link with an expiry time. |
+| `notification` | the `title` you pass | A generic notice with a title, a body and an optional button. |
+| `invoice` | `Invoice {invoiceNumber}` | An invoice with line items, a total, a due date and an optional pay link. |
+
+URLs must be full URLs (`https://…`). Fields marked optional can be left out; fields with a default get that value when left out.
+
+## `welcome`
+
+<TypeTable
+  type={{
+    name: { type: 'string', required: true, description: 'Used in "Hi {name},".' },
+    appName: { type: 'string', required: true, description: 'Your product name. Also used in the subject.' },
+    loginUrl: { type: 'string (URL)', required: true, description: 'Where the button links.' },
+  }}
+/>
+
+```ts
+await flaresend.emails.send({
+  to: 'ada@example.com',
+  template: 'welcome',
+  data: { name: 'Ada', appName: 'Acme', loginUrl: 'https://acme.com/login' },
+});
+```
+
+## `password-reset`
+
+<TypeTable
+  type={{
+    name: { type: 'string', description: 'Greeting name. Optional.' },
+    resetUrl: { type: 'string (URL)', required: true, description: 'The reset link.' },
+    expiresInMinutes: { type: 'number', default: '30', description: 'Shown in the email as the link\'s lifetime.' },
+  }}
+/>
+
+```ts
+await flaresend.emails.send({
+  to: 'ada@example.com',
+  template: 'password-reset',
+  data: { resetUrl: 'https://acme.com/reset?token=abc', expiresInMinutes: 60 },
+});
+```
+
+## `magic-link`
+
+<TypeTable
+  type={{
+    loginUrl: { type: 'string (URL)', required: true, description: 'The one-time sign-in link.' },
+    expiresInMinutes: { type: 'number', default: '15', description: 'Shown in the email as the link\'s lifetime.' },
+  }}
+/>
+
+## `notification`
+
+<TypeTable
+  type={{
+    title: { type: 'string', required: true, description: 'Heading, and the subject.' },
+    body: { type: 'string', required: true, description: 'Plain text body.' },
+    ctaText: { type: 'string', description: 'Button label. Optional.' },
+    ctaUrl: { type: 'string (URL)', description: 'Button link. Optional.' },
+  }}
+/>
+
+```ts
+await flaresend.emails.send({
+  to: 'ada@example.com',
+  template: 'notification',
+  data: {
+    title: 'Your export is ready',
+    body: 'The CSV export you asked for has finished.',
+    ctaText: 'Download',
+    ctaUrl: 'https://acme.com/exports/42',
+  },
+});
+```
+
+## `invoice`
+
+<TypeTable
+  type={{
+    invoiceNumber: { type: 'string', required: true, description: 'Used in the subject.' },
+    amount: { type: 'string', required: true, description: 'The total, already formatted, for example "$120.00".' },
+    dueDate: { type: 'string', required: true, description: 'Already formatted, for example "1 October 2026".' },
+    items: { type: '{ description: string; amount: string }[]', required: true, description: 'Line items.' },
+    payUrl: { type: 'string (URL)', description: 'Pay button link. Optional.' },
+  }}
+/>
+
+```ts
+await flaresend.emails.send({
+  to: 'ada@example.com',
+  template: 'invoice',
+  data: {
+    invoiceNumber: 'INV-1042',
+    amount: '$120.00',
+    dueDate: '1 October 2026',
+    items: [
+      { description: 'Pro plan, October', amount: '$100.00' },
+      { description: 'Extra seats (2)', amount: '$20.00' },
+    ],
+    payUrl: 'https://acme.com/pay/INV-1042',
+  },
+});
+```
+
+## Invalid data
+
+Data is checked against the template's schema before anything is stored. The first problem is reported:
+
+```json
+{
+  "error": {
+    "type": "validation_error",
+    "code": "invalid_template_data",
+    "message": "data.loginUrl: Invalid url",
+    "param": "data.loginUrl"
+  }
+}
+```
+
+## Preview them
+
+From `packages/templates`:
+
+```bash
+pnpm preview            # React Email dev server on http://localhost:3000
+```
+
+It shows every template with its example data. The dashboard's **Templates** page lists them too, marked as built-in (read-only), and [Retrieve a template](/docs/api-reference/templates/retrieve) returns one rendered with its example data.
+
+## Add a template
+
+Built-in templates are code, so adding one is a change to the repo and a deploy of the mailer.
+
+<Steps>
+<Step>
+
+### Write the component
+
+Create `packages/templates/src/emails/<name>.tsx`. Export the component (named and default) and a `PreviewProps` object with example data, and set `Component.PreviewProps = PreviewProps`. Use `Layout` and `styles` from `src/emails/_components/layout.tsx` so it matches the other emails.
+
+</Step>
+<Step>
+
+### Register it
+
+Add an entry to `templates` in `packages/templates/src/index.ts`:
+
+```ts
+'order-shipped': defineTemplate({
+  description: 'Shipping confirmation with a tracking link.',
+  schema: z.object({ orderNumber: z.string(), trackingUrl: z.string().url() }),
+  subject: (d) => `Order ${d.orderNumber} has shipped`,
+  component: OrderShipped,
+  example: orderShippedExample,
+}),
+```
+
+The schema validates `data` and fills defaults. The component's props must match the schema's parsed output.
+
+</Step>
+<Step>
+
+### Test and deploy
+
+Add the expected subject to `expectedSubjects` in `packages/templates/test/templates.test.ts`, run `pnpm test`, `pnpm typecheck` and `pnpm build`, then deploy the mailer. The mailer bundles the built `dist/`, so rebuild before deploying.
+
+</Step>
+</Steps>
+
+Use lowercase letters, digits, `-` and `_` for the name, the same characters custom templates allow. The type of the new template's data is picked up by `TemplateMap` automatically; see [Typed templates](/docs/templates/typed).

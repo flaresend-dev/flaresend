@@ -1,0 +1,81 @@
+---
+title: Custom headers
+description: Add your own email headers, within the rules Cloudflare Email Service enforces.
+icon: Heading
+---
+
+Pass extra headers as an object of name to value:
+
+```ts tab="Node.js" tab-group="lang"
+await flaresend.emails.send({
+  from: 'Acme <hello@acme.com>',
+  to: 'ada@example.com',
+  subject: 'Order 1042 shipped',
+  text: 'Your order is on its way.',
+  headers: {
+    'X-Entity-Ref-ID': 'order-1042',
+    'List-Unsubscribe': '<https://acme.com/unsubscribe?u=42>',
+  },
+});
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/emails \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "from": "Acme <hello@acme.com>",
+    "to": "ada@example.com",
+    "subject": "Order 1042 shipped",
+    "text": "Your order is on its way.",
+    "headers": {
+      "X-Entity-Ref-ID": "order-1042",
+      "List-Unsubscribe": "<https://acme.com/unsubscribe?u=42>"
+    }
+  }'
+```
+
+```ts tab="Worker (RPC)" tab-group="lang"
+await mail.send({
+  from: 'Acme <hello@acme.com>',
+  to: 'ada@example.com',
+  subject: 'Order 1042 shipped',
+  text: 'Your order is on its way.',
+  headers: { 'X-Entity-Ref-ID': 'order-1042' },
+});
+```
+
+## Rules
+
+Flaresend checks headers before the email is queued, so a bad header fails the request at once instead of failing later in the queue. Every failure is `400 invalid_header`, with `param` set to `headers.<name>`.
+
+| Rule | Limit |
+|---|---|
+| Header names | Letters, digits and ``! # $ % & ' * + . ^ _ ` \| ~ -``. No spaces or colons. |
+| Header values | No line breaks. At most 2,048 bytes. |
+| Headers that don't start with `X-` | At most 20. |
+| All custom headers together | At most 16 KB. |
+
+### Headers you can't set
+
+These are set by Flaresend from the request fields. Setting them in `headers` is refused, and the error message tells you which field to use instead:
+
+| Header | Use instead |
+|---|---|
+| `From` | `from` |
+| `To` | `to` |
+| `Cc` | `cc` |
+| `Bcc` | `bcc` |
+| `Subject` | `subject` |
+| `Reply-To` | `replyTo` |
+| `Date`, `Message-ID`, `Content-Type`, `MIME-Version` | Set by Flaresend. |
+
+The check ignores case, so `subject` and `SUBJECT` are refused too.
+
+## Headers Flaresend adds
+
+[Broadcasts](/docs/contacts/broadcasts) add `List-Unsubscribe` and `List-Unsubscribe-Post: List-Unsubscribe=One-Click` to every email, when the mailer has a `TRACKING_SECRET`. For transactional email you add these yourself if you need them.
+
+## Seeing them later
+
+The headers you sent are returned by [Retrieve email content](/docs/api-reference/emails/content) for 30 days after sending.

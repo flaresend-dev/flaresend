@@ -1,0 +1,47 @@
+---
+title: Dashboard
+description: A tour of the Flaresend dashboard, the admin UI you deploy next to the mailer and protect with Cloudflare Access.
+icon: LayoutDashboard
+---
+
+The dashboard is a Next.js app that runs as its own Worker (`flaresend-dashboard`). Its layout and wording follow Resend's, so things are where a Resend user looks for them.
+
+It holds no API key. Every read and write goes to the mailer's `AdminRpc` entrypoint over a service binding, so the dashboard can do everything the [admin API](/docs/api-reference/admin) can. Access to it is controlled by **Cloudflare Access**: only people your Access policy lets in can open it. See [Deploy the dashboard](/docs/self-hosting/dashboard).
+
+## Projects
+
+Every page except the project list belongs to one project. Switch projects with the switcher at the top of the sidebar. Opening the dashboard at `/` takes you to the last project you visited, or to the first project, or to **New project** when there are none.
+
+## Pages
+
+### Sending
+
+| Page | What you can do |
+|---|---|
+| **Emails** | Search by recipient, subject, tag or email ID. Filter by status and date. **Send test email**. With no emails yet, a three-step "Send your first email" guide. |
+| **Email detail** | Preview, plain text, HTML, headers and attachments. Details, the event timeline and each recipient's status. **Resend**, and **Reschedule** / **Cancel** for scheduled emails. |
+| **Broadcasts** | List, compose with a live preview, save drafts, send or schedule. The detail page's numbers update every 5 seconds while sending. |
+| **Audiences** | Create, rename and delete audiences. Add contacts with a search dialog, remove members in bulk. |
+| **Contacts** | Search, add, edit in a side sheet, and [import a CSV](/docs/contacts/contacts#from-a-csv-file). |
+| **Templates** | Built-in templates (read-only) and editable ones: a split editor with live preview, variables, version history and test send. |
+| **Metrics** | Sent, delivered, bounced, complained, opened and clicked over 7, 30 or 90 days, by day or hour. |
+| **Logs** | Email events, newest first, refreshed every 10 seconds. `?emailId=` shows the events of one email. |
+
+### Configuration
+
+| Page | What you can do |
+|---|---|
+| **Domains** | The project's domains with their Cloudflare [verification status](/docs/deliverability/domains#verification-status). **Verify** re-checks. **Add domain**, **Set up in Cloudflare**, default sender per domain, and the allowed sender addresses. |
+| **API Keys** | **Create API key** (shown once), rename, revoke. |
+| **Webhooks** | Endpoints, their events and an on/off switch. The detail page has settings, **Rotate secret**, **Send test event** and the deliveries log. |
+| **Suppressions** | The [suppression list](/docs/deliverability/suppressions). It is shared by every project. |
+| **Settings** | Name, daily limit, open and click tracking, RPC access, broadcasts, and **Pause sending**. Each card saves on its own. |
+
+## Shortcuts
+
+- <kbd>Ctrl</kbd>+<kbd>K</kbd> (<kbd>⌘</kbd>+<kbd>K</kbd> on macOS) opens the command palette.
+- <kbd>/</kbd> focuses the search box of the page.
+
+## Errors
+
+When the mailer refuses something, the dashboard shows the [error code](/docs/api-reference/errors) and message, like `invalid_sender: from must be an address on acme.com`, inline and in a toast.

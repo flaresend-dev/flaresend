@@ -1,0 +1,67 @@
+---
+title: Tags
+description: Label emails with your own key-value pairs, then filter by them and read them in webhooks.
+icon: Tag
+---
+
+Tags are your own labels for an email, as an object of string keys to string values. They are not part of the message the recipient sees.
+
+```ts tab="Node.js" tab-group="lang"
+await flaresend.emails.send({
+  from: 'Acme <hello@acme.com>',
+  to: 'ada@example.com',
+  subject: 'Reset your password',
+  template: 'password-reset',
+  data: { resetUrl },
+  tags: { kind: 'password-reset', user_id: '42' },
+});
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/emails \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": "ada@example.com",
+    "template": "password-reset",
+    "data": { "resetUrl": "https://acme.com/reset?t=abc" },
+    "tags": { "kind": "password-reset", "user_id": "42" }
+  }'
+```
+
+```ts tab="Worker (RPC)" tab-group="lang"
+await mail.send({
+  to: 'ada@example.com',
+  template: 'password-reset',
+  data: { resetUrl },
+  tags: { kind: 'password-reset', user_id: '42' },
+});
+```
+
+Keys are up to 64 characters and values up to 256. Values must be strings, so send `"42"`, not `42`.
+
+## Where tags show up
+
+- **The email record.** `tags` on [Retrieve an email](/docs/api-reference/emails/retrieve) and [List emails](/docs/api-reference/emails/list).
+- **Filtering.** List emails with `tag=key:value`, for example `GET /v1/emails?tag=kind:password-reset`. The value is everything after the first colon, and it must match exactly. The dashboard's email filters use the same parameter.
+- **Webhooks.** Every [webhook payload](/docs/webhooks/event-types) has the email's tags in `data.tags`, so your handler can tell what the email was for without looking it up.
+- **Analytics.** [Analytics](/docs/api-reference/analytics/retrieve) returns the 10 most used `key:value` pairs in the range as `topTags`.
+
+```ts
+const { data } = await flaresend.emails.list({ tag: 'user_id:42', status: 'bounced' });
+```
+
+## Tags Flaresend adds
+
+Flaresend adds some tags itself. They are merged over yours, so avoid these keys:
+
+| Tag | Added to |
+|---|---|
+| `broadcast_id` | Every email sent by a [broadcast](/docs/contacts/broadcasts). Its value is the broadcast ID. |
+| `resent_from` | An email created by the admin resend action. Its value is the ID of the original email. |
+
+## Tips
+
+- Tag with IDs you already have (`user_id`, `order_id`, `tenant`), so you can go from an email to your own records.
+- Use one key like `kind` for the type of email. It makes the `topTags` list and the email filters useful.
+- Don't put secrets or personal data in tags. They are stored in plain text and sent to every webhook.

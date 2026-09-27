@@ -1,0 +1,87 @@
+---
+title: Retrieve a contact
+description: Get one contact by its ID.
+method: GET
+---
+
+<Endpoint method="GET" path="/v1/contacts/:id" />
+
+<ApiPage>
+<ApiMain>
+
+Returns one contact from the project. To find a contact by email, use [List contacts](/docs/api-reference/contacts/list) with `q`.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="id" type="string" required>
+  The contact ID, for example `ct_01K6C1M3R8T2V9X4Z6B7N5P0QA`.
+</ParamField>
+
+</Fields>
+
+## Response
+
+The contact, with the fields described in [Create a contact](/docs/api-reference/contacts/create#response).
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `contact_not_found` | No contact with that ID in this project. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const contact = await flaresend.contacts.get('ct_01K6C1M3R8T2V9X4Z6B7N5P0QA');
+```
+
+```bash tab="cURL" tab-group="lang"
+curl https://mailer.example.com/v1/contacts/ct_01K6C1M3R8T2V9X4Z6B7N5P0QA \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "id": "ct_01K6C1M3R8T2V9X4Z6B7N5P0QA",
+  "projectId": "proj_01K5Z8W2Q4R6T8V0X2Z4B6D8FG",
+  "email": "ada@example.com",
+  "firstName": "Ada",
+  "lastName": "Lovelace",
+  "unsubscribed": false,
+  "data": { "plan": "pro" },
+  "createdAt": "2026-09-26T10:00:00.000Z",
+  "updatedAt": "2026-09-26T10:00:00.000Z"
+}
+```
+
+```json tab="404" tab-group="status"
+{
+  "error": {
+    "type": "not_found",
+    "code": "contact_not_found",
+    "message": "contact ct_01K6C1M3R8T2V9X4Z6B7N5P0QA not found",
+    "param": "id"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

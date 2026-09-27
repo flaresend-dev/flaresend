@@ -1,0 +1,119 @@
+---
+title: List template versions
+description: Every saved version of a stored template, newest first.
+method: GET
+---
+
+<Endpoint method="GET" path="/v1/templates/:name/versions" />
+
+<ApiPage>
+<ApiMain>
+
+A stored template keeps every version it has had. Version `1` is the content from [create](/docs/api-reference/templates/create); each [update](/docs/api-reference/templates/update) or [restore](/docs/api-reference/templates/restore) adds the next number. Nothing is ever removed from the history until the template is deleted.
+
+The list is returned in one response, newest version first, not paginated. Built-in templates have no versions and return `404 template_not_found`.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="name" type="string" required>
+  The template name.
+</ParamField>
+
+</Fields>
+
+## Response
+
+<Fields>
+
+<ResponseField name="data" type="TemplateVersion[]">
+  The versions. The Node.js client returns this array directly.
+
+  <Expandable title="version properties">
+    <ResponseField name="templateId" type="string">
+      The template ID, `tmpl_…`.
+    </ResponseField>
+    <ResponseField name="version" type="number">
+      The version number, starting at 1.
+    </ResponseField>
+    <ResponseField name="subject" type="string">
+      The subject in this version.
+    </ResponseField>
+    <ResponseField name="html" type="string">
+      The HTML in this version.
+    </ResponseField>
+    <ResponseField name="text" type="string | null">
+      The text body in this version.
+    </ResponseField>
+    <ResponseField name="variables" type="Variable[]">
+      The declared variables in this version.
+    </ResponseField>
+    <ResponseField name="createdAt" type="string">
+      When this version was saved.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `template_not_found` | No stored template with this name. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const versions = await flaresend.templates.versions('order-shipped');
+```
+
+```bash tab="cURL" tab-group="lang"
+curl https://mailer.example.com/v1/templates/order-shipped/versions \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "data": [
+    {
+      "templateId": "tmpl_01K6B5A7C9E1G3J5L7N9Q1S3U5",
+      "version": 2,
+      "subject": "Good news: order {{order.number}} has shipped",
+      "html": "<p>Hi {{first_name}}, your order has shipped.</p>",
+      "text": null,
+      "variables": [{ "name": "first_name", "required": true, "example": "Ada" }],
+      "createdAt": "2026-09-28T14:02:00.000Z"
+    },
+    {
+      "templateId": "tmpl_01K6B5A7C9E1G3J5L7N9Q1S3U5",
+      "version": 1,
+      "subject": "Order {{order.number}} is on its way",
+      "html": "<p>Hi {{first_name}}, your order has shipped.</p>",
+      "text": null,
+      "variables": [{ "name": "first_name", "required": true, "example": "Ada" }],
+      "createdAt": "2026-09-26T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

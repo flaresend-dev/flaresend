@@ -1,0 +1,14 @@
+{
+  "title": "Admin API",
+  "icon": "ShieldCheck",
+  "pages": [
+    "index",
+    "create-project", "list-projects", "retrieve-project", "update-project", "disable-project",
+    "create-api-key", "list-api-keys", "rename-api-key", "revoke-api-key",
+    "setup-domain",
+    "list-emails", "resend-email",
+    "list-suppressions", "add-suppression", "remove-suppression",
+    "stats",
+    "dev-events"
+  ]
+}

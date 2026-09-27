@@ -1,0 +1,19 @@
+{
+  "title": "Self-hosting",
+  "description": "Run Flaresend on your account",
+  "icon": "Server",
+  "root": true,
+  "pages": [
+    "---Deploy---",
+    "index",
+    "deploy",
+    "configuration",
+    "dashboard",
+    "---Operate---",
+    "cli",
+    "architecture",
+    "local-development",
+    "ci",
+    "upgrading"
+  ]
+}

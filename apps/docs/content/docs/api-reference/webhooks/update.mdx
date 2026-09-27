@@ -1,0 +1,101 @@
+---
+title: Update a webhook
+description: Change a webhook's URL, events, or turn it on and off.
+method: PATCH
+---
+
+<Endpoint method="PATCH" path="/v1/webhooks/:id" />
+
+<ApiPage>
+<ApiMain>
+
+Send only the fields you want to change. Fields you leave out keep their value. The secret does not change; use [Rotate secret](/docs/api-reference/webhooks/rotate-secret) for that.
+
+Setting `enabled` to `false` stops new deliveries. Deliveries that were already queued are marked `failed` with the response body `webhook disabled` when their turn comes.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="id" type="string" required>
+  The webhook ID.
+</ParamField>
+
+</Fields>
+
+## Body parameters
+
+<Fields>
+
+<ParamField body="url" type="string">
+  A new `http://` or `https://` endpoint.
+</ParamField>
+
+<ParamField body="events" type="string[]">
+  Replaces the whole list. At least one entry. Use `["*"]` for every event type. See [Create a webhook](/docs/api-reference/webhooks/create#param-body-events) for the allowed values.
+</ParamField>
+
+<ParamField body="enabled" type="boolean">
+  `false` pauses the webhook, `true` resumes it.
+</ParamField>
+
+</Fields>
+
+## Response
+
+The updated webhook, without its secret. Same fields as [Retrieve a webhook](/docs/api-reference/webhooks/retrieve).
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `missing_body` | The request has no body. |
+| 400 | `invalid_body` | A field is malformed. `param` names the field. |
+| 404 | `webhook_not_found` | No webhook with this ID in the project. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const webhook = await flaresend.webhooks.update('wh_01K6B3C8R2M5T7V9X1Z3B5D7F9', {
+  events: ['*'],
+  enabled: false,
+});
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X PATCH https://mailer.example.com/v1/webhooks/wh_01K6B3C8R2M5T7V9X1Z3B5D7F9 \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "events": ["*"], "enabled": false }'
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "id": "wh_01K6B3C8R2M5T7V9X1Z3B5D7F9",
+  "projectId": "proj_01K6A9W2E4R6T8Y0U2I4O6P8A0",
+  "url": "https://acme.com/webhooks/flaresend",
+  "events": ["*"],
+  "enabled": false,
+  "createdAt": "2026-09-26T10:00:00.000Z",
+  "updatedAt": "2026-09-26T11:30:00.000Z"
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

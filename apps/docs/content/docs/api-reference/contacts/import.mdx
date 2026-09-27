@@ -1,0 +1,123 @@
+---
+title: Import contacts
+description: Create or update up to 5,000 contacts in one request.
+method: POST
+---
+
+<Endpoint method="POST" path="/v1/contacts/import" />
+
+<ApiPage>
+<ApiMain>
+
+The body is a JSON array of contacts. Each one is upserted by email with the same rules as [Create a contact](/docs/api-reference/contacts/create): new addresses are created, existing ones get the fields you send, and a missing `unsubscribed` never re-subscribes anyone.
+
+If the same address appears more than once in the array, the last entry wins.
+
+The whole array is validated first. One invalid entry fails the request and nothing is imported.
+
+Imported contacts are not added to any audience. Use [Add contacts to an audience](/docs/api-reference/audiences/add-contacts) with the IDs afterwards.
+
+## Body
+
+<Fields>
+
+<ParamField body="[]" type="Contact[]" required>
+  Between 1 and 5,000 contacts.
+
+  <Expandable title="contact properties">
+    <ParamField body="email" type="string" required>
+      The address. Stored lowercased.
+    </ParamField>
+    <ParamField body="firstName" type="string | null">
+      Up to 200 characters.
+    </ParamField>
+    <ParamField body="lastName" type="string | null">
+      Up to 200 characters.
+    </ParamField>
+    <ParamField body="unsubscribed" type="boolean">
+      Left out: new contacts are subscribed and existing ones keep their status.
+    </ParamField>
+    <ParamField body="data" type="object | null">
+      Extra values for broadcast templates.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+</Fields>
+
+## Response
+
+<Fields>
+
+<ResponseField name="created" type="number">
+  How many addresses were new to the project.
+</ResponseField>
+
+<ResponseField name="updated" type="number">
+  How many addresses already existed and were updated.
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `missing_body` | The request has no body. |
+| 400 | `invalid_body` | The body is not an array, is empty, has more than 5,000 entries, or an entry is invalid. `param` points at it, for example `12.email`. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const { created, updated } = await flaresend.contacts.import([
+  { email: 'ada@example.com', firstName: 'Ada' },
+  { email: 'grace@example.com', firstName: 'Grace', data: { plan: 'team' } },
+]);
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/contacts/import \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '[
+    { "email": "ada@example.com", "firstName": "Ada" },
+    { "email": "grace@example.com", "firstName": "Grace", "data": { "plan": "team" } }
+  ]'
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "created": 1,
+  "updated": 1
+}
+```
+
+```json tab="400" tab-group="status"
+{
+  "error": {
+    "type": "validation_error",
+    "code": "invalid_body",
+    "message": "1.email: Invalid email",
+    "param": "1.email"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

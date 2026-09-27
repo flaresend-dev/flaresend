@@ -1,0 +1,100 @@
+---
+title: Scheduling
+description: Send an email later, up to 30 days ahead, and cancel or move it before it goes out.
+icon: CalendarClock
+---
+
+Set `scheduledAt` to an ISO 8601 date-time with a time zone offset. The response has `status: "scheduled"` instead of `queued`.
+
+```ts tab="Node.js" tab-group="lang"
+const { id, status } = await flaresend.emails.send({
+  from: 'Acme <hello@acme.com>',
+  to: 'ada@example.com',
+  subject: 'Your trial ends tomorrow',
+  text: 'Upgrade any time from your account page.',
+  scheduledAt: '2026-10-01T09:00:00Z',
+});
+// status === 'scheduled'
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/emails \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "from": "Acme <hello@acme.com>",
+    "to": "ada@example.com",
+    "subject": "Your trial ends tomorrow",
+    "text": "Upgrade any time from your account page.",
+    "scheduledAt": "2026-10-01T09:00:00Z"
+  }'
+```
+
+```ts tab="Worker (RPC)" tab-group="lang"
+const { id } = await mail.send({
+  from: 'Acme <hello@acme.com>',
+  to: 'ada@example.com',
+  subject: 'Your trial ends tomorrow',
+  text: 'Upgrade any time from your account page.',
+  scheduledAt: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+});
+```
+
+## Rules
+
+- The time must have an offset: `2026-10-01T09:00:00Z` or `2026-10-01T11:00:00+02:00`. A time without one fails validation.
+- It must be in the future and at most **30 days** ahead. Otherwise the request fails with `400 invalid_schedule`.
+- All other checks (sender, recipients, suppressions, template, size, limits) run when you make the request, not when the email is sent. A request that succeeds is stored with its body, ready to go.
+- The daily limit counts the email on the day you schedule it.
+
+## How it is sent
+
+- Emails due within **12 hours** go on the send queue straight away, with a delay until `scheduledAt`.
+- Emails due later wait in D1. A cron job runs every 5 minutes and queues any scheduled email due in the next 12 hours.
+
+So an email goes out at `scheduledAt`, give or take the queue's own timing. It is not sent early.
+
+## Cancel
+
+Only an email with status `scheduled` can be canceled.
+
+```ts tab="Node.js" tab-group="lang"
+await flaresend.emails.cancel(id);
+// { id, status: 'canceled' }
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X DELETE https://mailer.example.com/v1/emails/email_01K6B2Y4ZP9R3M7T8V5N2QXW4C \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+```ts tab="Worker (RPC)" tab-group="lang"
+await mail.cancel(id);
+```
+
+Canceling sets the email and its recipients to `canceled` and adds an `email.canceled` event, which [webhooks](/docs/webhooks) can subscribe to. Canceling any other status fails with `409 not_cancelable`. If the queue picked the email up at the same moment, the cancel loses and also fails with `409 not_cancelable` ("the email is already being sent").
+
+## Reschedule
+
+Move a scheduled email with `PATCH /v1/emails/:id`:
+
+```ts tab="Node.js" tab-group="lang"
+await flaresend.emails.reschedule(id, '2026-10-02T09:00:00Z');
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X PATCH https://mailer.example.com/v1/emails/email_01K6B2Y4ZP9R3M7T8V5N2QXW4C \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "scheduledAt": "2026-10-02T09:00:00Z" }'
+```
+
+The new time follows the same rules (future, at most 30 days ahead). It works on `scheduled` emails only; anything else fails with `409 not_cancelable`. The response is the updated email record. Rescheduling adds another `email.scheduled` event with `rescheduled: true` in its data. The RPC client has no reschedule method.
+
+## Events
+
+A scheduled email starts with an `email.scheduled` timeline event (with `scheduledAt` in its data) instead of `email.queued`. No `email.queued` webhook is sent for it. Once it is sent, the usual `email.sent`, `email.delivered` and so on follow. See [Statuses and events](/docs/emails/statuses).
+
+## Test keys
+
+With an `fs_test_` key, `scheduledAt` is still validated, but the email is stored with status `test` and never sent or scheduled. See [Test mode](/docs/emails/test-mode).

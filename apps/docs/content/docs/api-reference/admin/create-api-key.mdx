@@ -1,0 +1,150 @@
+---
+title: Create an API key
+description: Mint a live or test key for a project. The full key is returned once and never stored.
+method: POST
+---
+
+<Endpoint method="POST" path="/v1/admin/projects/:slug/api-keys" auth="admin" />
+
+<ApiPage>
+<ApiMain>
+
+The response is the only time you see the full key. Flaresend stores its first 12 characters (`prefix`) and a SHA-256 hash, so a lost key can't be recovered; revoke it and create a new one. See [API keys](/docs/api-keys) for how live and test keys differ.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="slug" type="string" required>
+  The project the key belongs to.
+</ParamField>
+
+</Fields>
+
+## Body parameters
+
+<Fields>
+
+<ParamField body="name" type="string" required>
+  A label so you can tell keys apart, 1 to 200 characters, for example `production-web`.
+</ParamField>
+
+<ParamField body="mode" type="'live' | 'test'" required>
+  `live` keys (`fs_live_…`) send email. `test` keys (`fs_test_…`) record each email with status `test` and never send it; they skip the suppression check and don't count against rate or daily limits.
+</ParamField>
+
+<ParamField body="expiresAt" type="string">
+  An ISO 8601 date-time with a time zone offset. Must be in the future. After it, requests with the key fail with `401 expired_api_key`. Without it the key doesn't expire.
+</ParamField>
+
+</Fields>
+
+## Response
+
+Status `201`.
+
+<Fields>
+
+<ResponseField name="key" type="string">
+  The full key: `fs_live_` or `fs_test_` followed by 32 letters and digits. **Shown only in this response.** Store it in your app's secrets.
+</ResponseField>
+
+<ResponseField name="id" type="string">
+  The key ID, used to rename or revoke it.
+</ResponseField>
+
+<ResponseField name="projectId" type="string">
+  The project's ID.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  The label.
+</ResponseField>
+
+<ResponseField name="mode" type="'live' | 'test'">
+  The key's mode.
+</ResponseField>
+
+<ResponseField name="prefix" type="string">
+  The first 12 characters of the key, for recognising it later.
+</ResponseField>
+
+<ResponseField name="lastUsedAt" type="string | null">
+  `null` on a new key. Updated at most once a minute while the key is in use.
+</ResponseField>
+
+<ResponseField name="createdAt" type="string">
+  ISO 8601 creation time.
+</ResponseField>
+
+<ResponseField name="revokedAt" type="string | null">
+  `null` on a new key.
+</ResponseField>
+
+<ResponseField name="expiresAt" type="string | null">
+  The expiry you set, in UTC, or `null`.
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_body` | `name` or `mode` is missing or malformed, or `expiresAt` is not in the future. |
+| 404 | `project_not_found` | No project has this slug. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+const res = await fetch(
+  'https://mailer.example.com/v1/admin/projects/acme/api-keys',
+  {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.FLARESEND_ADMIN_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ name: 'production-web', mode: 'live' }),
+  },
+);
+const { key } = await res.json(); // store it now
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/admin/projects/acme/api-keys \
+  -H "Authorization: Bearer $FLARESEND_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "production-web", "mode": "live" }'
+```
+
+```bash tab="CLI" tab-group="lang"
+flaresend keys create --project acme --name production-web --mode live
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="201" tab-group="status"
+{
+  "id": "key_01K6B1T8W2N5R7X9Q3M6V4ZP8H",
+  "projectId": "proj_01K6B1QZ3M8H2V5T7R9N4XW6CD",
+  "name": "production-web",
+  "mode": "live",
+  "prefix": "fs_live_7Hq2",
+  "lastUsedAt": null,
+  "createdAt": "2026-09-26T10:05:00.000Z",
+  "revokedAt": null,
+  "expiresAt": null,
+  "key": "fs_live_7Hq2mV9xLk4Tz8Rb1Nc6Wd3Ys5Pf0Ga2"
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

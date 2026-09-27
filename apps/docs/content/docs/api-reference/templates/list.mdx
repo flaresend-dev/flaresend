@@ -1,0 +1,131 @@
+---
+title: List templates
+description: The project's stored templates, followed by the built-in templates they don't replace.
+method: GET
+---
+
+<Endpoint method="GET" path="/v1/templates" />
+
+<ApiPage>
+<ApiMain>
+
+Returns every template you can send with in one response, not paginated:
+
+1. Templates stored in the project (`source: "db"`), sorted by name.
+2. Then the [built-in templates](/docs/templates/built-in) (`source: "git"`), except those a stored template with the same name replaces.
+
+Built-in templates are read-only. In this list they have `id: null`, `version: null`, an empty `subject` and `html: null`. [Retrieve](/docs/api-reference/templates/retrieve) one by name to see it rendered with example data.
+
+## Response
+
+<Fields>
+
+<ResponseField name="data" type="Template[]">
+  The templates. The Node.js client returns this array directly.
+
+  <Expandable title="template properties">
+    <ResponseField name="id" type="string | null">
+      `tmpl_…` for stored templates, `null` for built-in ones.
+    </ResponseField>
+    <ResponseField name="source" type="'db' | 'git'">
+      `db` for stored templates, `git` for built-in ones.
+    </ResponseField>
+    <ResponseField name="projectId" type="string | null">
+      `null` for built-in templates.
+    </ResponseField>
+    <ResponseField name="name" type="string">
+      The name to pass as `template` when sending.
+    </ResponseField>
+    <ResponseField name="subject" type="string">
+      The subject, unrendered. Empty for built-in templates in this list.
+    </ResponseField>
+    <ResponseField name="html" type="string | null">
+      The HTML, unrendered. `null` for built-in templates in this list.
+    </ResponseField>
+    <ResponseField name="text" type="string | null">
+      The text body, or `null`.
+    </ResponseField>
+    <ResponseField name="variables" type="Variable[]">
+      `{ name, required, example }` for each variable. For built-in templates, one entry per top-level data field, with `required: false` and the value from the template's example data.
+    </ResponseField>
+    <ResponseField name="version" type="number | null">
+      The current version. `null` for built-in templates.
+    </ResponseField>
+    <ResponseField name="createdAt" type="string | null">
+      `null` for built-in templates.
+    </ResponseField>
+    <ResponseField name="updatedAt" type="string | null">
+      `null` for built-in templates.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+</Fields>
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const templates = await flaresend.templates.list();
+```
+
+```bash tab="cURL" tab-group="lang"
+curl https://mailer.example.com/v1/templates \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "data": [
+    {
+      "id": "tmpl_01K6B5A7C9E1G3J5L7N9Q1S3U5",
+      "source": "db",
+      "projectId": "proj_01K6A9W2E4R6T8Y0U2I4O6P8A0",
+      "name": "order-shipped",
+      "subject": "Order {{order.number}} is on its way",
+      "html": "<p>Hi {{first_name}}, your order has shipped.</p>",
+      "text": null,
+      "variables": [
+        { "name": "first_name", "required": true, "example": "Ada" }
+      ],
+      "version": 3,
+      "createdAt": "2026-09-26T10:00:00.000Z",
+      "updatedAt": "2026-09-27T09:12:00.000Z"
+    },
+    {
+      "id": null,
+      "source": "git",
+      "projectId": null,
+      "name": "magic-link",
+      "subject": "",
+      "html": null,
+      "text": null,
+      "variables": [
+        { "name": "loginUrl", "required": false, "example": "https://app.example.com/auth/magic?token=abc123" },
+        { "name": "expiresInMinutes", "required": false, "example": 15 }
+      ],
+      "version": null,
+      "createdAt": null,
+      "updatedAt": null
+    }
+  ]
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

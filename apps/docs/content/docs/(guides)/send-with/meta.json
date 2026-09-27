@@ -1,0 +1,5 @@
+{
+  "title": "Send with…",
+  "icon": "Rocket",
+  "pages": ["nodejs", "nextjs", "cloudflare-workers", "hono", "bun", "python", "go", "php", "ruby", "curl"]
+}

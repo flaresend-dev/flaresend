@@ -1,0 +1,103 @@
+---
+title: Cancel an email
+description: Cancel a scheduled email before it is sent.
+method: DELETE
+---
+
+<Endpoint method="DELETE" path="/v1/emails/:id" />
+
+<ApiPage>
+<ApiMain>
+
+Stops a scheduled email from going out. Its status and every recipient's status become `canceled`, an `email.canceled` event is added to the timeline, and webhooks subscribed to `email.canceled` are called.
+
+Only emails with status `scheduled` can be canceled. Emails sent without `scheduledAt` go to the queue straight away and can't be stopped. If the send queue picks up a scheduled email at the same moment you cancel it, whichever gets there first wins: the cancel either succeeds, or fails with `409 not_cancelable` and the email is sent.
+
+The email record is kept. Nothing is deleted.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="id" type="string" required>
+  The email ID.
+</ParamField>
+
+</Fields>
+
+## Response
+
+<Fields>
+
+<ResponseField name="id" type="string">
+  The email ID.
+</ResponseField>
+
+<ResponseField name="status" type="'canceled'">
+  Always `canceled`.
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `email_not_found` | No email with that ID in this project. |
+| 409 | `not_cancelable` | The email isn't `scheduled`, or the send queue claimed it first. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+await flaresend.emails.cancel('email_01K6B2Y4ZP9R3M7T8V5N2QXW4C');
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X DELETE https://mailer.example.com/v1/emails/email_01K6B2Y4ZP9R3M7T8V5N2QXW4C \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+```ts tab="Worker (RPC)" tab-group="lang"
+import { rpcClient } from '@flaresend/client/rpc';
+
+const mail = rpcClient(env.MAILER, { project: 'acme' });
+
+await mail.cancel('email_01K6B2Y4ZP9R3M7T8V5N2QXW4C');
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "id": "email_01K6B2Y4ZP9R3M7T8V5N2QXW4C",
+  "status": "canceled"
+}
+```
+
+```json tab="409" tab-group="status"
+{
+  "error": {
+    "type": "conflict",
+    "code": "not_cancelable",
+    "message": "only scheduled emails can be canceled; this one is queued",
+    "param": "id"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

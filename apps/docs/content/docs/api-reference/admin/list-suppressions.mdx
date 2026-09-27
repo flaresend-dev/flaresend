@@ -1,0 +1,117 @@
+---
+title: List suppressions
+description: Addresses Flaresend refuses to send to, in alphabetical order.
+method: GET
+---
+
+<Endpoint method="GET" path="/v1/admin/suppressions" auth="admin" />
+
+<ApiPage>
+<ApiMain>
+
+The suppression list is shared by **every project** on the mailer. A live send to any address on it fails with `422 recipient_suppressed`. Hard bounces and spam complaints are added automatically when Cloudflare reports them; you can also [add](/docs/api-reference/admin/add-suppression) and [remove](/docs/api-reference/admin/remove-suppression) addresses by hand. See [Suppressions](/docs/deliverability/suppressions).
+
+This is Flaresend's local list. Cloudflare keeps its own suppression list, which you edit in the Cloudflare dashboard; every response carries a `note` saying so.
+
+## Query parameters
+
+<Fields>
+
+<ParamField query="q" type="string">
+  Only addresses that contain this text, for example `example.com`.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="50">
+  Page size, 1 to 200.
+</ParamField>
+
+<ParamField query="cursor" type="string">
+  The `nextCursor` from the previous page.
+</ParamField>
+
+</Fields>
+
+## Response
+
+<Fields>
+
+<ResponseField name="data" type="Suppression[]">
+  The suppressed addresses, sorted by address.
+
+  <Expandable title="suppression properties">
+    <ResponseField name="address" type="string">
+      The lowercased address.
+    </ResponseField>
+    <ResponseField name="reason" type="'hard_bounce' | 'complaint' | 'manual'">
+      Why it was suppressed.
+    </ResponseField>
+    <ResponseField name="sourceEmailId" type="string | null">
+      The email whose bounce or complaint added it, or `null` when added by hand.
+    </ResponseField>
+    <ResponseField name="createdAt" type="string">
+      When it was added.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="nextCursor" type="string | null">
+  Pass it as `cursor` for the next page. `null` on the last page.
+</ResponseField>
+
+<ResponseField name="note" type="string">
+  A reminder that Cloudflare keeps a separate suppression list.
+</ResponseField>
+
+</Fields>
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+const res = await fetch(
+  'https://mailer.example.com/v1/admin/suppressions?q=example.com',
+  { headers: { Authorization: `Bearer ${process.env.FLARESEND_ADMIN_KEY}` } },
+);
+const { data, nextCursor } = await res.json();
+```
+
+```bash tab="cURL" tab-group="lang"
+curl "https://mailer.example.com/v1/admin/suppressions?q=example.com" \
+  -H "Authorization: Bearer $FLARESEND_ADMIN_KEY"
+```
+
+```bash tab="CLI" tab-group="lang"
+flaresend suppressions list --q example.com
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "data": [
+    {
+      "address": "ada@example.com",
+      "reason": "hard_bounce",
+      "sourceEmailId": "email_01K6B2Y4ZP9R3M7T8V5N2QXW4C",
+      "createdAt": "2026-09-26T10:20:04.000Z"
+    },
+    {
+      "address": "grace@example.com",
+      "reason": "manual",
+      "sourceEmailId": null,
+      "createdAt": "2026-09-26T11:00:00.000Z"
+    }
+  ],
+  "nextCursor": null,
+  "note": "This is Flaresend's local mirror. Cloudflare keeps its own suppression list; edit that one in the Cloudflare dashboard (Email Service)."
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

@@ -1,0 +1,54 @@
+---
+title: Test mode
+description: Use an fs_test_ key to exercise your integration without sending real email.
+icon: FlaskConical
+---
+
+Every project can have two kinds of API key:
+
+| Key | Prefix | Sends email |
+|---|---|---|
+| Live | `fs_live_` | Yes |
+| Test | `fs_test_` | No |
+
+A request made with a test key goes through the same checks as a live one and is recorded, but it is never queued or sent. Use test keys in development, CI and staging.
+
+## What a test key does
+
+- **Validates everything.** Sender and allowed domains, recipients, headers, attachments, size, `scheduledAt` and template rendering all run. Bad input fails exactly as it would with a live key.
+- **Records the email.** The email is stored with status `test`, its recipients with status `test`, and one `email.test` timeline event. The body is stored for 30 days like any other email, so you can inspect it with [Retrieve email content](/docs/api-reference/emails/content).
+- **Returns `200`** instead of `202`, with `status: "test"`:
+
+```json
+{ "id": "email_01K6B2Y4ZP9R3M7T8V5N2QXW4C", "status": "test" }
+```
+
+## What it skips
+
+- **Sending.** Nothing goes to the queue or to Cloudflare.
+- **Suppressions.** Suppressed addresses are accepted.
+- **Limits.** Test sends don't count against the rate limit or the daily limit.
+- **Scheduling.** `scheduledAt` is validated but the email is stored as `test`, not `scheduled`.
+- **Webhooks.** `email.test` is not a webhook event, so no webhooks fire.
+
+[Idempotency](/docs/emails/idempotency) works the same as with a live key.
+
+## Create a test key
+
+In the dashboard, open **API keys**, click **Create API key** and choose **Test**. Or with the CLI:
+
+```bash
+flaresend keys create --project acme --name ci --mode test
+```
+
+## Finding test emails
+
+Test emails appear in the email list with the `test` status, and `mode: "test"` on the email record. Filter with `GET /v1/emails?status=test`.
+
+```ts
+const { data } = await flaresend.emails.list({ status: 'test', limit: 10 });
+```
+
+## RPC
+
+The RPC binding has no key, so it can't be put in test mode: RPC sends are always live. For tests against a Worker that uses RPC, point it at a mailer running under `wrangler dev`, which doesn't deliver mail. See [Local development](/docs/self-hosting/local-development).

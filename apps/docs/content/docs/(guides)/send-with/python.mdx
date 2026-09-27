@@ -1,0 +1,128 @@
+---
+title: Send emails with Python
+description: Call the Flaresend REST API from Python with requests.
+---
+
+There is no Python SDK. The REST API is small and plain JSON, so `requests` is all you need.
+
+## Prerequisites
+
+- A deployed mailer and its URL, for example `https://mailer.example.com`. See [Deploy](/docs/self-hosting/deploy).
+- An API key for your project in `FLARESEND_API_KEY`. See [API keys](/docs/api-keys).
+- `pip install requests`
+
+## Send an email
+
+```python title="send.py"
+import os
+import requests
+
+FLARESEND_URL = "https://mailer.example.com"
+API_KEY = os.environ["FLARESEND_API_KEY"]
+
+res = requests.post(
+    f"{FLARESEND_URL}/v1/emails",
+    headers={"Authorization": f"Bearer {API_KEY}"},
+    json={
+        "from": "Acme <hello@acme.com>",
+        "to": "ada@example.com",
+        "subject": "Hello from Python",
+        "html": "<p>It works.</p>",
+        "text": "It works.",
+        "tags": {"kind": "test"},
+    },
+    timeout=30,
+)
+res.raise_for_status()
+print(res.json())  # {'id': 'email_01K6B2Y4ZP9R3M7T8V5N2QXW4C', 'status': 'queued'}
+```
+
+A new email returns `202`. `requests` sets `Content-Type: application/json` for you when you pass `json=`.
+
+## Idempotency
+
+Send an `Idempotency-Key` header so a retried request never sends twice:
+
+```python
+res = requests.post(
+    f"{FLARESEND_URL}/v1/emails",
+    headers={
+        "Authorization": f"Bearer {API_KEY}",
+        "Idempotency-Key": f"welcome-{user_id}",
+    },
+    json={
+        "from": "Acme <hello@acme.com>",
+        "to": user_email,
+        "template": "welcome",
+        "data": {"name": "Ada", "appName": "Acme", "loginUrl": "https://acme.com/login"},
+    },
+    timeout=30,
+)
+```
+
+A repeat with the same key and the same body returns `200` with the first email's ID and `"idempotent": true`. The same key with a different body returns `409 idempotency_payload_mismatch`. See [Idempotency](/docs/emails/idempotency).
+
+## Handle errors
+
+Every error response has the same shape:
+
+```json
+{
+  "error": {
+    "type": "permission_error",
+    "code": "invalid_sender",
+    "message": "from must be an address on acme.com",
+    "param": "from"
+  }
+}
+```
+
+```python
+class FlaresendError(Exception):
+    def __init__(self, status, error):
+        super().__init__(error.get("message"))
+        self.status = status
+        self.type = error.get("type")
+        self.code = error.get("code")
+        self.param = error.get("param")
+
+
+def send_email(payload, idempotency_key=None):
+    headers = {"Authorization": f"Bearer {API_KEY}"}
+    if idempotency_key:
+        headers["Idempotency-Key"] = idempotency_key
+    res = requests.post(f"{FLARESEND_URL}/v1/emails", headers=headers, json=payload, timeout=30)
+    if res.ok:
+        return res.json()
+    try:
+        error = res.json()["error"]
+    except (ValueError, KeyError):
+        error = {"type": "internal_error", "code": f"http_{res.status_code}", "message": res.text[:200]}
+    raise FlaresendError(res.status_code, error)
+```
+
+`429` responses are safe to retry after the `Retry-After` header, except `daily_limit_exceeded`, which only clears at 00:00 UTC. Only retry a send if it has an idempotency key. See [Errors](/docs/api-reference/errors).
+
+## Attachments
+
+Attachment content must be base64:
+
+```python
+import base64
+
+with open("invoice.pdf", "rb") as f:
+    content = base64.b64encode(f.read()).decode()
+
+send_email({
+    "from": "Acme <billing@acme.com>",
+    "to": "ada@example.com",
+    "subject": "Your invoice",
+    "text": "Your invoice is attached.",
+    "attachments": [{"filename": "invoice.pdf", "content": content, "type": "application/pdf"}],
+})
+```
+
+## Next steps
+
+- [Send an email](/docs/api-reference/emails/send): every field.
+- [Verify webhooks](/docs/webhooks/verify): the signature is an HMAC-SHA256, so Python's `hmac` module can check it.

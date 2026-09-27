@@ -1,0 +1,21 @@
+{
+  "name": "flaresend",
+  "private": true,
+  "packageManager": "pnpm@10.29.3",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "dev": "turbo run dev --filter=@flaresend/mailer --filter=@flaresend/dashboard",
+    "dev:event": "pnpm --filter @flaresend/cli dev:event",
+    "bootstrap": "node scripts/bootstrap.mjs",
+    "deploy": "pnpm --filter @flaresend/mailer migrate:remote && pnpm --filter @flaresend/mailer deploy"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.3"
+  }
+}

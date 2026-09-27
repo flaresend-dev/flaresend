@@ -1,0 +1,79 @@
+---
+title: Admin API
+description: Manage projects, API keys and suppressions, and act on any project, with the mailer's admin key.
+icon: ShieldCheck
+---
+
+The admin API is everything under `/v1/admin`. It is how you create projects and API keys, and it is what the `flaresend` [CLI](/docs/self-hosting/cli) calls for every command except `send`.
+
+## Authentication
+
+Send the mailer's `ADMIN_API_KEY` secret as a Bearer token:
+
+```bash
+curl https://mailer.example.com/v1/admin/projects \
+  -H "Authorization: Bearer $FLARESEND_ADMIN_KEY"
+```
+
+You set this secret yourself when you deploy the mailer (`npx wrangler secret put ADMIN_API_KEY`, see [Deploy](/docs/self-hosting/deploy)). The mailer compares it in constant time. A project API key (`fs_live_…` or `fs_test_…`) does not work here, and the admin key does not work on the project routes under `/v1`.
+
+| Status | Code | When |
+|---|---|---|
+| 401 | `missing_api_key` | No `Authorization: Bearer …` header. |
+| 401 | `invalid_api_key` | The token is not the admin key, or the mailer has no `ADMIN_API_KEY` set. |
+
+<Callout type="warn" title="Treat the admin key like a root password">
+  It can create and disable projects, mint API keys for any project, remove suppressions and send from every project. Keep it out of application code. Apps should use a project API key.
+</Callout>
+
+## What it covers
+
+| Area | Endpoints |
+|---|---|
+| Projects | [Create](/docs/api-reference/admin/create-project), [list](/docs/api-reference/admin/list-projects), [retrieve](/docs/api-reference/admin/retrieve-project), [update](/docs/api-reference/admin/update-project), [disable](/docs/api-reference/admin/disable-project) |
+| API keys | [Create](/docs/api-reference/admin/create-api-key), [list](/docs/api-reference/admin/list-api-keys), [rename](/docs/api-reference/admin/rename-api-key), [revoke](/docs/api-reference/admin/revoke-api-key) |
+| Domains | [Set up a domain in Cloudflare](/docs/api-reference/admin/setup-domain) |
+| Emails | [List emails across projects](/docs/api-reference/admin/list-emails), [resend an email](/docs/api-reference/admin/resend-email), plus `GET /v1/admin/emails/:id`, `GET /v1/admin/emails/:id/content`, `GET /v1/admin/events` and `GET /v1/admin/analytics` |
+| Suppressions | [List](/docs/api-reference/admin/list-suppressions), [add](/docs/api-reference/admin/add-suppression), [remove](/docs/api-reference/admin/remove-suppression) |
+| Stats | [Counts by status per project](/docs/api-reference/admin/stats) |
+| Development | [Fake a Cloudflare delivery event](/docs/api-reference/admin/dev-events) |
+
+`GET /v1/admin/emails/:id` and `GET /v1/admin/emails/:id/content` return the same shapes as [Retrieve an email](/docs/api-reference/emails/retrieve) and [Retrieve email content](/docs/api-reference/emails/content), for an email in any project. `GET /v1/admin/events` and `GET /v1/admin/analytics` take the same query parameters as [List events](/docs/api-reference/events/list) and [Retrieve analytics](/docs/api-reference/analytics/retrieve), plus an optional `project` slug; without it they cover every project.
+
+## Acting on one project
+
+Every project route is also served under `/v1/admin/projects/:slug`. For example:
+
+| Project API key | Admin key |
+|---|---|
+| `POST /v1/emails` | `POST /v1/admin/projects/acme/emails` |
+| `GET /v1/webhooks` | `GET /v1/admin/projects/acme/webhooks` |
+| `POST /v1/templates` | `POST /v1/admin/projects/acme/templates` |
+| `GET /v1/contacts` | `GET /v1/admin/projects/acme/contacts` |
+
+This covers emails, events, domains, webhooks, templates, analytics, contacts, audiences and broadcasts. The request body, query parameters and response are exactly the same as on the project route. Three things differ:
+
+- The project comes from the slug in the path. An unknown slug returns `404 project_not_found`.
+- The call acts as a **live** caller with no API key: sends are real, the suppression list is checked, and rate limits apply. Emails sent this way have no API key recorded against them.
+- `POST /v1/admin/projects/:slug/domains/:domain/setup` exists only here. Project API keys get `403 admin_only` on it.
+
+`GET /v1/me` and `GET /v1/api-keys` describe the calling key, so they have no admin mirror. Use [List API keys](/docs/api-reference/admin/list-api-keys) instead.
+
+```bash
+# Send from the acme project with the admin key
+curl -X POST https://mailer.example.com/v1/admin/projects/acme/emails \
+  -H "Authorization: Bearer $FLARESEND_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "from": "Acme <hello@acme.com>", "to": "ada@example.com", "subject": "Hi", "text": "Hello" }'
+```
+
+## The dashboard uses a service binding instead
+
+The [dashboard](/docs/self-hosting/dashboard) does not call these HTTP routes and holds no admin key. It reaches the mailer through a service binding named `MAILER_ADMIN` to the `AdminRpc` entrypoint, which runs the same code as the admin API. Only Workers in the same Cloudflare account can bind to it, and the dashboard itself sits behind Cloudflare Access.
+
+```jsonc
+// apps/dashboard/wrangler.jsonc
+{ "services": [{ "binding": "MAILER_ADMIN", "service": "flaresend", "entrypoint": "AdminRpc" }] }
+```
+
+The TypeScript surface of that binding is `AdminRpcApi` in `@flaresend/types`.

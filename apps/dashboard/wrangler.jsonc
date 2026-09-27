@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Flaresend admin dashboard. Next.js 15 on Workers via @opennextjs/cloudflare.
+  // Protected by Cloudflare Access; see README.md.
+  "name": "flaresend-dashboard",
+  "main": ".open-next/worker.js",
+  "workers_dev": true,
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [
+    // The mailer's admin RPC surface. The dashboard never holds an API key.
+    { "binding": "MAILER_ADMIN", "service": "flaresend", "entrypoint": "AdminRpc" }
+  ],
+  // ACCESS_AUD (the Access application's AUD tag) and ACCESS_TEAM_DOMAIN ("<team>.cloudflareaccess.com") are secrets,
+  // not vars, so this file holds nothing account-specific. `pnpm bootstrap` sets them; see README.md.
+  "observability": { "enabled": true }
+}

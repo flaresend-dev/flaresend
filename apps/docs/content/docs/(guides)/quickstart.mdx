@@ -1,0 +1,137 @@
+---
+title: Quickstart
+description: Send your first email with Flaresend and check that it was delivered.
+icon: Rocket
+---
+
+import { Braces, LayoutTemplate, Webhook, ShieldCheck } from 'lucide-react';
+
+This guide uses the Node.js client, `@flaresend/client`. It also works in Bun, Deno, browsers and Cloudflare Workers. For other languages, see [Send with…](/docs/send-with/python).
+
+<Steps>
+
+<Step>
+
+### Get a mailer URL and an API key
+
+Flaresend runs in your own Cloudflare account, so you need three things before you send:
+
+1. **A deployed mailer Worker.** Its URL is your base URL, for example `https://mailer.example.com`. If you don't have one yet, follow [Deploy](/docs/self-hosting/deploy).
+2. **A project** with at least one allowed sending domain, for example `acme.com`.
+3. **An API key** for that project. Keys start with `fs_live_` (sends for real) or `fs_test_` (records the email, never sends).
+
+Create the key in the dashboard under **API Keys → Create API key**, or with the CLI:
+
+```bash
+flaresend keys create --project acme --name quickstart --mode live
+```
+
+The full key is shown once. Store it as an environment variable:
+
+```bash title=".env"
+FLARESEND_API_KEY=fs_live_...
+```
+
+See [API keys](/docs/api-keys) for how keys are stored and revoked.
+
+</Step>
+
+<Step>
+
+### Install the client
+
+```bash tab="npm" tab-group="pm"
+npm install @flaresend/client
+```
+
+```bash tab="pnpm" tab-group="pm"
+pnpm add @flaresend/client
+```
+
+```bash tab="yarn" tab-group="pm"
+yarn add @flaresend/client
+```
+
+```bash tab="bun" tab-group="pm"
+bun add @flaresend/client
+```
+
+The only runtime dependency is `@flaresend/types`. It needs a global `fetch`, so Node 18 or later.
+
+</Step>
+
+<Step>
+
+### Send an email
+
+```ts title="send.ts"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const { id, status } = await flaresend.emails.send({
+  from: 'Acme <hello@acme.com>',
+  to: 'ada@example.com',
+  subject: 'Hello from Flaresend',
+  html: '<p>It works.</p>',
+  text: 'It works.',
+});
+
+console.log(id, status); // email_01K6B2Y4ZP9R3M7T8V5N2QXW4C queued
+```
+
+`from` must be an address on one of the project's allowed domains. If the project has a default sender, you can leave `from` out.
+
+The call returns as soon as the email is stored and queued. It does not wait for Cloudflare to deliver it. `baseUrl` has no default: always pass your own mailer URL.
+
+</Step>
+
+<Step>
+
+### Check the status
+
+Fetch the email to see where it is:
+
+```ts
+const email = await flaresend.emails.get(id);
+
+console.log(email.status); // queued → sending → sent → delivered
+for (const r of email.recipients) console.log(r.address, r.status);
+for (const e of email.events) console.log(e.createdAt, e.type);
+```
+
+The same email is on the dashboard's **Emails** page, with its recipients, its event timeline and the rendered body.
+
+`sent` means Cloudflare accepted the message. `delivered` comes later, when Cloudflare reports that the receiving server took it. See [Email statuses](/docs/emails/statuses) for every status.
+
+</Step>
+
+<Step>
+
+### Next steps
+
+<Cards>
+  <Card icon={<ShieldCheck />} title="Idempotency" href="/docs/emails/idempotency">
+    Make sure a retried request never sends twice.
+  </Card>
+  <Card icon={<LayoutTemplate />} title="Templates" href="/docs/templates">
+    Send `welcome`, `password-reset` and other built-in templates with just `data`.
+  </Card>
+  <Card icon={<Webhook />} title="Webhooks" href="/docs/webhooks">
+    Get told when an email is delivered, bounces or gets a complaint.
+  </Card>
+  <Card icon={<Braces />} title="API Reference" href="/docs/api-reference/emails/send">
+    Every field `POST /v1/emails` accepts.
+  </Card>
+</Cards>
+
+</Step>
+
+</Steps>
+
+<Callout type="info" title="Try it with a test key first">
+  An `fs_test_` key goes through the same validation, but the email gets status `test` and is never sent. Test sends don't count against limits and skip the suppression check. See [Test mode](/docs/emails/test-mode).
+</Callout>

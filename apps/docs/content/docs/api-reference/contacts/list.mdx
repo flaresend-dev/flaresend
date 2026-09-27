@@ -1,0 +1,94 @@
+---
+title: List contacts
+description: Page through the project's contacts, newest first, with an optional search.
+method: GET
+---
+
+<Endpoint method="GET" path="/v1/contacts" />
+
+<ApiPage>
+<ApiMain>
+
+Returns contacts ordered by creation time, newest first. The list is cursor-paginated: pass the `nextCursor` from one page as `cursor` to get the next. See [Pagination](/docs/api-reference/pagination).
+
+## Query parameters
+
+<Fields>
+
+<ParamField query="limit" type="number" default="25">
+  How many contacts per page, from 1 to 100. Values outside that range are clamped to it.
+</ParamField>
+
+<ParamField query="cursor" type="string">
+  The `nextCursor` value from the previous page.
+</ParamField>
+
+<ParamField query="q" type="string">
+  Keep only contacts whose email, first name or last name contains this text.
+</ParamField>
+
+</Fields>
+
+## Response
+
+<Fields>
+
+<ResponseField name="data" type="Contact[]">
+  The contacts on this page. Each has the fields described in [Create a contact](/docs/api-reference/contacts/create#response).
+</ResponseField>
+
+<ResponseField name="nextCursor" type="string | null">
+  Pass this as `cursor` to get the next page. `null` on the last page.
+</ResponseField>
+
+</Fields>
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const page = await flaresend.contacts.list({ q: 'example.com', limit: 50 });
+const next = await flaresend.contacts.list({ cursor: page.nextCursor ?? undefined });
+```
+
+```bash tab="cURL" tab-group="lang"
+curl "https://mailer.example.com/v1/contacts?q=example.com&limit=50" \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "data": [
+    {
+      "id": "ct_01K6C1M3R8T2V9X4Z6B7N5P0QA",
+      "projectId": "proj_01K5Z8W2Q4R6T8V0X2Z4B6D8FG",
+      "email": "ada@example.com",
+      "firstName": "Ada",
+      "lastName": "Lovelace",
+      "unsubscribed": false,
+      "data": { "plan": "pro" },
+      "createdAt": "2026-09-26T10:00:00.000Z",
+      "updatedAt": "2026-09-26T10:00:00.000Z"
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

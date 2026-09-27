@@ -1,0 +1,121 @@
+---
+title: Send emails with Node.js
+description: Use @flaresend/client to send email from any Node.js app.
+---
+
+## Prerequisites
+
+- A deployed mailer and its URL, for example `https://mailer.example.com`. See [Deploy](/docs/self-hosting/deploy).
+- An API key for your project in `FLARESEND_API_KEY`. See [API keys](/docs/api-keys).
+- Node.js 18 or later (the client uses the global `fetch`).
+
+## Install
+
+```bash tab="npm" tab-group="pm"
+npm install @flaresend/client
+```
+
+```bash tab="pnpm" tab-group="pm"
+pnpm add @flaresend/client
+```
+
+```bash tab="yarn" tab-group="pm"
+yarn add @flaresend/client
+```
+
+```bash tab="bun" tab-group="pm"
+bun add @flaresend/client
+```
+
+The package ships both ES modules and CommonJS, so `import` and `require` both work.
+
+## Send an email
+
+```ts title="send.ts"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const { id, status } = await flaresend.emails.send({
+  from: 'Acme <hello@acme.com>',
+  to: ['ada@example.com', 'grace@example.com'],
+  subject: 'Your weekly report',
+  html: '<p>Here is your report.</p>',
+  text: 'Here is your report.',
+  tags: { kind: 'weekly-report' },
+});
+
+console.log(id, status); // email_01K6B2Y4ZP9R3M7T8V5N2QXW4C queued
+```
+
+Create one client and reuse it. It holds no connection, only your key, base URL and retry settings.
+
+## Send with a template
+
+The mailer has built-in templates such as `welcome`, `password-reset` and `magic-link`. Pass `template` and `data`, and the subject comes from the template:
+
+```ts
+await flaresend.emails.send({
+  from: 'Acme <hello@acme.com>',
+  to: 'ada@example.com',
+  template: 'welcome',
+  data: { name: 'Ada', appName: 'Acme', loginUrl: 'https://acme.com/login' },
+});
+```
+
+See [Built-in templates](/docs/templates/built-in).
+
+## Idempotency
+
+Every `emails.send` call already carries a random idempotency key, so the client's own retries after a timeout never send twice. To stop the same email going out twice across separate calls (a double click, a job that runs twice), pass your own key:
+
+```ts
+await flaresend.emails.send(
+  { from: 'Acme <hello@acme.com>', to: user.email, template: 'welcome', data },
+  { idempotencyKey: `welcome-${user.id}` },
+);
+```
+
+A second call with the same key and the same content returns the first email with `idempotent: true`. The same key with different content fails with `409 idempotency_payload_mismatch`. See [Idempotency](/docs/emails/idempotency).
+
+## Handle errors
+
+Every failed call throws a `FlaresendError`:
+
+```ts
+import { Flaresend, FlaresendError } from '@flaresend/client';
+
+try {
+  await flaresend.emails.send({ from: 'Acme <hello@acme.com>', to: 'ada@example.com', subject: 'Hi', text: 'Hi' });
+} catch (err) {
+  if (err instanceof FlaresendError) {
+    console.error(err.status, err.type, err.code, err.message, err.param);
+    // 422 unprocessable recipient_suppressed "ada@example.com is on the suppression list (hard_bounce)" ada@example.com
+  }
+  throw err;
+}
+```
+
+The fields come straight from the API's error body:
+
+```json
+{
+  "error": {
+    "type": "unprocessable",
+    "code": "recipient_suppressed",
+    "message": "ada@example.com is on the suppression list (hard_bounce)",
+    "param": "ada@example.com"
+  }
+}
+```
+
+The client retries `429`, `5xx` and network errors up to 2 times by default (`maxRetries`). It never retries `429 daily_limit_exceeded`. See [Errors](/docs/sdk/errors).
+
+## Next steps
+
+- [HTTP client reference](/docs/sdk/http): every method on `Flaresend`.
+- [Attachments](/docs/emails/attachments): `attachmentFromBytes` encodes files for you.
+- [Webhooks](/docs/webhooks): get delivery, bounce and complaint events.

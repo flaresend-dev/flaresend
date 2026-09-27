@@ -1,0 +1,93 @@
+---
+title: Delete a broadcast
+description: Delete a broadcast that is not scheduled or sending.
+method: DELETE
+---
+
+<Endpoint method="DELETE" path="/v1/broadcasts/:id" />
+
+<ApiPage>
+<ApiMain>
+
+Deletes a broadcast in the `draft`, `sent` or `canceled` status. A `scheduled` or `sending` broadcast has to be [canceled](/docs/api-reference/broadcasts/cancel) first.
+
+Emails the broadcast already sent are not deleted. They stay in the email log with their `broadcast_id` tag.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="id" type="string" required>
+  The broadcast ID.
+</ParamField>
+
+</Fields>
+
+## Response
+
+<Fields>
+
+<ResponseField name="id" type="string">
+  The ID of the deleted broadcast.
+</ResponseField>
+
+<ResponseField name="deleted" type="true">
+  Always `true`.
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `broadcast_not_found` | No broadcast with that ID in this project. |
+| 409 | `broadcast_active` | The broadcast is scheduled or sending. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+await flaresend.broadcasts.remove('bc_01K6C3D9G2J4L7N0Q3S5U8W1YZ');
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X DELETE https://mailer.example.com/v1/broadcasts/bc_01K6C3D9G2J4L7N0Q3S5U8W1YZ \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "id": "bc_01K6C3D9G2J4L7N0Q3S5U8W1YZ",
+  "deleted": true
+}
+```
+
+```json tab="409" tab-group="status"
+{
+  "error": {
+    "type": "conflict",
+    "code": "broadcast_active",
+    "message": "cancel the broadcast before deleting it",
+    "param": "id"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

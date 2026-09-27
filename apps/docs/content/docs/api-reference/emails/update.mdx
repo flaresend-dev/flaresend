@@ -1,0 +1,122 @@
+---
+title: Reschedule an email
+description: Move a scheduled email to a new send time.
+method: PATCH
+---
+
+<Endpoint method="PATCH" path="/v1/emails/:id" />
+
+<ApiPage>
+<ApiMain>
+
+Changes `scheduledAt` on an email that is still `scheduled`. The only thing you can change is the time; to change the content, [cancel it](/docs/api-reference/emails/cancel) and send a new one.
+
+A new `email.scheduled` event is added to the timeline with `{ "scheduledAt": "…", "rescheduled": true }`.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="id" type="string" required>
+  The email ID.
+</ParamField>
+
+</Fields>
+
+## Body parameters
+
+<Fields>
+
+<ParamField body="scheduledAt" type="string" required>
+  The new send time, an ISO 8601 date-time with a time zone offset. Must be in the future and at most 30 days from now.
+</ParamField>
+
+</Fields>
+
+## Response
+
+The full email, in the same shape as [Retrieve an email](/docs/api-reference/emails/retrieve), with the new `scheduledAt`.
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_body` | `scheduledAt` is missing or not a date-time with an offset. |
+| 400 | `invalid_schedule` | The new time is in the past or more than 30 days ahead. |
+| 404 | `email_not_found` | No email with that ID in this project. |
+| 409 | `not_cancelable` | The email isn't `scheduled` any more, for example because it's already being sent. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const email = await flaresend.emails.reschedule(
+  'email_01K6B2Y4ZP9R3M7T8V5N2QXW4C',
+  '2026-10-02T09:00:00Z',
+);
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X PATCH https://mailer.example.com/v1/emails/email_01K6B2Y4ZP9R3M7T8V5N2QXW4C \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "scheduledAt": "2026-10-02T09:00:00Z" }'
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "id": "email_01K6B2Y4ZP9R3M7T8V5N2QXW4C",
+  "status": "scheduled",
+  "subject": "Your trial ends tomorrow",
+  "scheduledAt": "2026-10-02T09:00:00.000Z",
+  "events": [
+    {
+      "id": "evt_01K6B2Y4ZQ1A2B3C4D5E6F7G8H",
+      "type": "email.scheduled",
+      "recipient": null,
+      "data": { "scheduledAt": "2026-10-01T09:00:00.000Z" },
+      "createdAt": "2026-09-26T14:05:31.123Z"
+    },
+    {
+      "id": "evt_01K6B3A7C2D5F8G1H4J7K0M3N6",
+      "type": "email.scheduled",
+      "recipient": null,
+      "data": { "scheduledAt": "2026-10-02T09:00:00.000Z", "rescheduled": true },
+      "createdAt": "2026-09-26T15:12:08.441Z"
+    }
+  ]
+}
+```
+
+```json tab="409" tab-group="status"
+{
+  "error": {
+    "type": "conflict",
+    "code": "not_cancelable",
+    "message": "only scheduled emails can be rescheduled; this one is sent",
+    "param": "id"
+  }
+}
+```
+
+</ApiExample>
+
+<Callout type="info">
+  The response above is shortened. The real one has every field of the email.
+</Callout>
+
+</ApiAside>
+</ApiPage>

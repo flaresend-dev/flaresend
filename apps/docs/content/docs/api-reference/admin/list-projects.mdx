@@ -1,0 +1,76 @@
+---
+title: List projects
+description: Every project on the mailer, oldest first, disabled ones included.
+method: GET
+---
+
+<Endpoint method="GET" path="/v1/admin/projects" auth="admin" />
+
+<ApiPage>
+<ApiMain>
+
+Returns all projects in one response, ordered by creation time, oldest first. The list is not paginated. Disabled projects are included; check `disabledAt`.
+
+## Response
+
+<Fields>
+
+<ResponseField name="data" type="Project[]">
+  The projects. Each one has the fields described in [Retrieve a project](/docs/api-reference/admin/retrieve-project#response).
+</ResponseField>
+
+</Fields>
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+const res = await fetch('https://mailer.example.com/v1/admin/projects', {
+  headers: { Authorization: `Bearer ${process.env.FLARESEND_ADMIN_KEY}` },
+});
+const { data: projects } = await res.json();
+```
+
+```bash tab="cURL" tab-group="lang"
+curl https://mailer.example.com/v1/admin/projects \
+  -H "Authorization: Bearer $FLARESEND_ADMIN_KEY"
+```
+
+```bash tab="CLI" tab-group="lang"
+flaresend projects list
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "data": [
+    {
+      "id": "proj_01K6B1QZ3M8H2V5T7R9N4XW6CD",
+      "slug": "acme",
+      "name": "Acme",
+      "defaultFrom": "Acme <hello@acme.com>",
+      "allowedDomains": ["acme.com"],
+      "allowedSenders": null,
+      "domainSenders": {},
+      "rpcEnabled": true,
+      "dailyLimit": 5000,
+      "trackOpens": false,
+      "trackClicks": false,
+      "broadcastsEnabled": false,
+      "createdAt": "2026-09-26T10:00:00.000Z",
+      "updatedAt": "2026-09-26T10:00:00.000Z",
+      "disabledAt": null
+    }
+  ]
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

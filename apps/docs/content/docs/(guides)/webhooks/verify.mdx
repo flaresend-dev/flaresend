@@ -1,0 +1,237 @@
+---
+title: Verify signatures
+description: Check that a webhook request really came from your Flaresend mailer and was not changed on the way.
+---
+
+Anyone who knows your webhook URL can send it a request. Every real request from Flaresend is signed with the webhook's secret, so check the signature before you trust the body.
+
+## Request headers
+
+Every delivery is a `POST` with these headers:
+
+| Header | Value |
+|---|---|
+| `Content-Type` | `application/json` |
+| `User-Agent` | `Flaresend-Webhooks/1.0` |
+| `Flaresend-Signature` | `t=<unix seconds>,v1=<hex signature>` |
+| `Flaresend-Event-Id` | The event ID, the same as `id` in the body |
+| `Flaresend-Delivery-Id` | The ID of this delivery (`whd_…`). A retry of the same delivery keeps the same ID |
+
+## The algorithm
+
+```text
+Flaresend-Signature: t=1758895331,v1=5f2b0c1e...9a
+```
+
+- `t` is the time the request was signed, in Unix seconds. It is set again on every attempt.
+- `v1` is the lowercase hex HMAC-SHA256 of the string `{t}.{raw body}`.
+- The HMAC key is the **whole secret string as UTF-8 bytes, including the `whsec_` prefix**. Don't base64-decode it or strip the prefix.
+
+To verify:
+
+1. Split the header on `,` and each part on the first `=`. Take `t` and every `v1`.
+2. Reject the request if `t` is more than 5 minutes (300 seconds) away from your clock. This stops someone replaying an old request.
+3. Compute `HMAC-SHA256(secret, t + "." + rawBody)` as hex.
+4. Accept if it equals any `v1`. Compare in constant time.
+
+<Callout type="warn" title="Use the raw body">
+  Sign-check the exact bytes you received. Parsing the JSON and serializing it again changes spacing and key order, and the signature will not match. In Express, use `express.raw()` on the webhook route, not `express.json()`. In Next.js and Workers, use `await req.text()`.
+</Callout>
+
+## With the SDK
+
+`verifyWebhookSignature` does all four steps. It uses Web Crypto, so it runs in Node.js 18+, Bun, Deno, browsers and Workers. It returns a `Promise<boolean>` and never throws on bad input.
+
+```ts
+import { verifyWebhookSignature } from '@flaresend/client/webhooks';
+
+const raw = await req.text();
+const ok = await verifyWebhookSignature(
+  process.env.FLARESEND_WEBHOOK_SECRET!,
+  req.headers.get('Flaresend-Signature'),
+  raw,
+  300, // tolerance in seconds; this is the default
+);
+if (!ok) return new Response('bad signature', { status: 401 });
+```
+
+It returns `false` when the header is missing or malformed, when no `v1` matches, or when `t` is further than the tolerance from now. `rawBody` can be a `string`, an `ArrayBuffer` or a `Uint8Array` (a Node.js `Buffer` works). See [SDK: webhooks](/docs/sdk/webhooks).
+
+## Without the SDK
+
+<Tabs items={['Python', 'Go', 'Node.js (no SDK)']}>
+<Tab value="Python">
+
+```python
+import hashlib
+import hmac
+import time
+
+
+def verify_flaresend_signature(secret: str, header: str | None, raw_body: bytes, tolerance: int = 300) -> bool:
+    if not secret or not header:
+        return False
+    timestamp = None
+    candidates = []
+    for part in header.split(","):
+        key, sep, value = part.partition("=")
+        if not sep:
+            continue
+        key, value = key.strip(), value.strip()
+        if key == "t":
+            if not value.isdigit():
+                return False
+            timestamp = int(value)
+        elif key == "v1":
+            candidates.append(value.lower())
+    if timestamp is None or not candidates:
+        return False
+    if abs(time.time() - timestamp) > tolerance:
+        return False
+    message = f"{timestamp}.".encode() + raw_body
+    expected = hmac.new(secret.encode(), message, hashlib.sha256).hexdigest()
+    return any(hmac.compare_digest(expected, c) for c in candidates)
+
+
+# Flask
+@app.post("/api/flaresend-webhook")
+def flaresend_webhook():
+    raw = request.get_data()  # bytes, before any JSON parsing
+    if not verify_flaresend_signature(os.environ["FLARESEND_WEBHOOK_SECRET"], request.headers.get("Flaresend-Signature"), raw):
+        return "bad signature", 401
+    event = json.loads(raw)
+    return "ok"
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package webhooks
+
+import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
+	"io"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+)
+
+func VerifyFlaresendSignature(secret, header string, rawBody []byte, tolerance time.Duration) bool {
+	if secret == "" || header == "" {
+		return false
+	}
+	var ts int64 = -1
+	var candidates []string
+	for _, part := range strings.Split(header, ",") {
+		k, v, ok := strings.Cut(part, "=")
+		if !ok {
+			continue
+		}
+		k, v = strings.TrimSpace(k), strings.TrimSpace(v)
+		switch k {
+		case "t":
+			n, err := strconv.ParseInt(v, 10, 64)
+			if err != nil {
+				return false
+			}
+			ts = n
+		case "v1":
+			candidates = append(candidates, strings.ToLower(v))
+		}
+	}
+	if ts < 0 || len(candidates) == 0 {
+		return false
+	}
+	if d := time.Since(time.Unix(ts, 0)); d > tolerance || d < -tolerance {
+		return false
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(strconv.FormatInt(ts, 10) + "."))
+	mac.Write(rawBody)
+	expected := hex.EncodeToString(mac.Sum(nil))
+	ok := false
+	for _, c := range candidates {
+		if subtle.ConstantTimeCompare([]byte(expected), []byte(c)) == 1 {
+			ok = true
+		}
+	}
+	return ok
+}
+
+func Handler(secret string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		raw, err := io.ReadAll(r.Body)
+		if err != nil || !VerifyFlaresendSignature(secret, r.Header.Get("Flaresend-Signature"), raw, 5*time.Minute) {
+			http.Error(w, "bad signature", http.StatusUnauthorized)
+			return
+		}
+		// json.Unmarshal(raw, &event) ...
+		w.WriteHeader(http.StatusOK)
+	}
+}
+```
+
+</Tab>
+<Tab value="Node.js (no SDK)">
+
+```ts
+import { createHmac, timingSafeEqual } from 'node:crypto';
+
+export function verifyFlaresendSignature(secret: string, header: string | undefined, rawBody: Buffer, tolerance = 300) {
+  if (!secret || !header) return false;
+  let t: number | null = null;
+  const candidates: string[] = [];
+  for (const part of header.split(',')) {
+    const i = part.indexOf('=');
+    if (i === -1) continue;
+    const k = part.slice(0, i).trim();
+    const v = part.slice(i + 1).trim();
+    if (k === 't') t = /^\d+$/.test(v) ? Number(v) : NaN;
+    else if (k === 'v1') candidates.push(v.toLowerCase());
+  }
+  if (t === null || Number.isNaN(t) || candidates.length === 0) return false;
+  if (Math.abs(Date.now() / 1000 - t) > tolerance) return false;
+  const expected = createHmac('sha256', secret).update(`${t}.`).update(rawBody).digest('hex');
+  return candidates.some((c) => c.length === expected.length && timingSafeEqual(Buffer.from(c), Buffer.from(expected)));
+}
+```
+
+</Tab>
+</Tabs>
+
+## Rotating the secret
+
+Rotate a secret when it may have leaked, from the webhook's page in the dashboard (**Rotate secret**) or with [`POST /v1/webhooks/:id/rotate-secret`](/docs/api-reference/webhooks/rotate-secret). The response carries the new secret once.
+
+The old secret stops working **at once**: every delivery after the rotation, including retries of older events, is signed with the new secret only. To avoid rejecting events while you deploy the new secret, have your endpoint accept either secret for a short while:
+
+```ts
+const ok =
+  (await verifyWebhookSignature(env.FLARESEND_WEBHOOK_SECRET, header, raw)) ||
+  (await verifyWebhookSignature(env.FLARESEND_WEBHOOK_SECRET_OLD, header, raw));
+```
+
+Events your endpoint rejected during the switch are retried on the [normal schedule](/docs/webhooks/retries), so most of them arrive again once the new secret is live.
+
+<Callout type="info" title="More than one v1">
+  The header format allows several `v1=` values, and `verifyWebhookSignature` accepts a match on any of them. The mailer currently sends exactly one. Write your own verifier to accept any match, as the examples above do, so it keeps working if that changes.
+</Callout>
+
+## Testing your verifier
+
+`signWebhookPayload` builds a header the same way the mailer does. Use it in tests:
+
+```ts
+import { signWebhookPayload, verifyWebhookSignature } from '@flaresend/client/webhooks';
+
+const body = JSON.stringify({ id: 'evt_test', type: 'email.delivered', createdAt: new Date().toISOString(), data: {} });
+const header = await signWebhookPayload('whsec_test', body);
+
+await verifyWebhookSignature('whsec_test', header, body); // true
+await verifyWebhookSignature('whsec_other', header, body); // false
+```

@@ -1,0 +1,1 @@
+{ "title": "Broadcasts", "icon": "Radio", "pages": ["create", "list", "retrieve", "update", "delete", "send", "cancel"] }

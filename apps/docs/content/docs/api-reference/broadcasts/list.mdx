@@ -1,0 +1,81 @@
+---
+title: List broadcasts
+description: Get every broadcast in the project, newest first.
+method: GET
+---
+
+<Endpoint method="GET" path="/v1/broadcasts" />
+
+<ApiPage>
+<ApiMain>
+
+Returns all of the project's broadcasts in one response, newest first. This list is not paginated, and it doesn't include the per-status `counts`; get those from [Retrieve a broadcast](/docs/api-reference/broadcasts/retrieve).
+
+Listing works even when the project has broadcasts turned off.
+
+## Response
+
+<Fields>
+
+<ResponseField name="data" type="Broadcast[]">
+  The broadcasts, with the fields described in [Create a broadcast](/docs/api-reference/broadcasts/create#response).
+</ResponseField>
+
+</Fields>
+
+The Node.js client returns the array itself, not the `{ data }` wrapper.
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const broadcasts = await flaresend.broadcasts.list(); // BroadcastRecord[]
+```
+
+```bash tab="cURL" tab-group="lang"
+curl https://mailer.example.com/v1/broadcasts \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "data": [
+    {
+      "id": "bc_01K6C3D9G2J4L7N0Q3S5U8W1YZ",
+      "projectId": "proj_01K5Z8W2Q4R6T8V0X2Z4B6D8FG",
+      "audienceId": "aud_01K6C2A7F3H5J8K1M4N6P9Q2RS",
+      "from": "hello@acme.com",
+      "fromName": "Acme",
+      "subject": "The beta is open, {{first_name}}",
+      "html": "<p>Hi {{first_name}}, …</p>",
+      "text": null,
+      "status": "sent",
+      "scheduledAt": null,
+      "startedAt": "2026-09-26T10:15:00.000Z",
+      "completedAt": "2026-09-26T10:20:00.000Z",
+      "total": 42,
+      "sent": 41,
+      "createdAt": "2026-09-26T10:10:00.000Z",
+      "updatedAt": "2026-09-26T10:20:00.000Z"
+    }
+  ]
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

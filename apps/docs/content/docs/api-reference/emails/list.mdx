@@ -1,0 +1,177 @@
+---
+title: List emails
+description: Search the project's emails by status, recipient, sender, subject, tag and date.
+method: GET
+---
+
+<Endpoint method="GET" path="/v1/emails" />
+
+<ApiPage>
+<ApiMain>
+
+Returns the project's emails, newest first, [paginated](/docs/api-reference/pagination). Every filter is optional and they combine with AND.
+
+Each email includes its recipients, but `events` is always an empty array here. [Retrieve the email](/docs/api-reference/emails/retrieve) to get its event timeline.
+
+## Query parameters
+
+<Fields>
+
+<ParamField query="limit" type="number" default="25">
+  1 to 100.
+</ParamField>
+
+<ParamField query="cursor" type="string">
+  The `nextCursor` from the previous page.
+</ParamField>
+
+<ParamField query="status" type="string">
+  One of `queued`, `scheduled`, `sending`, `sent`, `delivered`, `deferred`, `bounced`, `complained`, `rejected`, `failed`, `test`, `canceled`. See [Email statuses](/docs/emails/statuses).
+</ParamField>
+
+<ParamField query="to" type="string">
+  Matches any recipient, whether in `to`, `cc` or `bcc`. A full address (with `@`) must match exactly. Anything else matches part of an address, so `to=example.com` finds every recipient at that domain.
+</ParamField>
+
+<ParamField query="from" type="string">
+  The sender's bare address, exact match. Case doesn't matter.
+</ParamField>
+
+<ParamField query="q" type="string">
+  Text the subject contains.
+</ParamField>
+
+<ParamField query="tag" type="string">
+  One tag as `key:value`, for example `tag=kind:welcome`.
+</ParamField>
+
+<ParamField query="since" type="string">
+  Only emails created at or after this ISO 8601 date-time. Needs a time zone offset.
+</ParamField>
+
+<ParamField query="until" type="string">
+  Only emails created before this ISO 8601 date-time. Needs a time zone offset.
+</ParamField>
+
+</Fields>
+
+## Response
+
+<Fields>
+
+<ResponseField name="data" type="Email[]">
+  The emails on this page. Each has the fields described in [Retrieve an email](/docs/api-reference/emails/retrieve), with `events: []`.
+</ResponseField>
+
+<ResponseField name="nextCursor" type="string | null">
+  Pass it as `cursor` to get the next page. `null` on the last page.
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_query` | A parameter is invalid: `limit` out of range, an unknown `status`, a `tag` without `:`, or a date without a time zone. `param` names it. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const page = await flaresend.emails.list({
+  status: 'bounced',
+  since: '2026-09-01T00:00:00Z',
+  limit: 50,
+});
+```
+
+```bash tab="cURL" tab-group="lang"
+curl "https://mailer.example.com/v1/emails?status=bounced&since=2026-09-01T00:00:00Z&limit=50" \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+```ts tab="Worker (RPC)" tab-group="lang"
+import { rpcClient } from '@flaresend/client/rpc';
+
+const mail = rpcClient(env.MAILER, { project: 'acme' });
+
+const page = await mail.list({
+  status: 'bounced',
+  since: '2026-09-01T00:00:00Z',
+  limit: 50,
+});
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "data": [
+    {
+      "id": "email_01K6B2Y4ZP9R3M7T8V5N2QXW4C",
+      "projectId": "proj_01K5ZQ8M3N6P1R4S7T0V2W5X8Y",
+      "mode": "live",
+      "source": "http",
+      "from": "hello@acme.com",
+      "fromName": "Acme",
+      "replyTo": null,
+      "to": ["ada@example.com"],
+      "cc": [],
+      "bcc": [],
+      "subject": "Welcome to Acme",
+      "textPreview": "Thanks for signing up.",
+      "tags": { "kind": "welcome" },
+      "template": null,
+      "templateVersion": null,
+      "status": "bounced",
+      "cloudflareMessageId": "0101018f7d0c4d9a-msg-deadbeef",
+      "lastError": null,
+      "attempts": 1,
+      "sizeBytes": 412,
+      "attachmentCount": 0,
+      "trackOpens": false,
+      "trackClicks": false,
+      "openedAt": null,
+      "firstClickedAt": null,
+      "createdAt": "2026-09-26T14:05:31.123Z",
+      "queuedAt": "2026-09-26T14:05:31.123Z",
+      "sentAt": "2026-09-26T14:05:32.480Z",
+      "deliveredAt": null,
+      "failedAt": "2026-09-26T14:05:40.912Z",
+      "scheduledAt": null,
+      "recipients": [
+        {
+          "address": "ada@example.com",
+          "kind": "to",
+          "status": "bounced",
+          "provider": null,
+          "smtpStatus": "550",
+          "smtpResponse": "550 5.1.1 User unknown",
+          "deliveryMs": null,
+          "bounceType": "hard",
+          "lastEventAt": "2026-09-26T14:05:40.912Z"
+        }
+      ],
+      "events": []
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

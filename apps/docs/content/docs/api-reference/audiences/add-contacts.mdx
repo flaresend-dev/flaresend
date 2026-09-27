@@ -1,0 +1,104 @@
+---
+title: Add contacts to an audience
+description: Put up to 5,000 existing contacts into an audience.
+method: POST
+---
+
+<Endpoint method="POST" path="/v1/audiences/:id/contacts" />
+
+<ApiPage>
+<ApiMain>
+
+Adds contacts by ID. The contacts must already exist in the project; create them first with [Create a contact](/docs/api-reference/contacts/create) or [Import contacts](/docs/api-reference/contacts/import).
+
+Contacts already in the audience are skipped, and duplicate IDs in the request count once. If any ID is not a contact in this project, the request fails with `404` and nothing is added.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="id" type="string" required>
+  The audience ID.
+</ParamField>
+
+</Fields>
+
+## Body parameters
+
+<Fields>
+
+<ParamField body="contactIds" type="string[]" required>
+  1 to 5,000 contact IDs.
+</ParamField>
+
+</Fields>
+
+## Response
+
+<Fields>
+
+<ResponseField name="added" type="number">
+  How many contacts were newly added. Contacts that were already in the audience are not counted.
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_body` | `contactIds` is missing, empty or has more than 5,000 entries. |
+| 404 | `audience_not_found` | No audience with that ID in this project. |
+| 404 | `contact_not_found` | One of the IDs is not a contact in this project. The message names the first one. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const { added } = await flaresend.audiences.addContacts('aud_01K6C2A7F3H5J8K1M4N6P9Q2RS', [
+  'ct_01K6C1M3R8T2V9X4Z6B7N5P0QA',
+  'ct_01K6C1N7S2V5X8Z1B4D6F9H2JK',
+]);
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/audiences/aud_01K6C2A7F3H5J8K1M4N6P9Q2RS/contacts \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "contactIds": ["ct_01K6C1M3R8T2V9X4Z6B7N5P0QA", "ct_01K6C1N7S2V5X8Z1B4D6F9H2JK"] }'
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "added": 2
+}
+```
+
+```json tab="404" tab-group="status"
+{
+  "error": {
+    "type": "not_found",
+    "code": "contact_not_found",
+    "message": "contact ct_01K6C1N7S2V5X8Z1B4D6F9H2JK not found",
+    "param": "contactIds"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

@@ -1,0 +1,127 @@
+---
+title: Attachments
+description: Attach files as base64, including inline images referenced from the HTML.
+icon: Paperclip
+---
+
+Attachments go in the `attachments` array. The file content is always **base64**, over both HTTP and RPC.
+
+| Field | Required | Rules |
+|---|---|---|
+| `filename` | yes | 1 to 255 characters. No line breaks or double quotes. |
+| `content` | yes | The file, base64 encoded. Whitespace in it is removed. |
+| `type` | no | MIME type, for example `application/pdf`. Up to 127 characters. |
+| `disposition` | no | `attachment` (default) or `inline`. |
+| `contentId` | for inline | Up to 127 characters. Required when `disposition` is `inline`. |
+
+Limits:
+
+- At most **20** attachments per email.
+- The whole email (HTML, text and attachments, after base64 encoding) must be under **5 MiB**. Base64 makes a file about a third larger, so the real file size limit is about 3.7 MiB in total.
+
+## Attach a file
+
+```ts tab="Node.js" tab-group="lang"
+import { readFile } from 'node:fs/promises';
+
+const pdf = await readFile('./invoice-1042.pdf');
+
+await flaresend.emails.send({
+  from: 'Acme <billing@acme.com>',
+  to: 'ada@example.com',
+  subject: 'Invoice 1042',
+  text: 'Your invoice is attached.',
+  attachments: [
+    {
+      filename: 'invoice-1042.pdf',
+      content: pdf.toString('base64'),
+      type: 'application/pdf',
+    },
+  ],
+});
+```
+
+```bash tab="cURL" tab-group="lang"
+CONTENT=$(base64 -w0 invoice-1042.pdf)   # on macOS: base64 -i invoice-1042.pdf
+
+curl -X POST https://mailer.example.com/v1/emails \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "from": "Acme <billing@acme.com>",
+    "to": "ada@example.com",
+    "subject": "Invoice 1042",
+    "text": "Your invoice is attached.",
+    "attachments": [
+      { "filename": "invoice-1042.pdf", "content": "'"$CONTENT"'", "type": "application/pdf" }
+    ]
+  }'
+```
+
+```ts tab="Worker (RPC)" tab-group="lang"
+import { attachmentFromBytes, rpcClient } from '@flaresend/client/rpc';
+
+const mail = rpcClient(env.MAILER, { project: 'acme' });
+const object = await env.INVOICES.get('invoice-1042.pdf');
+const bytes = new Uint8Array(await object!.arrayBuffer());
+
+await mail.send({
+  from: 'Acme <billing@acme.com>',
+  to: 'ada@example.com',
+  subject: 'Invoice 1042',
+  text: 'Your invoice is attached.',
+  attachments: [attachmentFromBytes('invoice-1042.pdf', bytes, 'application/pdf')],
+});
+```
+
+## `attachmentFromBytes`
+
+`Buffer` doesn't exist in Workers or browsers. The client exports a helper that base64-encodes raw bytes without it:
+
+```ts
+import { attachmentFromBytes } from '@flaresend/client';
+
+const file = await request.formData().then((f) => f.get('file') as File);
+const bytes = new Uint8Array(await file.arrayBuffer());
+
+const attachment = attachmentFromBytes(file.name, bytes, file.type);
+// { filename, content: '<base64>', type, disposition: 'attachment' }
+```
+
+`bytesToBase64(bytes)` is also exported if you only need the encoding.
+
+## Inline images
+
+To show an image inside the HTML instead of as a download, set `disposition: "inline"`, give it a `contentId`, and reference it with `cid:`:
+
+```ts
+await flaresend.emails.send({
+  from: 'Acme <hello@acme.com>',
+  to: 'ada@example.com',
+  subject: 'Your badge',
+  html: '<p>Here is your badge:</p><img src="cid:badge" width="120" alt="Badge">',
+  attachments: [
+    {
+      filename: 'badge.png',
+      content: badgePng.toString('base64'),
+      type: 'image/png',
+      disposition: 'inline',
+      contentId: 'badge',
+    },
+  ],
+});
+```
+
+An inline attachment without `contentId` fails with `400 invalid_attachment`.
+
+## Errors
+
+| Code | When |
+|---|---|
+| `invalid_attachment` | `content` is not valid base64, an inline file has no `contentId`, or `filename` contains a line break or `"`. `param` points at the field, for example `attachments.0.content`. |
+| `payload_too_large` | The email is 5 MiB or more. |
+| `invalid_body` | More than 20 attachments, or a field is the wrong type. |
+
+## After sending
+
+Attachment names, types and sizes (not the content) are returned by [Retrieve email content](/docs/api-reference/emails/content) for 30 days. The email record has `attachmentCount`.

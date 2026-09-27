@@ -1,0 +1,309 @@
+---
+title: Retrieve an email
+description: Get one email with its recipients and full event timeline.
+method: GET
+---
+
+<Endpoint method="GET" path="/v1/emails/:id" />
+
+<ApiPage>
+<ApiMain>
+
+Returns everything Flaresend knows about one email: its status, each recipient's delivery result, and every event in its timeline, oldest first. It doesn't include the body; use [Retrieve email content](/docs/api-reference/emails/content) for that.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="id" type="string" required>
+  The email ID, for example `email_01K6B2Y4ZP9R3M7T8V5N2QXW4C`.
+</ParamField>
+
+</Fields>
+
+## Response
+
+<Fields>
+
+<ResponseField name="id" type="string">
+  The email ID.
+</ResponseField>
+
+<ResponseField name="projectId" type="string">
+  The project it belongs to.
+</ResponseField>
+
+<ResponseField name="mode" type="'live' | 'test'">
+  `test` when it was sent with a test key.
+</ResponseField>
+
+<ResponseField name="source" type="string">
+  How it was sent: `http` (single send over the API, or a resend from the dashboard), `batch`, `rpc` or `broadcast`.
+</ResponseField>
+
+<ResponseField name="from" type="string">
+  The sender's bare address, lowercased.
+</ResponseField>
+
+<ResponseField name="fromName" type="string | null">
+  The sender's display name, if one was given.
+</ResponseField>
+
+<ResponseField name="replyTo" type="string | null">
+  The reply-to address.
+</ResponseField>
+
+<ResponseField name="to" type="string[]">
+  Bare addresses, lowercased and deduplicated. `cc` and `bcc` are the same.
+</ResponseField>
+
+<ResponseField name="subject" type="string">
+  The final subject, after any template was rendered.
+</ResponseField>
+
+<ResponseField name="textPreview" type="string | null">
+  The first 200 characters of the text body, or of the HTML with tags removed.
+</ResponseField>
+
+<ResponseField name="tags" type="Record<string, string> | null">
+  The tags sent with the email. Broadcast emails also carry `broadcast_id`, and resent emails `resent_from`.
+</ResponseField>
+
+<ResponseField name="template" type="string | null">
+  The template name, when one was used.
+</ResponseField>
+
+<ResponseField name="templateVersion" type="number | null">
+  The version of a stored template that was rendered. `null` for built-in templates.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  The email's overall status. See [Email statuses](/docs/emails/statuses) for what each value means and how it's worked out from the recipients.
+</ResponseField>
+
+<ResponseField name="cloudflareMessageId" type="string | null">
+  The message ID Cloudflare returned when it accepted the email. Set once the email is `sent`.
+</ResponseField>
+
+<ResponseField name="lastError" type="{ code, message } | null">
+  The most recent send error, for example `{ "code": "E_RATE_LIMIT_EXCEEDED", "message": "…" }`. Cleared when a retry succeeds. Every attempt is also in the timeline as an `email.retrying` event.
+</ResponseField>
+
+<ResponseField name="attempts" type="number">
+  How many times the send queue tried to hand it to Cloudflare.
+</ResponseField>
+
+<ResponseField name="sizeBytes" type="number">
+  The stored size of the email, attachments included.
+</ResponseField>
+
+<ResponseField name="attachmentCount" type="number">
+  How many attachments it has.
+</ResponseField>
+
+<ResponseField name="trackOpens" type="boolean">
+  Whether open tracking was applied. `trackClicks` is the same for clicks.
+</ResponseField>
+
+<ResponseField name="openedAt" type="string | null">
+  When it was first opened, if open tracking was on. `firstClickedAt` is the same for clicks.
+</ResponseField>
+
+<ResponseField name="createdAt" type="string">
+  When Flaresend accepted it. The other timestamps are `queuedAt`, `sentAt`, `deliveredAt`, `failedAt` (set when it reaches a failure status) and `scheduledAt`. Each is `null` until it happens.
+</ResponseField>
+
+<ResponseField name="recipients" type="Recipient[]">
+  One entry per address, with its own delivery result.
+
+  <Expandable title="recipient properties">
+    <ResponseField name="address" type="string">
+      The address.
+    </ResponseField>
+    <ResponseField name="kind" type="'to' | 'cc' | 'bcc'">
+      Which list it was in.
+    </ResponseField>
+    <ResponseField name="status" type="string">
+      `queued`, `sent`, `delivered`, `deferred`, `bounced`, `complained`, `rejected`, `failed`, `test` or `canceled`.
+    </ResponseField>
+    <ResponseField name="provider" type="string | null">
+      The receiving mail provider, when Cloudflare reports it.
+    </ResponseField>
+    <ResponseField name="smtpStatus" type="string | null">
+      The SMTP status code from the receiving server, for example `250` or `550`.
+    </ResponseField>
+    <ResponseField name="smtpResponse" type="string | null">
+      The receiving server's response text.
+    </ResponseField>
+    <ResponseField name="deliveryMs" type="number | null">
+      How long delivery took, in milliseconds.
+    </ResponseField>
+    <ResponseField name="bounceType" type="'hard' | 'soft' | null">
+      For bounces. Hard bounces add the address to the suppression list.
+    </ResponseField>
+    <ResponseField name="lastEventAt" type="string | null">
+      When the last delivery event for this address arrived.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="events" type="Event[]">
+  The timeline, oldest first.
+
+  <Expandable title="event properties">
+    <ResponseField name="id" type="string">
+      The event ID, `evt_…`.
+    </ResponseField>
+    <ResponseField name="type" type="string">
+      `email.queued`, `email.scheduled`, `email.sent`, `email.retrying`, `email.delivered`, `email.deferred`, `email.bounced`, `email.complained`, `email.rejected`, `email.failed`, `email.test`, `email.canceled`, `email.opened` or `email.clicked`.
+    </ResponseField>
+    <ResponseField name="recipient" type="string | null">
+      The address the event is about. `null` for events about the whole email.
+    </ResponseField>
+    <ResponseField name="data" type="object | null">
+      Details that depend on the type: Cloudflare's `delivery` result (and `bounce`, `rejection` and so on) for delivery events, `{ messageId }` for `email.sent`, `{ code, message, attempt, delaySeconds }` for `email.retrying`, `{ url, userAgent }` for `email.clicked`.
+    </ResponseField>
+    <ResponseField name="createdAt" type="string">
+      When it happened.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `email_not_found` | No email with that ID in this project. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const email = await flaresend.emails.get('email_01K6B2Y4ZP9R3M7T8V5N2QXW4C');
+```
+
+```bash tab="cURL" tab-group="lang"
+curl https://mailer.example.com/v1/emails/email_01K6B2Y4ZP9R3M7T8V5N2QXW4C \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+```ts tab="Worker (RPC)" tab-group="lang"
+import { rpcClient } from '@flaresend/client/rpc';
+
+const mail = rpcClient(env.MAILER, { project: 'acme' });
+
+// null when the email doesn't exist in this project
+const email = await mail.get('email_01K6B2Y4ZP9R3M7T8V5N2QXW4C');
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "id": "email_01K6B2Y4ZP9R3M7T8V5N2QXW4C",
+  "projectId": "proj_01K5ZQ8M3N6P1R4S7T0V2W5X8Y",
+  "mode": "live",
+  "source": "http",
+  "from": "hello@acme.com",
+  "fromName": "Acme",
+  "replyTo": null,
+  "to": ["ada@example.com"],
+  "cc": [],
+  "bcc": [],
+  "subject": "Welcome to Acme",
+  "textPreview": "Thanks for signing up.",
+  "tags": { "kind": "welcome" },
+  "template": null,
+  "templateVersion": null,
+  "status": "delivered",
+  "cloudflareMessageId": "0101018f7d0c4d9a-msg-deadbeef",
+  "lastError": null,
+  "attempts": 1,
+  "sizeBytes": 412,
+  "attachmentCount": 0,
+  "trackOpens": false,
+  "trackClicks": false,
+  "openedAt": null,
+  "firstClickedAt": null,
+  "createdAt": "2026-09-26T14:05:31.123Z",
+  "queuedAt": "2026-09-26T14:05:31.123Z",
+  "sentAt": "2026-09-26T14:05:32.480Z",
+  "deliveredAt": "2026-09-26T14:05:35.017Z",
+  "failedAt": null,
+  "scheduledAt": null,
+  "recipients": [
+    {
+      "address": "ada@example.com",
+      "kind": "to",
+      "status": "delivered",
+      "provider": "gmail",
+      "smtpStatus": "250",
+      "smtpResponse": "250 2.0.0 OK",
+      "deliveryMs": 2537,
+      "bounceType": null,
+      "lastEventAt": "2026-09-26T14:05:35.017Z"
+    }
+  ],
+  "events": [
+    {
+      "id": "evt_01K6B2Y4ZQ1A2B3C4D5E6F7G8H",
+      "type": "email.queued",
+      "recipient": null,
+      "data": null,
+      "createdAt": "2026-09-26T14:05:31.123Z"
+    },
+    {
+      "id": "evt_01K6B2Y6A9J0K1L2M3N4P5Q6R7",
+      "type": "email.sent",
+      "recipient": null,
+      "data": { "messageId": "0101018f7d0c4d9a-msg-deadbeef" },
+      "createdAt": "2026-09-26T14:05:32.480Z"
+    },
+    {
+      "id": "evt_01K6B2Y9S8T7V6W5X4Y3Z2A1B0",
+      "type": "email.delivered",
+      "recipient": "ada@example.com",
+      "data": {
+        "delivery": {
+          "status": "delivered",
+          "provider": "gmail",
+          "deliveryTimeMs": 2537,
+          "smtpStatusCode": "250",
+          "smtpResponse": "250 2.0.0 OK"
+        },
+        "terminal": true
+      },
+      "createdAt": "2026-09-26T14:05:35.017Z"
+    }
+  ]
+}
+```
+
+```json tab="404" tab-group="status"
+{
+  "error": {
+    "type": "not_found",
+    "code": "email_not_found",
+    "message": "email email_01K6B2Y4ZP9R3M7T8V5N2QXW4C not found",
+    "param": "id"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

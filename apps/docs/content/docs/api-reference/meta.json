@@ -1,0 +1,27 @@
+{
+  "title": "API Reference",
+  "description": "Every HTTP endpoint",
+  "icon": "Braces",
+  "root": true,
+  "pages": [
+    "---Overview---",
+    "index",
+    "authentication",
+    "errors",
+    "pagination",
+    "rate-limits",
+    "---Endpoints---",
+    "emails",
+    "events",
+    "domains",
+    "api-keys",
+    "webhooks",
+    "templates",
+    "analytics",
+    "contacts",
+    "audiences",
+    "broadcasts",
+    "---Admin---",
+    "admin"
+  ]
+}

@@ -1,0 +1,120 @@
+---
+title: Render a template
+description: Preview what a template produces for some data, without sending anything.
+method: POST
+---
+
+<Endpoint method="POST" path="/v1/templates/:name/render" />
+
+<ApiPage>
+<ApiMain>
+
+Renders a template exactly as a send would, and returns the result. Nothing is stored or sent. Use it to preview a template or to check your `data` before sending.
+
+The name is looked up like a send does: a template stored in the project first, then the [built-in templates](/docs/templates/built-in). The same checks apply too: required variables of a stored template, and the data schema of a built-in one.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="name" type="string" required>
+  The template name.
+</ParamField>
+
+</Fields>
+
+## Body parameters
+
+The body is optional. Leaving it out is the same as sending `{ "data": {} }`.
+
+<Fields>
+
+<ParamField body="data" type="object" default="{}">
+  The values for the template's variables.
+</ParamField>
+
+</Fields>
+
+## Response
+
+<Fields>
+
+<ResponseField name="subject" type="string">
+  The rendered subject.
+</ResponseField>
+
+<ResponseField name="html" type="string">
+  The rendered HTML.
+</ResponseField>
+
+<ResponseField name="text" type="string">
+  The rendered plain text. For a stored template without a text body, this is made from the rendered HTML.
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_body` | The body is not valid JSON, or `data` is not an object. |
+| 400 | `invalid_template_data` | A required variable is missing, or `data` doesn't match a built-in template's schema. `param` is the field, for example `data.loginUrl`. |
+| 400 | `invalid_template` | The stored template has a syntax error. |
+| 404 | `template_not_found` | No stored or built-in template with this name. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const { subject, html, text } = await flaresend.templates.render('welcome', {
+  name: 'Ada',
+  appName: 'Acme',
+  loginUrl: 'https://acme.com/login',
+});
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/templates/welcome/render \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "data": { "name": "Ada", "appName": "Acme", "loginUrl": "https://acme.com/login" }
+  }'
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "subject": "Welcome to Acme",
+  "html": "<!DOCTYPE html …</html>",
+  "text": "…"
+}
+```
+
+```json tab="400" tab-group="status"
+{
+  "error": {
+    "type": "validation_error",
+    "code": "invalid_template_data",
+    "message": "data.loginUrl: Required",
+    "param": "data.loginUrl"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

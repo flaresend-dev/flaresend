@@ -1,0 +1,165 @@
+---
+title: Post a fake delivery event
+description: Run a hand-made Cloudflare delivery event through the events pipeline. Development only.
+method: POST
+---
+
+<Endpoint method="POST" path="/v1/admin/dev/events" auth="admin" />
+
+<ApiPage>
+<ApiMain>
+
+Cloudflare does not deliver email events to `wrangler dev`, so locally emails stop at `sent`. This route takes a Cloudflare email event and runs it through the same code as the events queue consumer: it updates the recipient and email status, writes the timeline event, adds hard bounces and complaints to the suppression list and fans out to webhooks.
+
+<Callout type="warn" title="Not available in production">
+  The route only exists when the mailer's `ENVIRONMENT` var is not `production`. In production it returns `404 not_found`.
+</Callout>
+
+The event is matched to an email by `payload.messageId`, which must equal the email's `cloudflareMessageId`. The send consumer sets that after sending, so send the email first and wait until it is `sent`.
+
+The easiest way to call it is the CLI, which fetches the email, builds one event per recipient and posts them: `flaresend dev event <type> <emailId>` (or `pnpm dev:event delivered <emailId>` from the repo root). See [Local development](/docs/self-hosting/local-development).
+
+## Body
+
+One Cloudflare email event object, or an array of them. The fields Flaresend reads:
+
+<Fields>
+
+<ParamField body="type" type="string" required>
+  `cf.email.sending.message.` followed by `delivered`, `deferred`, `bounced`, `failed`, `rejected` or `complained`.
+</ParamField>
+
+<ParamField body="source" type="object" required>
+  `{ "type": "email.sending", "zoneId": "…", "domain": "acme.com" }`. Only `type` is required.
+</ParamField>
+
+<ParamField body="payload" type="object" required>
+  <Expandable title="payload properties">
+    <ParamField body="eventId" type="string" required>
+      A unique ID. An event ID that was already processed returns `duplicate`.
+    </ParamField>
+    <ParamField body="messageId" type="string" required>
+      The email's `cloudflareMessageId`.
+    </ParamField>
+    <ParamField body="recipient" type="string" required>
+      One recipient address.
+    </ParamField>
+    <ParamField body="delivery" type="object" required>
+      `status` (the same six values as the type), plus optional `provider`, `deliveryTimeMs`, `smtpStatusCode`, `smtpEnhancedStatusCode` and `smtpResponse`.
+    </ParamField>
+    <ParamField body="bounce" type="object">
+      For bounces: `{ "type": "hard" | "soft", "classification", "reason" }`. A `hard` bounce adds the recipient to the suppression list.
+    </ParamField>
+    <ParamField body="sender, subject, terminal, failure, rejection, complaint" type="various">
+      Optional, as Cloudflare sends them.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="metadata" type="object" required>
+  Must include `eventTimestamp`, an ISO 8601 date-time. It becomes the time of the timeline event.
+</ParamField>
+
+</Fields>
+
+## Response
+
+<Fields>
+
+<ResponseField name="ok" type="true">
+  Always `true` when the route ran.
+</ResponseField>
+
+<ResponseField name="result" type="Outcome | Outcome[]">
+  One outcome, or an array in the same order when you posted an array.
+
+  - `{ "kind": "processed", "emailId", "status", "eventId" }`: applied. `status` is the email's status afterwards.
+  - `{ "kind": "duplicate" }`: this `eventId` was already processed.
+  - `{ "kind": "not_found" }`: no email has this `messageId`.
+  - `{ "kind": "invalid", "reason" }`: the event failed validation.
+</ResponseField>
+
+</Fields>
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+const res = await fetch('http://localhost:8787/v1/admin/dev/events', {
+  method: 'POST',
+  headers: {
+    Authorization: `Bearer ${process.env.FLARESEND_ADMIN_KEY}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    type: 'cf.email.sending.message.delivered',
+    source: { type: 'email.sending', domain: 'acme.com' },
+    payload: {
+      eventId: crypto.randomUUID(),
+      messageId: email.cloudflareMessageId,
+      recipient: 'ada@example.com',
+      delivery: { status: 'delivered', smtpStatusCode: '250' },
+    },
+    metadata: { eventTimestamp: new Date().toISOString() },
+  }),
+});
+const { result } = await res.json();
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST http://localhost:8787/v1/admin/dev/events \
+  -H "Authorization: Bearer $FLARESEND_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "cf.email.sending.message.delivered",
+    "source": { "type": "email.sending", "domain": "acme.com" },
+    "payload": {
+      "eventId": "dev-0001",
+      "messageId": "<0f3c2a1b@acme.com>",
+      "recipient": "ada@example.com",
+      "delivery": { "status": "delivered", "smtpStatusCode": "250" }
+    },
+    "metadata": { "eventTimestamp": "2026-09-26T10:20:05.000Z" }
+  }'
+```
+
+```bash tab="CLI" tab-group="lang"
+flaresend dev event delivered email_01K6B2Y4ZP9R3M7T8V5N2QXW4C
+
+# A hard bounce for one recipient
+flaresend dev event bounced email_01K6B2Y4ZP9R3M7T8V5N2QXW4C \
+  --recipient ada@example.com --bounce-type hard
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "ok": true,
+  "result": {
+    "kind": "processed",
+    "emailId": "email_01K6B2Y4ZP9R3M7T8V5N2QXW4C",
+    "status": "delivered",
+    "eventId": "evt_01K6B2Z1C4F7J0M3P6S9V2Y5B8"
+  }
+}
+```
+
+```json tab="404" tab-group="status"
+{
+  "error": {
+    "type": "not_found",
+    "code": "not_found",
+    "message": "not found"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

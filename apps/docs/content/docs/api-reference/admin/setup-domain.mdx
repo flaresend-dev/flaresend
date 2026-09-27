@@ -1,0 +1,166 @@
+---
+title: Set up a domain
+description: Onboard one of a project's domains in Cloudflare Email Sending, with its DNS records and delivery events.
+method: POST
+---
+
+<Endpoint method="POST" path="/v1/admin/projects/:slug/domains/:domain/setup" auth="admin" />
+
+<ApiPage>
+<ApiMain>
+
+Does in one call what [Deploy](/docs/self-hosting/deploy) steps 3 and 4 do by hand. It is what the dashboard's **Set up in Cloudflare** menu item and **Add domain** dialog call. It only works with the admin key: project API keys get `403 admin_only`, because it changes DNS with the mailer's own Cloudflare token.
+
+The mailer needs a `CF_API_TOKEN` secret with Zone Read, Email Sending Edit, DNS Edit and Queues Edit, and the `CF_ACCOUNT_ID` secret. See [Configuration](/docs/self-hosting/configuration).
+
+It runs these steps in order and reports each one:
+
+1. **sending domain**: adds the domain to Email Sending on its Cloudflare zone, unless it is already there.
+2. **dns**: one step per record Cloudflare lists for the domain (SPF, DKIM, return path). Adds each record that is missing.
+3. **dmarc**: only when Cloudflare's list has no DMARC record. If neither `_dmarc.<domain>` nor `_dmarc.<zone>` has one, adds `v=DMARC1; p=none` at `_dmarc.<domain>`.
+4. **delivery events**: subscribes the domain's delivery events to the `flaresend-events` queue, unless a subscription for this zone and domain already exists.
+
+It never changes or deletes a DNS record that is already there. When a different record is in the way (a CNAME at the same name, or another SPF, DKIM or DMARC TXT record), the step is reported as `conflict` for you to fix by hand. Records are added unproxied. It is safe to run again: finished steps report `exists`.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="slug" type="string" required>
+  The project slug.
+</ParamField>
+
+<ParamField path="domain" type="string" required>
+  One of the project's `allowedDomains`. Add it to the project first with [Update a project](/docs/api-reference/admin/update-project).
+</ParamField>
+
+</Fields>
+
+## Response
+
+Status `200`. A step that fails does not fail the request; check each step's `status`.
+
+<Fields>
+
+<ResponseField name="domain" type="string">
+  The domain, lowercased.
+</ResponseField>
+
+<ResponseField name="zone" type="string">
+  The Cloudflare zone that holds it, for example `acme.com` for `mail.acme.com`.
+</ResponseField>
+
+<ResponseField name="steps" type="Step[]">
+  What happened, in order.
+
+  <Expandable title="step properties">
+    <ResponseField name="step" type="string">
+      `sending domain`, `dns`, `dmarc` or `delivery events`.
+    </ResponseField>
+    <ResponseField name="status" type="'created' | 'exists' | 'conflict' | 'skipped' | 'failed'">
+      `created`: done now. `exists`: already in place. `conflict`: another record is in the way. `skipped`: `delivery events` only, when `CF_ACCOUNT_ID` is not set. `failed`: the Cloudflare API call failed.
+    </ResponseField>
+    <ResponseField name="detail" type="string">
+      A sentence explaining the status, or the Cloudflare error.
+    </ResponseField>
+    <ResponseField name="record" type="{ type, name, content }">
+      For DNS steps, the record that was wanted.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="record" type="object">
+  The domain's fresh verification status after setup: `domain`, `verification` (`onboarded`, `pending`, `missing` or `unknown`), `details` and `checkedAt`. The same as an entry from [List domains](/docs/api-reference/domains/list), without `defaultFrom`.
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 403 | `admin_only` | Called at `/v1/domains/:domain/setup` with a project API key. |
+| 404 | `project_not_found` | No project has this slug. |
+| 404 | `domain_not_in_project` | The domain is not in the project's `allowedDomains`. |
+| 422 | `cf_token_missing` | The mailer has no `CF_API_TOKEN` secret. |
+| 422 | `zone_not_found` | The token can't see a Cloudflare zone for the domain. The domain's DNS must be on Cloudflare in the mailer's account. |
+| 422 | `cloudflare_api_error` | Finding the zone or creating the sending domain failed. `message` has Cloudflare's error. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+const res = await fetch(
+  'https://mailer.example.com/v1/admin/projects/acme/domains/acme.com/setup',
+  {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.FLARESEND_ADMIN_KEY}` },
+  },
+);
+const { steps, record } = await res.json();
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/admin/projects/acme/domains/acme.com/setup \
+  -H "Authorization: Bearer $FLARESEND_ADMIN_KEY"
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "domain": "acme.com",
+  "zone": "acme.com",
+  "steps": [
+    { "step": "sending domain", "status": "created", "detail": "added acme.com to Email Sending" },
+    {
+      "step": "dns",
+      "status": "created",
+      "detail": "added to DNS",
+      "record": { "type": "TXT", "name": "cf-bounce.acme.com", "content": "v=spf1 include:_spf.mx.cloudflare.net ~all" }
+    },
+    {
+      "step": "dns",
+      "status": "conflict",
+      "detail": "a different TXT record is already at this name (v=spf1 include:_spf.google.com ~all); fix it by hand",
+      "record": { "type": "TXT", "name": "acme.com", "content": "v=spf1 include:_spf.mx.cloudflare.net ~all" }
+    },
+    {
+      "step": "dmarc",
+      "status": "created",
+      "detail": "added to DNS",
+      "record": { "type": "TXT", "name": "_dmarc.acme.com", "content": "v=DMARC1; p=none" }
+    },
+    {
+      "step": "delivery events",
+      "status": "created",
+      "detail": "subscription \"flaresend-acme-com\" sends delivery events to flaresend-events"
+    }
+  ],
+  "record": {
+    "domain": "acme.com",
+    "verification": "pending",
+    "details": { "zone": "acme.com", "name": "acme.com", "enabled": false, "dkimSelector": null, "returnPathDomain": null },
+    "checkedAt": "2026-09-26T10:10:00.000Z"
+  }
+}
+```
+
+```json tab="422" tab-group="status"
+{
+  "error": {
+    "type": "unprocessable",
+    "code": "cf_token_missing",
+    "message": "the mailer has no CF_API_TOKEN secret, so it cannot change Cloudflare"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

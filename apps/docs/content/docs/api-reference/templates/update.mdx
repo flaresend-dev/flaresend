@@ -1,0 +1,130 @@
+---
+title: Update a template
+description: Save a new version of a stored template.
+method: PATCH
+---
+
+<Endpoint method="PATCH" path="/v1/templates/:name" />
+
+<ApiPage>
+<ApiMain>
+
+Every update creates a new version: `version` goes up by one and the previous content stays in the [version history](/docs/api-reference/templates/versions), so you can [restore](/docs/api-reference/templates/restore) it later. Sends pick up the new version straight away, and each email records the version it was rendered with (`templateVersion`).
+
+Send only the fields you want to change. The name can't be changed.
+
+Only stored templates can be updated. [Built-in templates](/docs/templates/built-in) are read-only and return `404 template_not_found` here. To change one for your project, [create](/docs/api-reference/templates/create) a stored template with the same name; it replaces the built-in one.
+
+<Callout type="info" title="Concurrent edits">
+  If someone else saves the same template between the moment your update reads it and the moment it writes, the update fails with `409 template_conflict` and nothing is saved. Fetch the template again and retry.
+</Callout>
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="name" type="string" required>
+  The template name.
+</ParamField>
+
+</Fields>
+
+## Body parameters
+
+<Fields>
+
+<ParamField body="subject" type="string">
+  1 to 998 characters.
+</ParamField>
+
+<ParamField body="html" type="string">
+  The HTML body. Can't be empty.
+</ParamField>
+
+<ParamField body="text" type="string | null">
+  The plain text body. `null` removes it, so sends fall back to text made from the HTML.
+</ParamField>
+
+<ParamField body="variables" type="Variable[]">
+  Replaces the whole list. Each entry is `{ name, required?, example? }`. See [Create a template](/docs/api-reference/templates/create#param-body-variables).
+</ParamField>
+
+</Fields>
+
+## Response
+
+The template with its new `version`. Same fields as [Retrieve a template](/docs/api-reference/templates/retrieve).
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `missing_body` | The request has no body. |
+| 400 | `invalid_body` | A field is malformed. `param` names the field. |
+| 400 | `invalid_template` | A syntax error. `param` is `subject`, `html` or `text`. |
+| 404 | `template_not_found` | No stored template with this name. Built-in templates also return this. |
+| 409 | `template_conflict` | The template changed while this update ran. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const template = await flaresend.templates.update('order-shipped', {
+  subject: 'Good news: order {{order.number}} has shipped',
+});
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X PATCH https://mailer.example.com/v1/templates/order-shipped \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "subject": "Good news: order {{order.number}} has shipped" }'
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "id": "tmpl_01K6B5A7C9E1G3J5L7N9Q1S3U5",
+  "source": "db",
+  "projectId": "proj_01K6A9W2E4R6T8Y0U2I4O6P8A0",
+  "name": "order-shipped",
+  "subject": "Good news: order {{order.number}} has shipped",
+  "html": "<p>Hi {{first_name}}, your order has shipped.</p>",
+  "text": null,
+  "variables": [
+    { "name": "first_name", "required": true, "example": "Ada" },
+    { "name": "order.number", "required": true, "example": "1042" }
+  ],
+  "version": 4,
+  "createdAt": "2026-09-26T10:00:00.000Z",
+  "updatedAt": "2026-09-28T14:02:00.000Z"
+}
+```
+
+```json tab="409" tab-group="status"
+{
+  "error": {
+    "type": "conflict",
+    "code": "template_conflict",
+    "message": "the template was changed by someone else; reload and retry",
+    "param": "name"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

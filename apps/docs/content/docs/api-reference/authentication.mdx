@@ -1,0 +1,71 @@
+---
+title: Authentication
+description: Project API keys, test keys and the admin key.
+icon: KeyRound
+---
+
+Every request except `/health` and the public tracking and unsubscribe links needs a key in the `Authorization` header:
+
+```http
+Authorization: Bearer fs_live_4f8KqZ0xY2mB7nR1tV9cL3pW6sD5hJ0a
+```
+
+There are two kinds of key.
+
+| Key | Looks like | Used for |
+|---|---|---|
+| Project API key | `fs_live_…` or `fs_test_…` | Everything under `/v1` except `/v1/admin`. Acts on the one project the key belongs to. |
+| Admin key | Any string you choose | Everything under `/v1/admin`. Acts on every project. It is the mailer's `ADMIN_API_KEY` secret. |
+
+## Project API keys
+
+A project key is `fs_live_` or `fs_test_` followed by 32 letters and digits. You create keys in the dashboard, with the [CLI](/docs/self-hosting/cli) or with the [admin API](/docs/api-reference/admin/create-api-key).
+
+- **The full key is shown once**, in the response that creates it. Flaresend stores only the first 12 characters (the `prefix`, for example `fs_live_4f8K`) and a SHA-256 hash of the key. A lost key can't be recovered; create a new one and revoke the old one.
+- **The key picks the project.** There is no project parameter on `/v1` routes.
+- **Keys can expire.** A key created with `expiresAt` stops working at that time.
+- **Keys can be revoked** at any time from the dashboard, the CLI or the admin API. Revoking is immediate and can't be undone.
+- **Last use is recorded.** Each key has a `lastUsedAt` time, updated at most once a minute.
+
+Keep keys on the server. Anyone with a live key can send email from your project's domains.
+
+## Test keys
+
+A `fs_test_` key goes through the same validation as a live key, but nothing is ever sent:
+
+- `POST /v1/emails` returns status `200` and `status: "test"`, and the email is stored with status `test`.
+- Test sends don't count against the rate limit or the daily limit.
+- The suppression list isn't checked.
+- Everything else (reading emails, webhooks, templates, contacts) works the same as with a live key.
+
+Use test keys in development and CI. See [Test mode](/docs/emails/test-mode).
+
+## The admin key
+
+Routes under `/v1/admin` take the mailer's `ADMIN_API_KEY` secret instead of a project key. It can create projects and keys, read every project's emails and manage the suppression list, so treat it like a root password. The dashboard doesn't use it: it talks to the mailer over a service binding. See the [Admin API](/docs/api-reference/admin).
+
+A project key sent to `/v1/admin` is rejected, and so is the admin key sent to other `/v1` routes.
+
+## Workers don't need a key
+
+Workers in the same Cloudflare account can call the mailer over a service binding with the [RPC client](/docs/sdk/rpc). Only Workers in your account can bind to it, so the project slug is trusted and no key is used. The project must have RPC enabled (`rpcEnabled`, on by default).
+
+## Errors
+
+| Status | Type | Code | When |
+|---|---|---|---|
+| 401 | `authentication_error` | `missing_api_key` | No `Authorization: Bearer …` header. |
+| 401 | `authentication_error` | `invalid_api_key` | The key is malformed or doesn't exist. |
+| 401 | `authentication_error` | `revoked_api_key` | The key was revoked. |
+| 401 | `authentication_error` | `expired_api_key` | The key's `expiresAt` has passed. |
+| 403 | `permission_error` | `project_disabled` | The key's project is disabled. |
+
+```json
+{
+  "error": {
+    "type": "authentication_error",
+    "code": "revoked_api_key",
+    "message": "this API key has been revoked"
+  }
+}
+```

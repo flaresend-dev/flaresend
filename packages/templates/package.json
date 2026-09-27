@@ -1,0 +1,45 @@
+{
+  "name": "@flaresend/templates",
+  "version": "0.1.0",
+  "description": "React Email templates rendered by the Flaresend mailer",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "preview": "email dev --dir src/emails"
+  },
+  "dependencies": {
+    "@react-email/render": "^2.1.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-email": "^6.11.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@react-email/ui": "^6.11.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.0"
+  }
+}

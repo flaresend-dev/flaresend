@@ -1,0 +1,115 @@
+---
+title: Sending emails
+description: Senders, recipients, bodies, and every check an email goes through before it is queued.
+icon: Send
+---
+
+Every send goes through the same path, whether it comes from `POST /v1/emails`, the RPC binding, a batch, a broadcast or a scheduled send. This page explains each field and the checks behind it. The full parameter list is in [Send an email](/docs/api-reference/emails/send).
+
+```ts tab="Node.js" tab-group="lang"
+await flaresend.emails.send({
+  from: 'Acme <hello@acme.com>',
+  to: ['ada@example.com', 'grace@example.com'],
+  cc: 'team@acme.com',
+  replyTo: 'support@acme.com',
+  subject: 'Your weekly report',
+  html: '<p>Here is your report.</p>',
+  text: 'Here is your report.',
+});
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/emails \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "from": "Acme <hello@acme.com>",
+    "to": ["ada@example.com", "grace@example.com"],
+    "cc": "team@acme.com",
+    "replyTo": "support@acme.com",
+    "subject": "Your weekly report",
+    "html": "<p>Here is your report.</p>",
+    "text": "Here is your report."
+  }'
+```
+
+```ts tab="Worker (RPC)" tab-group="lang"
+await mail.send({
+  from: 'Acme <hello@acme.com>',
+  to: ['ada@example.com', 'grace@example.com'],
+  cc: 'team@acme.com',
+  replyTo: 'support@acme.com',
+  subject: 'Your weekly report',
+  html: '<p>Here is your report.</p>',
+  text: 'Here is your report.',
+});
+```
+
+## The sender
+
+`from` is picked like this:
+
+1. The `from` you send.
+2. If you leave it out, the project's default sender (`defaultFrom`).
+3. If the project has no default either, the request fails with `400 invalid_body` and `param: "from"`.
+
+Then the address is checked against the project:
+
+- Its domain must be one of the project's **allowed domains**. Otherwise: `403 invalid_sender`, with a message that lists the allowed domains.
+- If the project has an **allowed senders** list, the exact address must be on it. Otherwise: `403 invalid_sender`.
+
+Allowed domains and senders are set per project by an admin. See [Projects](/docs/projects).
+
+<Callout title="Default sender per domain">
+  A project can also store a default sender for each of its domains (`domainSenders`, for example `{ "acme.com": "Acme <hello@acme.com>" }`). The dashboard uses these when you send test emails from a domain. A request without `from` still uses only the project's `defaultFrom`.
+</Callout>
+
+### Display names
+
+`from`, `to`, `cc`, `bcc` and `replyTo` accept any of these forms:
+
+| Form | Example |
+|---|---|
+| Bare address | `hello@acme.com` |
+| Name and address | `Acme <hello@acme.com>` |
+| Address in brackets | `<hello@acme.com>` |
+| Quoted name | `"Acme, Inc." <hello@acme.com>` |
+
+Put the name in double quotes when it contains a comma, `@`, `<`, `>` or other punctuation. Inside quotes, escape `"` and `\` with a backslash. Addresses are lowercased. A name can't contain line breaks.
+
+## Recipients
+
+`to` is required. `to`, `cc` and `bcc` each take one address or an array.
+
+- **Duplicates are removed.** An address that appears in more than one list is kept only in the first one, in the order `to`, `cc`, `bcc`. Matching ignores case.
+- **At most 50 unique recipients** across the three lists. More fails with `400 too_many_recipients`.
+- **Suppressed addresses are refused.** If any recipient is on the [suppression list](/docs/deliverability/suppressions), the whole request fails with `422 recipient_suppressed` and `param` set to that address. Nothing is sent to the others. Test keys skip this check.
+
+Each recipient gets its own delivery status. See [Statuses and events](/docs/emails/statuses).
+
+## Reply-to
+
+`replyTo` takes one address, in any of the forms above. An invalid address fails with `400 invalid_body` and `param: "replyTo"`.
+
+## Subject and body
+
+- `subject` is 1 to 998 characters. Line breaks are replaced with a space. It is required unless you send a [template](/docs/templates), which provides one.
+- Send at least one of `html`, `text` or `template`.
+- Send both `html` and `text` when you can. Mail clients that don't show HTML use the text part, and some spam filters score HTML-only mail worse.
+
+Flaresend keeps the first 200 characters of the text body as a preview (`textPreview` on the email record). If there is no text body, it strips the tags from the HTML and uses that.
+
+## Size limit
+
+The HTML body, text body and attachments together must be under **5 MiB**. Larger emails fail with `400 payload_too_large`. See [Attachments](/docs/emails/attachments).
+
+## What happens after the request
+
+When every check passes, Flaresend:
+
+1. Checks the [idempotency key](/docs/emails/idempotency), if there is one.
+2. Checks the project's rate limit and daily limit (live keys only). See [Limits](/docs/limits).
+3. Stores the body in R2 and the email, its recipients and a `email.queued` event in D1.
+4. Puts the email on the send queue and returns `202 { id, status: "queued" }`.
+
+The queue then hands the email to Cloudflare, retrying on temporary errors. Follow it with [Retrieve an email](/docs/api-reference/emails/retrieve) or [webhooks](/docs/webhooks).

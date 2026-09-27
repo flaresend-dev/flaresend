@@ -1,0 +1,89 @@
+---
+title: Limits
+description: Every size, count and rate limit in Flaresend, in one place, with where it is enforced.
+icon: Gauge
+---
+
+These are Flaresend's own limits. Cloudflare Email Service has its own limits on top, which depend on your Cloudflare plan; see Cloudflare's Email Service docs.
+
+## Per email
+
+| Limit | Value | Error |
+|---|---|---|
+| Recipients (`to` + `cc` + `bcc`, after removing duplicates) | 50 | `400 too_many_recipients` |
+| One address field (`from`, `replyTo`, each recipient), including the display name | 3–400 characters | `400 invalid_body` |
+| Address part | 254 characters, local part up to 64 | `400 invalid_body` |
+| `subject` | 998 characters | `400 invalid_body` |
+| Whole email (HTML + text + attachments, as JSON) | 5 MiB | `400 payload_too_large` |
+| Attachments | 20 | `400 invalid_body` |
+| Attachment `filename` | 255 characters | `400 invalid_body` |
+| Attachment `type`, `contentId` | 127 characters | `400 invalid_body` |
+| Custom header name | 100 characters | `400 invalid_body` |
+| Custom header value | 2,048 bytes | `400 invalid_header` |
+| Custom headers not starting with `X-` | 20 | `400 invalid_header` |
+| All custom headers together | 16 KB | `400 invalid_header` |
+| Tag key / value | 64 / 256 characters | `400 invalid_body` |
+| `idempotencyKey` | 256 characters | `400 invalid_body` |
+| `scheduledAt` | In the future, at most 30 days ahead | `400 invalid_schedule` |
+
+## Per request
+
+| Limit | Value | Error |
+|---|---|---|
+| Emails in one [batch](/docs/emails/batch) | 100 | `400 invalid_body` |
+| `limit` on paginated lists (emails, events, contacts, audience members, webhook deliveries) | 1–100, default 25 | `400 invalid_query` for emails and events; other lists clamp the value |
+| `limit` on the suppression list (admin) | 1–200, default 50 | clamped |
+| Contacts in one import | 5,000 | `400 invalid_body` |
+| Contact IDs in one add/remove audience call | 5,000 | `400 invalid_body` |
+
+## Per project
+
+| Limit | Value | Error |
+|---|---|---|
+| Send rate | 300 emails per 60 seconds | `429 rate_limited`, with `Retry-After: 60` |
+| Daily sends | `dailyLimit`, default 5,000 per UTC day. `0` means no limit | `429 daily_limit_exceeded`, resets at 00:00 UTC |
+
+Both count only **live** sends: emails from an `fs_live_` key, RPC, batch items, broadcasts and resends. Test-key sends and reads don't count. Each item in a batch counts as one send.
+
+The rate limit is a Cloudflare rate limiting binding in `apps/mailer/wrangler.jsonc` (`"limit": 300, "period": 60`). Change it there if you need more. The SDK retries `rate_limited` after the `Retry-After` wait; it never retries `daily_limit_exceeded`.
+
+## Broadcasts
+
+| Limit | Value |
+|---|---|
+| Subscribed contacts per broadcast | `BROADCAST_MAX_RECIPIENTS`, default 500 (`400 too_many_recipients` on send) |
+| Sending speed | 100 emails per broadcast every 5 minutes |
+| Broadcasts sending at the same time | 10 are advanced on each 5-minute run; others wait their turn |
+
+## Webhooks
+
+| Limit | Value |
+|---|---|
+| Time your endpoint has to answer | 10 seconds |
+| Retries after the first attempt | 8, from 30 seconds to 12 hours apart |
+| Response body stored per attempt | 1,024 characters |
+
+## Sending and storage
+
+| Limit | Value |
+|---|---|
+| Send retries on Cloudflare errors that can be retried | 8, backing off `min(2^n × 15 s, 1 h)` plus up to 20% jitter |
+| How long email bodies are kept (R2 lifecycle rule) | 30 days. After that, content and resend return `404 content_expired`. Metadata in D1 stays. |
+| Longest a scheduled email waits on the queue | 12 hours. Emails scheduled further ahead are put on the queue by the cron job when they get within 12 hours. |
+
+## Names and IDs
+
+| Field | Limit |
+|---|---|
+| Project `slug` | 1–63 characters: lowercase letters, digits, `-`; starts with a letter or digit |
+| Project, API key, audience name | 1–200 characters |
+| Template name | 1–100 characters: lowercase letters, digits, `-` and `_`; starts with a letter or digit |
+| Contact first/last name | 200 characters |
+
+## SDK
+
+| Setting | Default |
+|---|---|
+| `maxRetries` | 2 (3 attempts in total) |
+| Wait between retries | 0.5 s, 1 s, 2 s… up to 8 s, with jitter |
+| Longest `Retry-After` the client waits | 60 seconds. Longer values throw straight away. |

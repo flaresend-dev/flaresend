@@ -1,0 +1,135 @@
+---
+title: Send emails with Hono
+description: Send email from a Hono app on Cloudflare Workers, over a service binding or over HTTP.
+---
+
+## Prerequisites
+
+- A deployed mailer. See [Deploy](/docs/self-hosting/deploy).
+- A Hono app on Cloudflare Workers.
+- For RPC: the app is in the same Cloudflare account as the mailer, and the project has RPC enabled (the default).
+- For HTTP: an API key for your project. See [API keys](/docs/api-keys).
+
+## Install
+
+```bash tab="npm" tab-group="pm"
+npm install @flaresend/client
+```
+
+```bash tab="pnpm" tab-group="pm"
+pnpm add @flaresend/client
+```
+
+```bash tab="yarn" tab-group="pm"
+yarn add @flaresend/client
+```
+
+```bash tab="bun" tab-group="pm"
+bun add @flaresend/client
+```
+
+## Over RPC
+
+Add the service binding:
+
+```jsonc title="wrangler.jsonc"
+{
+  "services": [
+    { "binding": "MAILER", "service": "flaresend", "entrypoint": "MailerRpc" }
+  ]
+}
+```
+
+Then send from a route:
+
+```ts title="src/index.ts"
+import { Hono } from 'hono';
+import { FlaresendError, rpcClient, type MailerRpcBinding } from '@flaresend/client/rpc';
+
+type Bindings = { MAILER: MailerRpcBinding };
+
+const app = new Hono<{ Bindings: Bindings }>();
+
+app.post('/signup', async (c) => {
+  const { email, name, userId } = await c.req.json();
+  const mail = rpcClient(c.env.MAILER, { project: 'acme' });
+
+  try {
+    const { id } = await mail.send(
+      {
+        from: 'Acme <hello@acme.com>',
+        to: email,
+        template: 'welcome',
+        data: { name, appName: 'Acme', loginUrl: 'https://acme.com/login' },
+      },
+      { idempotencyKey: `welcome-${userId}` },
+    );
+    return c.json({ id });
+  } catch (err) {
+    if (err instanceof FlaresendError) return c.json({ error: err.toJSON() }, err.status as 400);
+    throw err;
+  }
+});
+
+export default app;
+```
+
+## Over HTTP
+
+Store the key as a secret with `npx wrangler secret put FLARESEND_API_KEY`, then:
+
+```ts title="src/index.ts"
+import { Hono } from 'hono';
+import { Flaresend, FlaresendError } from '@flaresend/client';
+
+type Bindings = { FLARESEND_API_KEY: string };
+
+const app = new Hono<{ Bindings: Bindings }>();
+
+app.post('/signup', async (c) => {
+  const { email, name, userId } = await c.req.json();
+  const flaresend = new Flaresend({ apiKey: c.env.FLARESEND_API_KEY, baseUrl: 'https://mailer.example.com' });
+
+  try {
+    const { id } = await flaresend.emails.send(
+      {
+        from: 'Acme <hello@acme.com>',
+        to: email,
+        template: 'welcome',
+        data: { name, appName: 'Acme', loginUrl: 'https://acme.com/login' },
+      },
+      { idempotencyKey: `welcome-${userId}` },
+    );
+    return c.json({ id });
+  } catch (err) {
+    if (err instanceof FlaresendError) return c.json({ error: err.toJSON() }, (err.status || 500) as 400);
+    throw err;
+  }
+});
+
+export default app;
+```
+
+## Idempotency
+
+Keying the send on the user ID means a user who signs up twice gets one welcome email. A second call with the same key and the same content returns the first email with `idempotent: true`. See [Idempotency](/docs/emails/idempotency).
+
+## Errors
+
+Both clients throw `FlaresendError`. `err.toJSON()` gives the same object the HTTP API returns inside `error`:
+
+```json
+{
+  "type": "validation_error",
+  "code": "invalid_template_data",
+  "message": "data.loginUrl: Invalid url",
+  "param": "data.loginUrl"
+}
+```
+
+Over HTTP, `err.status` is `0` for network errors, so fall back to `500` as above. See [Errors](/docs/sdk/errors).
+
+## Next steps
+
+- [Send with Cloudflare Workers](/docs/send-with/cloudflare-workers): when to use RPC or HTTP.
+- [Verify webhooks](/docs/webhooks/verify): a Hono route for webhook events is the same code as a plain Worker.

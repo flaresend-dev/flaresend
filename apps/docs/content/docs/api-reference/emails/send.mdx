@@ -1,0 +1,243 @@
+---
+title: Send an email
+description: Queue one email for delivery. Returns as soon as the email is stored, without waiting for Cloudflare.
+method: POST
+---
+
+<Endpoint method="POST" path="/v1/emails" />
+
+<ApiPage>
+<ApiMain>
+
+The email is validated, logged and put on the send queue. The response comes back with status `202` and `status: "queued"` before Cloudflare has seen the message. Follow what happens next with [Retrieve an email](/docs/api-reference/emails/retrieve) or [webhooks](/docs/webhooks).
+
+## Headers
+
+<Fields>
+
+<ParamField header="Idempotency-Key" type="string">
+  A key of up to 256 characters that makes the request safe to retry. A second request with the same key and the same body returns the first email with `idempotent: true` instead of sending again. The same key with a different body fails with `409 idempotency_payload_mismatch`. Takes priority over the `idempotencyKey` body field. See [Idempotency](/docs/emails/idempotency).
+</ParamField>
+
+</Fields>
+
+## Body parameters
+
+<Fields>
+
+<ParamField body="from" type="string">
+  The sender, as `"Name <address>"` or a bare address. The address must be on one of the project's allowed domains, and in the allowed senders list if the project has one.
+
+  Optional when the project has a default sender (`defaultFrom`).
+</ParamField>
+
+<ParamField body="to" type="string | string[]" required>
+  One address or an array of addresses. `to`, `cc` and `bcc` together can hold at most **50** unique addresses. Duplicates are removed; the first list an address appears in wins.
+</ParamField>
+
+<ParamField body="cc" type="string | string[]">
+  Carbon copy recipients.
+</ParamField>
+
+<ParamField body="bcc" type="string | string[]">
+  Blind carbon copy recipients.
+</ParamField>
+
+<ParamField body="replyTo" type="string">
+  The address replies should go to.
+</ParamField>
+
+<ParamField body="subject" type="string">
+  Up to 998 characters. Line breaks are replaced with spaces. Required unless `template` is set, in which case the template's subject is used.
+</ParamField>
+
+<ParamField body="html" type="string">
+  The HTML body. At least one of `html`, `text` or `template` is required.
+</ParamField>
+
+<ParamField body="text" type="string">
+  The plain text body. Send it alongside `html` so clients that can't show HTML still get a readable message.
+</ParamField>
+
+<ParamField body="template" type="string">
+  The name of a template to render. A template stored in the project wins over a built-in template with the same name. `subject`, `html` and `text` in the request override what the template renders. See [Templates](/docs/templates).
+</ParamField>
+
+<ParamField body="data" type="object">
+  Values for the template's variables. Checked against the template before anything is stored.
+</ParamField>
+
+<ParamField body="headers" type="Record<string, string>">
+  Custom headers. Names can't be `From`, `To`, `Cc`, `Bcc`, `Subject`, `Reply-To`, `Date`, `Message-ID`, `Content-Type` or `MIME-Version`. Values can't contain line breaks and are at most 2,048 bytes. At most 20 headers that don't start with `X-`, and 16 KB in total. See [Custom headers](/docs/emails/headers).
+</ParamField>
+
+<ParamField body="tags" type="Record<string, string>">
+  Your own labels, for example `{ "kind": "welcome", "user_id": "42" }`. Keys up to 64 characters, values up to 256. You can filter the email list by tag, and every webhook payload carries them. See [Tags](/docs/emails/tags).
+</ParamField>
+
+<ParamField body="attachments" type="Attachment[]">
+  Up to 20 files. The whole email, attachments included, must be under 5 MiB.
+
+  <Expandable title="attachment properties">
+    <ParamField body="filename" type="string" required>
+      Up to 255 characters, no line breaks or double quotes.
+    </ParamField>
+    <ParamField body="content" type="string" required>
+      The file, base64 encoded.
+    </ParamField>
+    <ParamField body="type" type="string">
+      The MIME type, for example `application/pdf`.
+    </ParamField>
+    <ParamField body="disposition" type="'attachment' | 'inline'" default="attachment">
+      Use `inline` for images referenced from the HTML with `cid:`.
+    </ParamField>
+    <ParamField body="contentId" type="string">
+      Required when `disposition` is `inline`. Reference it in the HTML as `<img src="cid:logo">`.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="scheduledAt" type="string">
+  An ISO 8601 date-time with a time zone offset, for example `2026-10-01T09:00:00Z`. Must be in the future and at most 30 days ahead. The response has `status: "scheduled"`. See [Scheduling](/docs/emails/scheduling).
+</ParamField>
+
+<ParamField body="trackOpens" type="boolean">
+  Add an open-tracking pixel. Defaults to the project setting. Only applies when there is an HTML body.
+</ParamField>
+
+<ParamField body="trackClicks" type="boolean">
+  Rewrite links to count clicks. Defaults to the project setting. Only applies when there is an HTML body.
+</ParamField>
+
+<ParamField body="idempotencyKey" type="string">
+  The same as the `Idempotency-Key` header, for callers that can't set headers. The header wins when both are sent.
+</ParamField>
+
+</Fields>
+
+## Response
+
+Status `202` for a new email. Status `200` when the request replays an earlier one with the same idempotency key, or when you use a test key.
+
+<Fields>
+
+<ResponseField name="id" type="string">
+  The email ID, for example `email_01K6B2Y4ZP9R3M7T8V5N2QXW4C`.
+</ResponseField>
+
+<ResponseField name="status" type="'queued' | 'scheduled' | 'test'">
+  `queued` when it will be sent now, `scheduled` when `scheduledAt` was set, `test` when you used an `fs_test_` key (nothing is sent).
+</ResponseField>
+
+<ResponseField name="idempotent" type="boolean">
+  Present and `true` only when this is a replay of an earlier request with the same idempotency key.
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_body` | A field is missing or malformed. `param` names the field. |
+| 400 | `too_many_recipients` | More than 50 addresses across `to`, `cc` and `bcc`. |
+| 400 | `invalid_header` | A custom header breaks one of the rules above. |
+| 400 | `invalid_attachment` | Content is not base64, or an inline file has no `contentId`. |
+| 400 | `payload_too_large` | The email is over 5 MiB. |
+| 400 | `invalid_schedule` | `scheduledAt` is in the past or more than 30 days ahead. |
+| 400 | `invalid_template_data` | `data` doesn't match the template. |
+| 403 | `invalid_sender` | `from` is not on the project's allowed domains or senders. |
+| 404 | `template_not_found` | No template with that name. |
+| 409 | `idempotency_payload_mismatch` | The idempotency key was used with a different body. |
+| 422 | `recipient_suppressed` | A recipient is on the suppression list. `param` is the address. |
+| 429 | `rate_limited` | Too many requests for this project. Retry after the `Retry-After` header. |
+| 429 | `daily_limit_exceeded` | The project's daily limit is used up. Resets at 00:00 UTC. |
+
+See [Errors](/docs/api-reference/errors) for the full list.
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const { id } = await flaresend.emails.send({
+  from: 'Acme <hello@acme.com>',
+  to: 'ada@example.com',
+  subject: 'Welcome to Acme',
+  html: '<p>Thanks for signing up.</p>',
+  text: 'Thanks for signing up.',
+  tags: { kind: 'welcome' },
+});
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/emails \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: welcome-42" \
+  -d '{
+    "from": "Acme <hello@acme.com>",
+    "to": "ada@example.com",
+    "subject": "Welcome to Acme",
+    "html": "<p>Thanks for signing up.</p>",
+    "text": "Thanks for signing up.",
+    "tags": { "kind": "welcome" }
+  }'
+```
+
+```ts tab="Worker (RPC)" tab-group="lang"
+import { rpcClient } from '@flaresend/client/rpc';
+
+const mail = rpcClient(env.MAILER, { project: 'acme' });
+
+const { id } = await mail.send({
+  from: 'Acme <hello@acme.com>',
+  to: 'ada@example.com',
+  subject: 'Welcome to Acme',
+  html: '<p>Thanks for signing up.</p>',
+  text: 'Thanks for signing up.',
+});
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="202" tab-group="status"
+{
+  "id": "email_01K6B2Y4ZP9R3M7T8V5N2QXW4C",
+  "status": "queued"
+}
+```
+
+```json tab="200 replay" tab-group="status"
+{
+  "id": "email_01K6B2Y4ZP9R3M7T8V5N2QXW4C",
+  "status": "queued",
+  "idempotent": true
+}
+```
+
+```json tab="403" tab-group="status"
+{
+  "error": {
+    "type": "permission_error",
+    "code": "invalid_sender",
+    "message": "from must be an address on acme.com",
+    "param": "from"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

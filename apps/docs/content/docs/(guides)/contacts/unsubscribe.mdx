@@ -1,0 +1,54 @@
+---
+title: Unsubscribe links
+description: Every broadcast email carries a signed, per-contact unsubscribe link and the List-Unsubscribe headers mail clients use for their own button.
+---
+
+When a broadcast goes out, Flaresend gives each email:
+
+- A `{{unsubscribe_url}}` variable you can put in the body.
+- A `List-Unsubscribe` header with the same URL, and `List-Unsubscribe-Post: List-Unsubscribe=One-Click`. Gmail, Apple Mail and other clients use these to show their own "Unsubscribe" button next to the sender.
+
+When the contact uses either one, they are marked `unsubscribed: true` and every later broadcast in that project skips them.
+
+<Callout type="warn" title="Requires TRACKING_SECRET">
+  Unsubscribe links are signed with the mailer's `TRACKING_SECRET` secret. If it isn't set, broadcasts are sent **without** the headers, `{{unsubscribe_url}}` is empty, and the unsubscribe page answers "Link not valid". Set it with `npx wrangler secret put TRACKING_SECRET`. See [Configuration](/docs/self-hosting/configuration).
+</Callout>
+
+Unsubscribe links are only added to broadcasts. Transactional emails sent with `POST /v1/emails` don't get them, because they go to people who need them (receipts, password resets).
+
+## Put the link in your email
+
+```html
+<p style="color:#737373;font-size:12px">
+  You get these emails because you joined the Acme beta.
+  <a href="{{unsubscribe_url}}">Unsubscribe</a>
+</p>
+```
+
+Always include a visible link as well as relying on the headers: not every mail client shows the header button.
+
+## What the link does
+
+The URL is `https://<your mailer>/u/<token>`, where `<token>` is the contact ID signed with HMAC-SHA256 using `TRACKING_SECRET`. It doesn't expire. Changing `TRACKING_SECRET` makes every link already sent stop working.
+
+| Request | Result |
+|---|---|
+| `GET /u/:token` | A small page: "Stop receiving these emails?" with an **Unsubscribe** button. Opening the link alone changes nothing, so mail scanners that follow links don't unsubscribe people by accident. |
+| `POST /u/:token` | Marks the contact unsubscribed and shows "You are unsubscribed". This is what the page's button and the mail clients' one-click button send. |
+| Bad or tampered token | `404` page: "This unsubscribe link is not valid." |
+
+Both routes are public and take no API key. The page is served by your mailer Worker, so it is on your mailer's domain (`PUBLIC_BASE_URL`).
+
+## Unsubscribe or resubscribe someone yourself
+
+Set the flag directly when someone asks you by email or in your app's settings:
+
+```ts
+await flaresend.contacts.update('ct_01K6B4D2M8Q5T1V9X3N7R2P4WE', { unsubscribed: true });
+```
+
+Set it back to `false` only when the person asks to receive the emails again.
+
+<Callout type="info" title="Unsubscribed is not suppressed">
+  Unsubscribing only affects broadcasts in that one project. The address can still receive transactional email. The [suppression list](/docs/deliverability/suppressions) is different: it blocks **every** send to an address, and fills itself from hard bounces and spam complaints.
+</Callout>

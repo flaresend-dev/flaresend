@@ -1,0 +1,207 @@
+---
+title: Send a batch
+description: Queue up to 100 emails in one request, with a result for each.
+method: POST
+---
+
+<Endpoint method="POST" path="/v1/emails/batch" />
+
+<ApiPage>
+<ApiMain>
+
+The body is a JSON array of emails. Each item is checked and queued on its own, exactly like [Send an email](/docs/api-reference/emails/send), so one bad item doesn't stop the others. The response lists one result per item, in the same order as the request.
+
+Add `?dryRun=true` to validate every item and see what would be sent, without sending anything.
+
+## Query parameters
+
+<Fields>
+
+<ParamField query="dryRun" type="boolean" default="false">
+  `true` or `1` to validate only. Each item is checked (sender, recipients, suppressions, headers, template, attachments, size) and nothing is stored, queued or counted against limits.
+</ParamField>
+
+</Fields>
+
+## Headers
+
+<Fields>
+
+<ParamField header="Idempotency-Key" type="string">
+  One key for the whole batch. Flaresend stores it per item as `<key>:<index>`, so item 0 of batch key `import-7` gets `import-7:0`. An item with its own `idempotencyKey` keeps its own key instead. Resending the same batch with the same key returns the original emails with `idempotent: true` and sends nothing again. See [Idempotency](/docs/emails/idempotency).
+</ParamField>
+
+</Fields>
+
+## Body
+
+An array of 1 to 100 email objects. Each object takes the same fields as the body of [Send an email](/docs/api-reference/emails/send#param-body-from): `from`, `to`, `cc`, `bcc`, `replyTo`, `subject`, `html`, `text`, `template`, `data`, `headers`, `tags`, `attachments`, `scheduledAt`, `trackOpens`, `trackClicks` and `idempotencyKey`.
+
+## Response
+
+Status `200`, whatever happened to the individual items. Check each item.
+
+<Fields>
+
+<ResponseField name="data" type="Array<Result | { error }>">
+  One entry per request item, in the same order.
+
+  <Expandable title="result properties">
+    <ResponseField name="id" type="string">
+      The email ID.
+    </ResponseField>
+    <ResponseField name="status" type="'queued' | 'scheduled' | 'test'">
+      The same values as a single send.
+    </ResponseField>
+    <ResponseField name="idempotent" type="boolean">
+      `true` when the item replayed an earlier send with the same key.
+    </ResponseField>
+    <ResponseField name="error" type="object">
+      Present instead of `id` and `status` when the item failed: `{ type, code, message, param? }`, the same shape as any [error](/docs/api-reference/errors).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+</Fields>
+
+### Dry run response
+
+With `?dryRun=true` the body is `{ "dryRun": true, "data": [...] }`, and each item is either `{ "ok": true, from, to, cc, bcc, subject }` with the resolved sender, the deduplicated recipient lists and the final subject (after rendering the template), or `{ "error": … }`. A dry run does not check idempotency keys or rate limits.
+
+## Errors
+
+These fail the whole request. Errors for single items come back inside `data`.
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `missing_body` | No body. |
+| 400 | `invalid_body` | The body isn't a JSON array, is empty, or has more than 100 items. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const { data } = await flaresend.emails.sendBatch(
+  [
+    {
+      from: 'Acme <hello@acme.com>',
+      to: 'ada@example.com',
+      subject: 'Your weekly report',
+      text: 'You sent 42 invoices this week.',
+    },
+    {
+      from: 'Acme <hello@acme.com>',
+      to: 'grace@example.com',
+      subject: 'Your weekly report',
+      text: 'You sent 17 invoices this week.',
+    },
+  ],
+  { idempotencyKey: 'weekly-report-2026-39' },
+);
+
+for (const item of data) {
+  if ('error' in item) console.error(item.error.code);
+}
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/emails/batch \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: weekly-report-2026-39" \
+  -d '[
+    {
+      "from": "Acme <hello@acme.com>",
+      "to": "ada@example.com",
+      "subject": "Your weekly report",
+      "text": "You sent 42 invoices this week."
+    },
+    {
+      "from": "Acme <hello@acme.com>",
+      "to": "grace@example.com",
+      "subject": "Your weekly report",
+      "text": "You sent 17 invoices this week."
+    }
+  ]'
+```
+
+```ts tab="Worker (RPC)" tab-group="lang"
+import { rpcClient } from '@flaresend/client/rpc';
+
+const mail = rpcClient(env.MAILER, { project: 'acme' });
+
+const { data } = await mail.sendBatch([
+  {
+    from: 'Acme <hello@acme.com>',
+    to: 'ada@example.com',
+    subject: 'Your weekly report',
+    text: 'You sent 42 invoices this week.',
+  },
+  {
+    from: 'Acme <hello@acme.com>',
+    to: 'grace@example.com',
+    subject: 'Your weekly report',
+    text: 'You sent 17 invoices this week.',
+  },
+]);
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "data": [
+    { "id": "email_01K6B2Y4ZP9R3M7T8V5N2QXW4C", "status": "queued" },
+    {
+      "error": {
+        "type": "unprocessable",
+        "code": "recipient_suppressed",
+        "message": "grace@example.com is on the suppression list (hard_bounce)",
+        "param": "grace@example.com"
+      }
+    }
+  ]
+}
+```
+
+```json tab="200 dry run" tab-group="status"
+{
+  "dryRun": true,
+  "data": [
+    {
+      "ok": true,
+      "from": "hello@acme.com",
+      "to": ["ada@example.com"],
+      "cc": [],
+      "bcc": [],
+      "subject": "Your weekly report"
+    }
+  ]
+}
+```
+
+```json tab="400" tab-group="status"
+{
+  "error": {
+    "type": "validation_error",
+    "code": "invalid_body",
+    "message": "at most 100 emails per batch"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

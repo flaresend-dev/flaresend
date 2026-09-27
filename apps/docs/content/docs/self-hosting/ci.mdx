@@ -1,0 +1,72 @@
+---
+title: CI and releases
+description: What the two GitHub Actions workflows do, the secrets they need, and how client releases are versioned.
+icon: GitBranch
+---
+
+The repo has two workflows in `.github/workflows`.
+
+## `ci.yml`: check and deploy
+
+Runs on every pull request and every push to `main`.
+
+**`check` job** (every run):
+
+```bash
+pnpm install --frozen-lockfile
+pnpm build
+pnpm typecheck
+pnpm test
+```
+
+**`deploy` job** (pushes to `main` only, after `check` passes, in the `production` environment):
+
+1. Builds `@flaresend/types` and `@flaresend/templates`.
+2. Applies D1 migrations: `npx wrangler d1 migrations apply flaresend --remote` in `apps/mailer`.
+3. Deploys the mailer: `npx wrangler deploy` in `apps/mailer`.
+4. Deploys the dashboard: `pnpm run deploy` in `apps/dashboard`.
+
+Migrations always run before the new mailer code goes live, so new code never meets an old schema.
+
+### Secrets
+
+Add these as repository secrets (the job reads them in the `production` environment):
+
+| Secret | Value |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | A token with Workers Scripts Edit, D1 Edit, Queues Edit, R2 Edit and Account Settings Read |
+| `CLOUDFLARE_ACCOUNT_ID` | Your account ID |
+
+This token is only for deploying. It is not the mailer's `CF_API_TOKEN` secret, which you set on the Worker itself.
+
+## `release-client.yml`: publish the npm packages
+
+`@flaresend/client` and `@flaresend/types` are published together, always at the same version. The workflow runs on every push to `main` that changes `packages/types/**` or `packages/client/**`, and can be started by hand from the Actions tab.
+
+`scripts/release-client.mjs` works out the next version from the commit messages since the last `client-v*` tag. Only commits that touch those two folders count.
+
+| Commit | Release |
+|---|---|
+| `fix:`, `perf:` | patch (0.1.0 → 0.1.1) |
+| `feat:` | minor (0.1.0 → 0.2.0) |
+| `feat!:` or a `BREAKING CHANGE:` line in the body | major (a minor while the version is 0.x) |
+| `chore:`, `docs:`, `test:`, `refactor:`, anything else | no release |
+
+When there is something to release, the workflow:
+
+1. builds, typechecks and tests both packages,
+2. commits the new version to `main` as `chore(release): @flaresend/client vX.Y.Z` and tags it `client-vX.Y.Z`,
+3. publishes both packages to npm (`types` first, because `client` depends on it), skipping any version already on npm,
+4. creates a GitHub release with generated notes.
+
+Pull after a release so your local `main` has the version commit.
+
+Publishing uses npm trusted publishing (OIDC), set up on npmjs.com for both packages with owner `flaresend-dev`, repository `flaresend` and workflow `release-client.yml`. There is no npm token in GitHub.
+
+If a publish fails after the tag was pushed, run the workflow again from the Actions tab. When the version in `package.json` isn't on npm yet, the script releases it as is.
+
+See what the next release would be:
+
+```bash
+node scripts/release-client.mjs --dry-run
+```

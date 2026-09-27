@@ -1,0 +1,28 @@
+{
+  "type": "cf.email.sending.message.failed",
+  "source": {
+    "type": "email.sending",
+    "zoneId": "023e105f4ecef8ad9ca31a8372d0c353",
+    "domain": "example.com"
+  },
+  "payload": {
+    "eventId": "0190d0c4-81c1-7bc6-9344-829cd9001a12",
+    "messageId": "0101018f7d0c4d9a-msg-failed",
+    "sender": "noreply@example.com",
+    "recipient": "user@example.net",
+    "subject": "Welcome",
+    "terminal": true,
+    "delivery": {
+      "status": "failed"
+    },
+    "failure": {
+      "reason": "delivery_failed"
+    }
+  },
+  "metadata": {
+    "accountId": "f9f79265f388666de8122cfb508d7776",
+    "eventSubscriptionId": "1830c4bb612e43c3af7f4cada31fbf3f",
+    "eventSchemaVersion": 1,
+    "eventTimestamp": "2026-06-01T02:48:57.132Z"
+  }
+}

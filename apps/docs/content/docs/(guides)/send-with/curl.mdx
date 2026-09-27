@@ -1,0 +1,132 @@
+---
+title: Send emails with cURL
+description: Call the Flaresend REST API from the command line.
+---
+
+## Prerequisites
+
+- A deployed mailer and its URL, for example `https://mailer.example.com`. See [Deploy](/docs/self-hosting/deploy).
+- An API key for your project. See [API keys](/docs/api-keys).
+
+```bash
+export FLARESEND_API_KEY=fs_live_...
+```
+
+## Check your key
+
+`GET /v1/me` is a cheap way to check the URL and the key before sending anything:
+
+```bash
+curl https://mailer.example.com/v1/me \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+```json
+{
+  "project": { "id": "proj_01K6AZQ3M8V2R5T7X9N1B4C6D0", "slug": "acme", "name": "Acme" },
+  "key": { "id": "key_01K6AZR8H2J4K6M8P0Q2S4T6V8", "name": "quickstart", "mode": "live" }
+}
+```
+
+## Send an email
+
+```bash
+curl -X POST https://mailer.example.com/v1/emails \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "from": "Acme <hello@acme.com>",
+    "to": "ada@example.com",
+    "subject": "Hello from cURL",
+    "html": "<p>It works.</p>",
+    "text": "It works."
+  }'
+```
+
+```json
+{ "id": "email_01K6B2Y4ZP9R3M7T8V5N2QXW4C", "status": "queued" }
+```
+
+Then look it up:
+
+```bash
+curl https://mailer.example.com/v1/emails/email_01K6B2Y4ZP9R3M7T8V5N2QXW4C \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+## Idempotency
+
+Add an `Idempotency-Key` header so you can safely run the same command twice:
+
+```bash
+curl -X POST https://mailer.example.com/v1/emails \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: report-2026-09-26" \
+  -d '{
+    "from": "Acme <hello@acme.com>",
+    "to": "ada@example.com",
+    "subject": "Daily report",
+    "text": "Everything is fine."
+  }'
+```
+
+The second run returns `200` with the same ID and `"idempotent": true`, and sends nothing. See [Idempotency](/docs/emails/idempotency).
+
+## See errors
+
+Add `-i` to see the status line and headers. Every error has the same JSON shape, and every response has an `X-Request-Id` header you can search the mailer's logs for:
+
+```bash
+curl -i -X POST https://mailer.example.com/v1/emails \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "from": "hello@other.com", "to": "ada@example.com", "subject": "Hi", "text": "Hi" }'
+```
+
+```http
+HTTP/2 403
+content-type: application/json
+x-request-id: 5f0c1c9e-8a51-4c0e-9d3b-2f6c1a7e4b10
+
+{
+  "error": {
+    "type": "permission_error",
+    "code": "invalid_sender",
+    "message": "from must be an address on acme.com",
+    "param": "from"
+  }
+}
+```
+
+See [Errors](/docs/api-reference/errors) for every code.
+
+## Send a file
+
+`content` must be base64. With GNU coreutils:
+
+```bash
+CONTENT=$(base64 -w0 invoice.pdf)
+
+curl -X POST https://mailer.example.com/v1/emails \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"from\": \"Acme <billing@acme.com>\",
+    \"to\": \"ada@example.com\",
+    \"subject\": \"Your invoice\",
+    \"text\": \"Your invoice is attached.\",
+    \"attachments\": [{ \"filename\": \"invoice.pdf\", \"content\": \"$CONTENT\", \"type\": \"application/pdf\" }]
+  }"
+```
+
+On macOS use `base64 -i invoice.pdf` instead of `base64 -w0 invoice.pdf`.
+
+<Callout type="info" title="The flaresend CLI">
+  For day-to-day use, the `flaresend send` command builds this request for you, with flags like `--to`, `--template` and `--html-file`. See [CLI](/docs/self-hosting/cli).
+</Callout>
+
+## Next steps
+
+- [API Reference](/docs/api-reference): every endpoint with a cURL example.
+- [Batch sending](/docs/emails/batch)

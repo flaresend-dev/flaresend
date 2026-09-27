@@ -1,0 +1,106 @@
+---
+title: Domains
+description: Set up a sending domain in Cloudflare Email Service, with SPF, DKIM and DMARC, and let Flaresend check its status.
+icon: Globe
+---
+
+Every address you send from must be on a domain that is both:
+
+1. **Allowed in the project.** The project's `allowedDomains` list decides which `from` addresses the API accepts. Anything else fails with `403 invalid_sender`.
+2. **Onboarded in Cloudflare Email Service.** Cloudflare only sends for domains added to Email Sending, with the DNS records it asks for.
+
+The first is a Flaresend setting. The second happens in your Cloudflare account. Flaresend can do it for you, or you can do it with `wrangler`.
+
+<Callout type="info" title="The domain's DNS must be on Cloudflare">
+  Cloudflare's docs say Email Service needs the domain's DNS on Cloudflare. A domain whose DNS is hosted elsewhere may not work at all.
+</Callout>
+
+## What DNS records are needed
+
+When you onboard a domain, Cloudflare tells you which records it needs. They cover:
+
+| Record | What it does |
+|---|---|
+| **SPF** (TXT) | Lists which servers may send mail for the domain. |
+| **DKIM** (TXT or CNAME) | Publishes the key Cloudflare signs your messages with, so receivers can check they weren't changed. |
+| **Return path** | Where bounce messages go. |
+| **DMARC** (TXT at `_dmarc.<domain>`) | Tells receivers what to do when SPF or DKIM checks fail, and where to send reports. |
+
+Gmail, Yahoo and other large mailbox providers expect SPF, DKIM and DMARC on every sender. Missing any of them sends mail to spam or gets it refused.
+
+## Option 1: from the dashboard
+
+This needs the mailer's `CF_API_TOKEN` secret with the Edit permissions listed in [Configuration](/docs/self-hosting/configuration#cf_api_token).
+
+- **New domain:** go to **Domains** and click **Add domain**. Flaresend adds it to the project and onboards it in Cloudflare.
+- **Domain already on the project:** open the domain's menu and click **Set up in Cloudflare**.
+
+Setup runs these steps and shows the result of each one:
+
+| Step | What happens |
+|---|---|
+| sending domain | Adds the domain to Email Sending, unless it is already there. |
+| dns | Reads the records Cloudflare wants for the domain and adds any that are missing. DKIM and return-path CNAMEs are added unproxied. |
+| dmarc | If neither the domain nor its zone apex has a DMARC record, adds `v=DMARC1; p=none`. |
+| delivery events | Subscribes the domain's delivery events to the `flaresend-events` queue. Needs `CF_ACCOUNT_ID`. |
+
+Each step reports `created`, `exists`, `conflict`, `skipped` or `failed`. **Setup never changes a DNS record that already exists.** If a different record is already at a name it needs (for example another SPF record), the step reports `conflict` with the record it found, and you fix it by hand. Running setup again is safe: finished steps report `exists`.
+
+Cloudflare then checks the new records itself. This usually takes 5 to 15 minutes. Press **Verify** to check again.
+
+The same setup is available to the admin API as [`POST /v1/admin/projects/:slug/domains/:domain/setup`](/docs/api-reference/admin/setup-domain). Project API keys can't call it (`403 admin_only`), because it changes DNS.
+
+## Option 2: with wrangler
+
+Run these for each sending domain. See [Deploy](/docs/self-hosting/deploy) for the full setup.
+
+```bash
+npx wrangler email sending enable acme.com
+npx wrangler email sending dns get acme.com     # confirm the records
+npx wrangler email sending list
+```
+
+Add a DMARC record if the domain doesn't have one:
+
+```text
+_dmarc.acme.com  TXT  "v=DMARC1; p=quarantine; rua=mailto:dmarc@acme.com"
+```
+
+Then subscribe the domain's delivery events to the events queue:
+
+```bash
+npx wrangler queues subscription create flaresend-events \
+  --source email.sending \
+  --events message.delivered,message.deferred,message.bounced,message.failed,message.rejected,message.complained \
+  --zone-id <ZONE_ID> --domain acme.com \
+  --name flaresend-acme-com
+```
+
+<Callout type="warn" title="Don't skip the events subscription">
+  Without it, emails still send, but they stay at `sent` forever: no `delivered`, `bounced` or `complained`, no webhooks for those events, and no automatic suppressions.
+</Callout>
+
+Finally, add the domain to the project's `allowedDomains` in the dashboard or with [Update a project](/docs/api-reference/admin/update-project).
+
+## Verification status
+
+The **Domains** page and [`GET /v1/domains`](/docs/api-reference/domains/list) show each allowed domain with a `verification` value:
+
+| Status | Meaning |
+|---|---|
+| `onboarded` | The domain is in Email Sending and enabled. |
+| `pending` | The domain is in Email Sending but not enabled yet, usually because Cloudflare hasn't seen the DNS records. |
+| `missing` | No Cloudflare zone holds the domain, or the zone has no Email Sending entry for it. |
+| `unknown` | The mailer has no `CF_API_TOKEN`, or the Cloudflare API call failed. `details.error` says why when it failed. |
+
+Statuses are cached for 10 minutes. Pass `?refresh=1` (or press **Verify**) to check Cloudflare again now.
+
+The status check only needs Zone Read and Email Sending Read on the token. Sending never uses the token: it goes through the Worker's `EMAIL` binding.
+
+## Subdomains
+
+You can send from a subdomain such as `mail.acme.com` and keep the root domain's mail setup untouched. Add `mail.acme.com` itself to `allowedDomains`: the allow-list matches the exact domain of the address, so `acme.com` doesn't cover `mail.acme.com`. Flaresend finds the Cloudflare zone by walking up the name (`mail.acme.com`, then `acme.com`), and a DMARC record at the zone apex covers the subdomain.
+
+## Default sender per domain
+
+Each domain can have its own default sender, set on the **Domains** page or with `domainSenders` on the project. It is used where Flaresend needs a sender for that domain, for example test emails from the dashboard. A send request with no `from` uses the project's `defaultFrom`. See [Projects](/docs/projects).

@@ -1,0 +1,77 @@
+---
+title: Audiences
+description: Named lists of contacts. A broadcast is always sent to one audience.
+icon: Users
+---
+
+An audience is a named group of [contacts](/docs/contacts/contacts) in a project, for example "Beta testers" or "Monthly changelog". A contact can be in any number of audiences. A [broadcast](/docs/contacts/broadcasts) goes to exactly one audience.
+
+## Create an audience
+
+```ts tab="Node.js" tab-group="lang"
+const audience = await flaresend.audiences.create({ name: 'Beta testers' });
+// { id: 'aud_01K6B4F7...', name: 'Beta testers', contactCount: 0, ... }
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/audiences \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "Beta testers" }'
+```
+
+Names are 1–200 characters and must be unique within the project. A second audience with the same name fails with `409 audience_exists`.
+
+## Add and remove contacts
+
+Audiences hold contact **IDs**. Create or import the contacts first, then add their IDs, up to 5,000 per call:
+
+```ts
+const ada = await flaresend.contacts.create({ email: 'ada@example.com', firstName: 'Ada' });
+const grace = await flaresend.contacts.create({ email: 'grace@example.com', firstName: 'Grace' });
+
+const { added } = await flaresend.audiences.addContacts(audience.id, [ada.id, grace.id]);
+```
+
+- Adding a contact that is already in the audience does nothing, and doesn't count in `added`.
+- If any ID is not a contact in this project, the whole call fails with `404 contact_not_found` and nothing is added.
+
+Removing works the same way and returns `{ removed }`:
+
+```ts
+await flaresend.audiences.removeContacts(audience.id, [grace.id]);
+```
+
+In the dashboard, open an audience and use **Add contacts** to search and pick contacts, or select members to remove them in bulk.
+
+## List members
+
+```ts
+const { data, nextCursor } = await flaresend.audiences.contacts(audience.id, { limit: 100 });
+```
+
+Members come back newest contact first, [paginated](/docs/api-reference/pagination). The list includes unsubscribed contacts; broadcasts skip them when sending.
+
+`contactCount` on the audience counts every member, subscribed or not.
+
+## Rename or delete
+
+```ts
+await flaresend.audiences.update(audience.id, { name: 'Beta testers (2026)' });
+await flaresend.audiences.remove(audience.id);
+```
+
+Deleting an audience removes the list, not the contacts in it. It fails with `409 audience_in_use` while a broadcast to it is `scheduled` or `sending`; cancel the broadcast first.
+
+## API
+
+| Task | Endpoint | SDK |
+|---|---|---|
+| Create | [`POST /v1/audiences`](/docs/api-reference/audiences/create) | `audiences.create({ name })` |
+| List | [`GET /v1/audiences`](/docs/api-reference/audiences/list) | `audiences.list()` |
+| Get one | [`GET /v1/audiences/:id`](/docs/api-reference/audiences/retrieve) | `audiences.get(id)` |
+| Rename | [`PATCH /v1/audiences/:id`](/docs/api-reference/audiences/update) | `audiences.update(id, { name })` |
+| Delete | [`DELETE /v1/audiences/:id`](/docs/api-reference/audiences/delete) | `audiences.remove(id)` |
+| List members | [`GET /v1/audiences/:id/contacts`](/docs/api-reference/audiences/list-contacts) | `audiences.contacts(id, query)` |
+| Add members | [`POST /v1/audiences/:id/contacts`](/docs/api-reference/audiences/add-contacts) | `audiences.addContacts(id, ids)` |
+| Remove members | [`DELETE /v1/audiences/:id/contacts`](/docs/api-reference/audiences/remove-contacts) | `audiences.removeContacts(id, ids)` |

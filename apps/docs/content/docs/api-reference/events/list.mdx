@@ -1,0 +1,145 @@
+---
+title: List events
+description: Every timeline event in the project, newest first.
+method: GET
+---
+
+<Endpoint method="GET" path="/v1/events" />
+
+<ApiPage>
+<ApiMain>
+
+Returns timeline events across all of the project's emails, newest first, [paginated](/docs/api-reference/pagination). It is the same data webhooks deliver, so you can use it to catch up on events you missed or to poll instead of running a webhook endpoint.
+
+## Query parameters
+
+<Fields>
+
+<ParamField query="limit" type="number" default="25">
+  1 to 100.
+</ParamField>
+
+<ParamField query="cursor" type="string">
+  The `nextCursor` from the previous page.
+</ParamField>
+
+<ParamField query="type" type="string">
+  Only this event type, for example `email.bounced`. The types are `email.queued`, `email.scheduled`, `email.sent`, `email.retrying`, `email.delivered`, `email.deferred`, `email.bounced`, `email.complained`, `email.rejected`, `email.failed`, `email.test`, `email.canceled`, `email.opened` and `email.clicked`.
+</ParamField>
+
+<ParamField query="emailId" type="string">
+  Only events of this email.
+</ParamField>
+
+<ParamField query="since" type="string">
+  Only events at or after this ISO 8601 date-time. Needs a time zone offset.
+</ParamField>
+
+</Fields>
+
+## Response
+
+<Fields>
+
+<ResponseField name="data" type="Event[]">
+  <Expandable title="event properties">
+    <ResponseField name="id" type="string">
+      The event ID, `evt_…`.
+    </ResponseField>
+    <ResponseField name="emailId" type="string">
+      The email it belongs to.
+    </ResponseField>
+    <ResponseField name="projectId" type="string">
+      The project.
+    </ResponseField>
+    <ResponseField name="type" type="string">
+      The event type.
+    </ResponseField>
+    <ResponseField name="recipient" type="string | null">
+      The address the event is about, or `null` for events about the whole email.
+    </ResponseField>
+    <ResponseField name="data" type="object | null">
+      Details that depend on the type. See [Retrieve an email](/docs/api-reference/emails/retrieve#response-field-events).
+    </ResponseField>
+    <ResponseField name="createdAt" type="string">
+      When it happened.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="nextCursor" type="string | null">
+  Pass it as `cursor` for the next page. `null` on the last page.
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_query` | `limit` is out of range or `since` isn't a date-time with an offset. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const { data, nextCursor } = await flaresend.events.list({
+  type: 'email.bounced',
+  since: '2026-09-26T00:00:00Z',
+});
+```
+
+```bash tab="cURL" tab-group="lang"
+curl "https://mailer.example.com/v1/events?type=email.bounced&since=2026-09-26T00:00:00Z" \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "data": [
+    {
+      "id": "evt_01K6B2Y9S8T7V6W5X4Y3Z2A1B0",
+      "emailId": "email_01K6B2Y4ZP9R3M7T8V5N2QXW4C",
+      "projectId": "proj_01K5ZQ8M3N6P1R4S7T0V2W5X8Y",
+      "type": "email.bounced",
+      "recipient": "ada@example.com",
+      "data": {
+        "delivery": {
+          "status": "bounced",
+          "provider": "external_smtp",
+          "deliveryTimeMs": 2143,
+          "smtpStatusCode": "550",
+          "smtpEnhancedStatusCode": "5.1.1",
+          "smtpResponse": "550 5.1.1 User unknown"
+        },
+        "bounce": {
+          "type": "hard",
+          "classification": "permanent_failure",
+          "reason": "550 5.1.1 User unknown"
+        },
+        "terminal": true
+      },
+      "createdAt": "2026-09-26T14:05:40.912Z"
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

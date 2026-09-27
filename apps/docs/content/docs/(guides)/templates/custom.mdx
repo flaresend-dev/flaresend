@@ -1,0 +1,135 @@
+---
+title: Custom templates
+description: HTML templates with variables, stored per project and edited without a deploy.
+icon: PencilRuler
+---
+
+Custom templates are stored in D1 for one project. You edit them in the dashboard or through the [Templates API](/docs/api-reference/templates/create), and every change is kept as a new version. A custom template with the same name as a [built-in template](/docs/templates/built-in) replaces it for that project.
+
+## Create one
+
+In the dashboard, open **Templates** and create a template: a name, a subject, an HTML body, an optional text body and a list of variables. The editor shows a live preview with example data.
+
+Or with the API:
+
+```ts tab="Node.js" tab-group="lang"
+await flaresend.templates.create({
+  name: 'order-shipped',
+  subject: 'Order {{orderNumber}} has shipped',
+  html: `<p>Hi {{firstName}},</p>
+<p>Your order <strong>{{orderNumber}}</strong> is on its way.</p>
+{{#if trackingUrl}}<p><a href="{{trackingUrl}}">Track your parcel</a></p>{{/if}}`,
+  variables: [
+    { name: 'firstName', required: true, example: 'Ada' },
+    { name: 'orderNumber', required: true, example: '1042' },
+    { name: 'trackingUrl', example: 'https://track.example.com/1042' },
+  ],
+});
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/templates \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "order-shipped",
+    "subject": "Order {{orderNumber}} has shipped",
+    "html": "<p>Hi {{firstName}},</p><p>Your order <strong>{{orderNumber}}</strong> is on its way.</p>",
+    "variables": [
+      { "name": "firstName", "required": true, "example": "Ada" },
+      { "name": "orderNumber", "required": true, "example": "1042" }
+    ]
+  }'
+```
+
+Then send it like any template:
+
+```ts
+await flaresend.emails.send({
+  to: 'ada@example.com',
+  template: 'order-shipped',
+  data: { firstName: 'Ada', orderNumber: '1042', trackingUrl: 'https://track.example.com/1042' },
+});
+```
+
+| Field | Rules |
+|---|---|
+| `name` | Lowercase letters, digits, `-` and `_`, starting with a letter or digit. Up to 100 characters. Unique per project. |
+| `subject` | 1 to 998 characters. Can use variables. |
+| `html` | Required. |
+| `text` | Optional. When left out, a text version is made from the HTML. |
+| `variables` | Optional list of `{ name, required, example }`. |
+
+## Syntax
+
+Flaresend uses a small Mustache-style syntax. Nothing else is supported, and no code runs.
+
+| Syntax | What it does |
+|---|---|
+| `{{name}}` | Inserts a value. In the HTML body it is HTML-escaped. |
+| `{{user.firstName}}` | Dotted paths reach into objects. |
+| `{{{name}}}` | Inserts a value **without** escaping. Use only for HTML you trust. |
+| `{{#if name}}…{{/if}}` | Shows the block when the value is truthy. |
+| `{{#if name}}…{{else}}…{{/if}}` | With a fallback. |
+| `{{#each items}}…{{/each}}` | Repeats the block for each item of an array. |
+| `{{this}}`, `{{this.field}}` | Inside `#each`: the current item, or a field of it. |
+| `{{@index}}` | Inside `#each`: the position, starting at 0. |
+
+A few details:
+
+- **Missing values** render as an empty string. They are not an error unless the variable is marked required.
+- **Truthy** means anything except `undefined`, `null`, `false`, `""`, `0` and an empty array.
+- **Objects and arrays** inserted with `{{…}}` are written out as JSON.
+- **Inside `#each`**, a name that isn't on the current item is looked up in the outer data, so `{{currency}}` still works inside a loop over `items`.
+- **Escaping** only happens in the HTML body. The subject and the text body are inserted as-is.
+
+```html
+<table>
+  {{#each items}}
+  <tr>
+    <td>{{@index}}. {{this.description}}</td>
+    <td>{{currency}} {{this.amount}}</td>
+  </tr>
+  {{/each}}
+</table>
+```
+
+A syntax error, such as an unclosed `{{#if}}` or a `{{/each}}` without its opening tag, is rejected when you save the template with `400 invalid_template`, and the message names the field (`subject`, `html` or `text`).
+
+## Required variables
+
+Mark a variable `required: true` and every send must include it. A value that is missing, `null` or `""` fails the send with `400 invalid_template_data` and `param: "data.<name>"`. Dotted names work, so `required` on `user.email` checks `data.user.email`.
+
+Variables that aren't required are only documentation: the editor uses their `example` values for the preview.
+
+## The text version
+
+When a template has no `text`, Flaresend makes one from the rendered HTML: links become `label (url)`, `<br>` becomes a line break, block elements like `<p>`, `<div>`, headings, list items and table rows become paragraph breaks, and all other tags are removed. Write your own `text` when the layout matters.
+
+## Versions
+
+- A new template starts at version 1.
+- Every update creates the next version. Old versions are kept.
+- [List versions](/docs/api-reference/templates/versions) returns them all.
+- [Restore](/docs/api-reference/templates/restore) copies an old version's content into a **new** version. History is never rewritten, so you can undo a restore too.
+- An email sent from a custom template records the version in `templateVersion`.
+
+If two people save the same template at the same moment, the second save fails with `409 template_conflict`. Reload and apply your change again.
+
+## Delete
+
+Deleting a custom template removes it and all its versions. Sends that use its name then fall back to a built-in template with that name, or fail with `404 template_not_found` if there isn't one.
+
+Built-in templates can't be changed or deleted through the API: update and delete only find custom templates, and return `404 template_not_found` for a built-in name.
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_body` | A field breaks the rules above. |
+| 400 | `invalid_template` | The subject, HTML or text has a syntax error. |
+| 400 | `invalid_template_data` | A send is missing a required variable. |
+| 404 | `template_not_found` | No custom template with that name. |
+| 404 | `template_version_not_found` | Restoring a version that doesn't exist. |
+| 409 | `template_exists` | Creating a name the project already has. |
+| 409 | `template_conflict` | Someone else saved the template first. |

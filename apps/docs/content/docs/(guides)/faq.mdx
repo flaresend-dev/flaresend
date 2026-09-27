@@ -1,0 +1,93 @@
+---
+title: FAQ
+description: Short answers to common questions about Flaresend.
+icon: CircleQuestionMark
+---
+
+<Accordions>
+
+<Accordion title="Is Flaresend a hosted service?">
+
+No. Flaresend is code you deploy to your own Cloudflare account: a mailer Worker, and optionally the dashboard Worker. There is no Flaresend account to sign up for, and your email never passes through anyone else's servers. See [Deploy](/docs/self-hosting/deploy).
+
+</Accordion>
+
+<Accordion title="How is this different from Resend?">
+
+The API and dashboard are modelled on Resend's, so they will feel familiar. The difference is where it runs: Flaresend sends through **Cloudflare Email Service** on your own account, stores logs in your own D1 database and bodies in your own R2 bucket. You pay Cloudflare for what you use, and you operate it yourself. The endpoints and payloads are Flaresend's own, not a drop-in copy of Resend's API.
+
+</Accordion>
+
+<Accordion title="Can I send marketing email or newsletters?">
+
+No. Cloudflare Email Service is for transactional email, and its terms don't permit marketing or bulk campaigns. [Broadcasts](/docs/contacts/broadcasts) exist for small, opted-in lists (off by default, 500 recipients at most), not for newsletters to large lists.
+
+</Accordion>
+
+<Accordion title="Does my domain's DNS have to be on Cloudflare?">
+
+Cloudflare's docs say Email Service needs it. A domain whose DNS is hosted elsewhere may not work at all. Flaresend's one-click domain setup also needs a Cloudflare zone to add records to. See [Domains](/docs/deliverability/domains).
+
+</Accordion>
+
+<Accordion title="Which languages are supported?">
+
+Any language that can make HTTPS requests can use the [REST API](/docs/api-reference). There is an official TypeScript client, [`@flaresend/client`](/docs/sdk), for Node.js, Bun, Deno, browsers and Workers. Quickstarts show [Python](/docs/send-with/python), [Go](/docs/send-with/go), [PHP](/docs/send-with/php) and [Ruby](/docs/send-with/ruby) with plain HTTP.
+
+</Accordion>
+
+<Accordion title="Do I need an API key from a Cloudflare Worker?">
+
+Not if the Worker is in the same Cloudflare account as the mailer. Use a service binding and the [RPC client](/docs/sdk/rpc) instead: no key, and no trip over the public internet.
+
+</Accordion>
+
+<Accordion title="Why did the API say queued when the email hasn't arrived?">
+
+`queued` means Flaresend accepted and stored the email. It is sent from a queue a moment later, and delivery takes as long as the receiving server needs. Follow its progress with [Retrieve an email](/docs/api-reference/emails/retrieve) or [webhooks](/docs/webhooks). If it stays at `sent`, see [Troubleshooting](/docs/troubleshooting#emails-stay-at-sent-forever).
+
+</Accordion>
+
+<Accordion title="Is it safe to retry a send that timed out?">
+
+Yes, with an idempotency key. The Node.js client adds one to every send automatically and reuses it on its own retries. If you retry yourself, pass the same `Idempotency-Key` and you get the first email back instead of a second one. See [Idempotency](/docs/emails/idempotency).
+
+</Accordion>
+
+<Accordion title="How do I test without sending real email?">
+
+Use a test key (`fs_test_…`). Sends are validated and stored with status `test`, but never delivered, and they don't count against your limits. See [Test mode](/docs/emails/test-mode).
+
+</Accordion>
+
+<Accordion title="How long are emails kept?">
+
+The email's metadata (sender, recipients, subject, status, events) stays in D1. The body (HTML, text, attachments) is kept in R2 for 30 days and then deleted by the bucket's lifecycle rule. After that, content and resend return `404 content_expired`.
+
+</Accordion>
+
+<Accordion title="How many emails can I send?">
+
+Each project has a daily limit (5,000 by default, configurable, `0` for none) and a rate limit of 300 sends per minute. Cloudflare's own Email Service limits apply on top. See [Limits](/docs/limits).
+
+</Accordion>
+
+<Accordion title="Can several apps share one mailer?">
+
+Yes. That's what projects are for. Give each app its own project, with its own keys, domains, limits, templates and webhooks. The suppression list is shared by all projects. See [Projects](/docs/projects).
+
+</Accordion>
+
+<Accordion title="Can I use React Email for my templates?">
+
+Yes. The built-in templates are React Email components in `packages/templates`, rendered inside the mailer. Add your own there and redeploy, or create editable HTML templates in the dashboard instead. See [Templates](/docs/templates).
+
+</Accordion>
+
+<Accordion title="Are opens and clicks tracked?">
+
+Only if you turn it on, per project or per email. Open tracking also needs the mailer's `TRACKING_SECRET`. See [Tracking](/docs/emails/tracking).
+
+</Accordion>
+
+</Accordions>

@@ -1,0 +1,85 @@
+---
+title: Add a suppression
+description: Block an address from receiving email from every project.
+method: POST
+---
+
+<Endpoint method="POST" path="/v1/admin/suppressions" auth="admin" />
+
+<ApiPage>
+<ApiMain>
+
+After this, live sends to the address fail with `422 recipient_suppressed` in every project. Sends with test keys don't check the list.
+
+Adding an address that is already suppressed succeeds and keeps its original entry, with one exception: a `complaint` reason replaces the stored reason.
+
+## Body parameters
+
+<Fields>
+
+<ParamField body="address" type="string" required>
+  The email address. Trimmed and lowercased.
+</ParamField>
+
+<ParamField body="reason" type="'manual' | 'hard_bounce' | 'complaint'" default="manual">
+  Why the address is suppressed.
+</ParamField>
+
+</Fields>
+
+## Response
+
+Status `201` with the stored [suppression](/docs/api-reference/admin/list-suppressions#response) and a `note` reminding you that Cloudflare keeps its own, separate list.
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_body` | `address` is missing or not an email address, or `reason` is not one of the three values. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+const res = await fetch('https://mailer.example.com/v1/admin/suppressions', {
+  method: 'POST',
+  headers: {
+    Authorization: `Bearer ${process.env.FLARESEND_ADMIN_KEY}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({ address: 'grace@example.com' }),
+});
+const suppression = await res.json();
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/admin/suppressions \
+  -H "Authorization: Bearer $FLARESEND_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "address": "grace@example.com", "reason": "manual" }'
+```
+
+```bash tab="CLI" tab-group="lang"
+flaresend suppressions add grace@example.com --reason manual
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="201" tab-group="status"
+{
+  "address": "grace@example.com",
+  "reason": "manual",
+  "sourceEmailId": null,
+  "createdAt": "2026-09-26T11:00:00.000Z",
+  "note": "This is Flaresend's local mirror. Cloudflare keeps its own suppression list; edit that one in the Cloudflare dashboard (Email Service)."
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

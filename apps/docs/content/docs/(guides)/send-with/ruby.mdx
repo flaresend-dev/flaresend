@@ -1,0 +1,116 @@
+---
+title: Send emails with Ruby
+description: Call the Flaresend REST API from Ruby with net/http.
+---
+
+There is no Ruby SDK. `net/http` and `json` from the standard library are enough.
+
+## Prerequisites
+
+- A deployed mailer and its URL, for example `https://mailer.example.com`. See [Deploy](/docs/self-hosting/deploy).
+- An API key for your project in `FLARESEND_API_KEY`. See [API keys](/docs/api-keys).
+
+## Send an email
+
+```ruby title="send.rb"
+require "net/http"
+require "json"
+
+FLARESEND_URL = "https://mailer.example.com"
+
+class FlaresendError < StandardError
+  attr_reader :status, :type, :code, :param
+
+  def initialize(status, error)
+    super(error["message"])
+    @status = status
+    @type = error["type"]
+    @code = error["code"]
+    @param = error["param"]
+  end
+end
+
+def flaresend_send(email, idempotency_key: nil)
+  uri = URI("#{FLARESEND_URL}/v1/emails")
+  req = Net::HTTP::Post.new(uri)
+  req["Authorization"] = "Bearer #{ENV.fetch("FLARESEND_API_KEY")}"
+  req["Content-Type"] = "application/json"
+  req["Idempotency-Key"] = idempotency_key if idempotency_key
+  req.body = JSON.generate(email)
+
+  res = Net::HTTP.start(uri.host, uri.port, use_ssl: true, read_timeout: 30) { |http| http.request(req) }
+  body = JSON.parse(res.body) rescue {}
+
+  unless res.is_a?(Net::HTTPSuccess)
+    error = body["error"] || { "type" => "internal_error", "code" => "http_#{res.code}", "message" => res.body.to_s[0, 200] }
+    raise FlaresendError.new(res.code.to_i, error)
+  end
+  body
+end
+
+result = flaresend_send(
+  {
+    from: "Acme <hello@acme.com>",
+    to: "ada@example.com",
+    subject: "Hello from Ruby",
+    html: "<p>It works.</p>",
+    text: "It works."
+  },
+  idempotency_key: "hello-ruby-1"
+)
+
+puts result["id"], result["status"] # email_01K6B2Y4ZP9R3M7T8V5N2QXW4C, queued
+```
+
+## Idempotency
+
+`idempotency_key:` becomes the `Idempotency-Key` header. Repeating a request with the same key and the same body returns `200` with the first email's ID and `"idempotent" => true`. The same key with a different body raises `409 idempotency_payload_mismatch`. Tie the key to what the email is for, for example `"welcome-#{user.id}"`. See [Idempotency](/docs/emails/idempotency).
+
+## Errors
+
+Error responses always have this shape:
+
+```json
+{
+  "error": {
+    "type": "rate_limit_error",
+    "code": "daily_limit_exceeded",
+    "message": "daily limit of 500 emails reached for this project (resets 00:00 UTC)"
+  }
+}
+```
+
+```ruby
+begin
+  flaresend_send(email, idempotency_key: "welcome-#{user.id}")
+rescue FlaresendError => e
+  Rails.logger.error("#{e.status} #{e.code}: #{e.message}")
+end
+```
+
+See [Errors](/docs/api-reference/errors) for every code.
+
+## In Rails
+
+Call it from a background job so a slow request never blocks a web request, and pass a key so a retried job never sends twice:
+
+```ruby title="app/jobs/welcome_email_job.rb"
+class WelcomeEmailJob < ApplicationJob
+  def perform(user)
+    flaresend_send(
+      {
+        from: "Acme <hello@acme.com>",
+        to: user.email,
+        template: "welcome",
+        data: { name: user.name, appName: "Acme", loginUrl: "https://acme.com/login" }
+      },
+      idempotency_key: "welcome-#{user.id}"
+    )
+  end
+end
+```
+
+## Next steps
+
+- [Send an email](/docs/api-reference/emails/send): every field.
+- [Built-in templates](/docs/templates/built-in)

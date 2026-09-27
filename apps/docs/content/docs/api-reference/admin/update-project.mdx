@@ -1,0 +1,173 @@
+---
+title: Update a project
+description: Change a project's settings. Only the fields you send are changed.
+method: PATCH
+---
+
+<Endpoint method="PATCH" path="/v1/admin/projects/:slug" auth="admin" />
+
+<ApiPage>
+<ApiMain>
+
+Send only the fields you want to change. The slug can't be changed.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="slug" type="string" required>
+  The project slug.
+</ParamField>
+
+</Fields>
+
+## Body parameters
+
+<Fields>
+
+<ParamField body="name" type="string">
+  A new display name, 1 to 200 characters.
+</ParamField>
+
+<ParamField body="allowedDomains" type="string[]">
+  Replaces the whole list; at least one domain. If the project's current `defaultFrom` is not on the new list (and you don't send a new `defaultFrom` in the same request), the request fails with `400 invalid_body`. Per-domain senders for domains that are no longer on the list are dropped.
+</ParamField>
+
+<ParamField body="defaultFrom" type="string | null">
+  A new default sender, which must be on the allowed domains. `null` removes it, after which every send must include `from`.
+</ParamField>
+
+<ParamField body="allowedSenders" type="string[] | null">
+  Replaces the list of exact addresses allowed in `from`. `null` removes the restriction.
+</ParamField>
+
+<ParamField body="domainSenders" type="Record<string, string | null> | null">
+  Merged into the stored map, not a replacement:
+
+  - A domain set to a sender adds or changes that domain's sender.
+  - A domain set to `null` removes that domain's sender.
+  - Domains you don't list keep their sender.
+  - `null` for the whole field removes every per-domain sender.
+
+  Each key must be one of the allowed domains (after this request's `allowedDomains`, if you send both), and each sender must be an address on that key's domain.
+</ParamField>
+
+<ParamField body="rpcEnabled" type="boolean">
+  Allow or block sends over the `MailerRpc` service binding.
+</ParamField>
+
+<ParamField body="dailyLimit" type="integer">
+  Live emails per UTC day. `0` means no limit.
+</ParamField>
+
+<ParamField body="trackOpens" type="boolean">
+  Default for open tracking.
+</ParamField>
+
+<ParamField body="trackClicks" type="boolean">
+  Default for click tracking.
+</ParamField>
+
+<ParamField body="broadcastsEnabled" type="boolean">
+  Allow or block broadcasts. A broadcast that is already sending is canceled on its next cron tick once this is `false`.
+</ParamField>
+
+<ParamField body="disabled" type="boolean">
+  `true` disables the project and sets `disabledAt` (an already disabled project keeps its original `disabledAt`). `false` enables it again and clears `disabledAt`. [Disable a project](/docs/api-reference/admin/disable-project) is a shortcut for `{ "disabled": true }`.
+</ParamField>
+
+</Fields>
+
+## Response
+
+Status `200` with the updated [project](/docs/api-reference/admin/retrieve-project#response).
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_body` | A field is malformed, or a sender is not on an allowed domain. `param` names the field, for example `domainSenders.acme.com`. |
+| 404 | `project_not_found` | No project has this slug. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+const res = await fetch('https://mailer.example.com/v1/admin/projects/acme', {
+  method: 'PATCH',
+  headers: {
+    Authorization: `Bearer ${process.env.FLARESEND_ADMIN_KEY}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    allowedDomains: ['acme.com', 'mail.acme.com'],
+    domainSenders: { 'mail.acme.com': 'Acme Alerts <alerts@mail.acme.com>' },
+    trackOpens: true,
+  }),
+});
+const project = await res.json();
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X PATCH https://mailer.example.com/v1/admin/projects/acme \
+  -H "Authorization: Bearer $FLARESEND_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "allowedDomains": ["acme.com", "mail.acme.com"],
+    "domainSenders": { "mail.acme.com": "Acme Alerts <alerts@mail.acme.com>" },
+    "trackOpens": true
+  }'
+```
+
+```bash tab="CLI" tab-group="lang"
+flaresend projects update acme \
+  --domains acme.com,mail.acme.com \
+  --daily-limit 10000
+
+# Re-enable a disabled project
+flaresend projects enable acme
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "id": "proj_01K6B1QZ3M8H2V5T7R9N4XW6CD",
+  "slug": "acme",
+  "name": "Acme",
+  "defaultFrom": "Acme <hello@acme.com>",
+  "allowedDomains": ["acme.com", "mail.acme.com"],
+  "allowedSenders": null,
+  "domainSenders": {
+    "mail.acme.com": "Acme Alerts <alerts@mail.acme.com>"
+  },
+  "rpcEnabled": true,
+  "dailyLimit": 5000,
+  "trackOpens": true,
+  "trackClicks": false,
+  "broadcastsEnabled": false,
+  "createdAt": "2026-09-26T10:00:00.000Z",
+  "updatedAt": "2026-09-26T12:30:00.000Z",
+  "disabledAt": null
+}
+```
+
+```json tab="400" tab-group="status"
+{
+  "error": {
+    "type": "validation_error",
+    "code": "invalid_body",
+    "message": "domainSenders.mail.acme.com must be on mail.acme.com",
+    "param": "domainSenders.mail.acme.com"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

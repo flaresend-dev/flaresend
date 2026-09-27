@@ -1,0 +1,92 @@
+---
+title: Error handling
+description: Both clients throw FlaresendError, with the same type, code, message and param the API returns.
+icon: TriangleAlert
+---
+
+Every failed call, over HTTP or RPC, throws a `FlaresendError`:
+
+```ts
+import { FlaresendError } from '@flaresend/client';
+
+try {
+  await flaresend.emails.send(input);
+} catch (e) {
+  if (e instanceof FlaresendError) {
+    e.type;    // 'validation_error' | 'authentication_error' | 'permission_error' | 'not_found'
+               // | 'conflict' | 'unprocessable' | 'rate_limit_error' | 'internal_error'
+    e.code;    // for example 'invalid_sender', 'recipient_suppressed', 'rate_limited'
+    e.message; // a sentence you can log or show to an operator
+    e.param;   // the field at fault, when there is one, for example 'from'
+    e.status;  // the HTTP status
+  }
+  throw e;
+}
+```
+
+`type` is the broad category and `code` the exact reason. Switch on `code` for specific handling. [Errors](/docs/api-reference/errors) lists every code.
+
+| `type` | `status` |
+|---|---|
+| `validation_error` | 400 |
+| `authentication_error` | 401 |
+| `permission_error` | 403 |
+| `not_found` | 404 |
+| `conflict` | 409 |
+| `unprocessable` | 422 |
+| `rate_limit_error` | 429 |
+| `internal_error` | 500 |
+
+`ERROR_STATUS` maps each type to its status, and `FlaresendError.toJSON()` returns `{ type, code, message, param? }`.
+
+## Errors the client makes itself
+
+Over HTTP, three cases don't come from the mailer's error JSON:
+
+| What happened | `type` | `code` | `status` |
+|---|---|---|---|
+| An error response whose body isn't Flaresend's error JSON (a proxy's HTML error page, for example) | `internal_error` | `http_<status>` | the response status |
+| No response after all retries: DNS failure, connection reset, and so on. The original error is in `e.cause` | `internal_error` | `network_error` | `0` |
+| A `2xx` response that isn't JSON | `internal_error` | `invalid_response` | the response status |
+
+The constructor throws a plain `TypeError`, not a `FlaresendError`, when `apiKey` or `baseUrl` is missing, or when there is no `fetch`.
+
+Over RPC, the client rebuilds the `FlaresendError` from the thrown message, with `status` taken from the type. An error it can't decode is rethrown as it was.
+
+## Handling common cases
+
+```ts
+try {
+  await flaresend.emails.send(input, { idempotencyKey: `receipt-${order.id}` });
+} catch (e) {
+  if (!(e instanceof FlaresendError)) throw e;
+
+  switch (e.code) {
+    case 'recipient_suppressed':
+      // e.param is the address. Don't retry: mark it bad in your database.
+      await markEmailBad(e.param!);
+      return;
+    case 'daily_limit_exceeded':
+      // Resets at 00:00 UTC. Queue the email in your app and try later.
+      await retryTomorrow(input);
+      return;
+    case 'rate_limited':
+      // The client already waited and retried maxRetries times. Back off further.
+      throw e;
+    case 'invalid_sender':
+    case 'invalid_body':
+      // A bug in the request. Retrying won't help.
+      console.error(e.code, e.param, e.message);
+      throw e;
+    default:
+      throw e;
+  }
+}
+```
+
+## What to retry
+
+- `rate_limit_error` with `rate_limited`, `internal_error` and `network_error`: safe to retry **if** the request had an idempotency key. The HTTP client already does this for sends and `GET`s.
+- `daily_limit_exceeded`: retry after 00:00 UTC.
+- `validation_error`, `authentication_error`, `permission_error`, `not_found`, `unprocessable`: don't retry the same request. Fix the input or the setup.
+- `conflict`: depends on the code. `idempotency_payload_mismatch` means you reused a key for a different email; `not_cancelable` means the email has already started sending.

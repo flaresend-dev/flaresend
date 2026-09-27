@@ -1,0 +1,142 @@
+---
+title: CLI
+description: The flaresend command line tool for projects, API keys, emails, suppressions, stats and test sends.
+icon: Terminal
+---
+
+`flaresend` (`packages/cli`) talks to the mailer's HTTP API. Every command uses the admin routes (`/v1/admin/*`) with the admin key, except `send`, which calls `POST /v1/emails` with a project API key.
+
+## Install
+
+The CLI isn't published to npm. Build it from the repo:
+
+```bash
+pnpm --filter @flaresend/cli build
+node packages/cli/dist/index.js --help
+```
+
+The package's `bin` is `flaresend`, so you can link it (`pnpm link --global` in `packages/cli`) and call `flaresend` directly. The examples below assume that.
+
+## Configuration
+
+| Variable | Used by | Notes |
+|---|---|---|
+| `FLARESEND_BASE_URL` | every command | Required. The mailer URL, for example `https://mailer.example.com` or `http://localhost:8787`. |
+| `FLARESEND_ADMIN_KEY` | every command except `send` | The mailer's `ADMIN_API_KEY` secret. |
+| `FLARESEND_API_KEY` | `send` | A project key, `fs_live_…` or `fs_test_…`. |
+| `FLARESEND_DEBUG` | errors | When set, stack traces are printed after error messages. |
+
+Global flags, allowed anywhere on the command line:
+
+| Flag | Meaning |
+|---|---|
+| `--base-url <url>` | Overrides `FLARESEND_BASE_URL`. |
+| `--admin-key <key>` | Overrides `FLARESEND_ADMIN_KEY`. |
+| `--api-key <key>` | Overrides `FLARESEND_API_KEY`. |
+| `--json` | Print the raw JSON response instead of tables. |
+
+On an API error the CLI prints this to stderr and exits with code 1:
+
+```txt
+Error: <code>: <message> (param: <param>) [HTTP <status> <type>]
+```
+
+Network errors and bad input also exit with code 1.
+
+## Projects
+
+```bash
+flaresend projects list
+flaresend projects create --slug acme --name Acme --domains acme.com,mail.acme.com \
+  [--default-from "Acme <hello@acme.com>"] [--senders hello@acme.com,support@acme.com] \
+  [--daily-limit 500] [--rpc | --no-rpc]
+flaresend projects show <slug>
+flaresend projects update <slug> [--name ..] [--domains ..] [--default-from ..] [--senders ..] [--daily-limit ..] [--rpc | --no-rpc]
+flaresend projects disable <slug>
+flaresend projects enable <slug>
+```
+
+- `--domains` and `--senders` are comma-separated.
+- `--daily-limit 0` means no limit.
+- On `update`, pass `""` to `--default-from` or `--senders` to clear them (sends `null`).
+- `disable` calls `DELETE /v1/admin/projects/:slug`, which sets `disabledAt`. `enable` sends `PATCH { "disabled": false }`.
+- Tracking and broadcast settings aren't flags. Change them in the dashboard or with [Update a project](/docs/api-reference/admin/update-project).
+
+## API keys
+
+```bash
+flaresend keys create --project <slug> --name <name> [--mode live|test] [--expires-at 2027-01-01T00:00:00Z]
+flaresend keys list [--project <slug>]
+flaresend keys revoke <id>
+flaresend keys rename <id> <name>
+```
+
+`keys create` prints the full key once, in a box. It can't be shown again. `--mode` defaults to `live`.
+
+## Emails
+
+```bash
+flaresend emails list [--project <slug>] [--status delivered] [--to a@x.com] [--from b@y.com] [--q "subject text"] \
+  [--tag key:value] [--since <iso>] [--until <iso>] [--limit 25] [--cursor <nextCursor>]
+flaresend emails get <id>              # header info, recipients table, event timeline
+flaresend emails content <id>          # headers, attachments, text body (or HTML if there is no text)
+flaresend emails content <id> --html   # only the HTML body, handy for piping to a file
+flaresend emails content <id> --text   # only the text body
+flaresend emails resend <id>           # send the stored body again as a new email
+```
+
+`emails list` covers every project unless you pass `--project`. When there are more results, it prints the command for the next page. `resend` fails with `content_expired` once the body is older than 30 days.
+
+## Suppressions
+
+```bash
+flaresend suppressions list [--q text] [--limit 25] [--cursor <nextCursor>]
+flaresend suppressions add <address> [--reason manual|hard_bounce|complaint]
+flaresend suppressions remove <address>
+```
+
+This is Flaresend's own list, shared by every project. Cloudflare keeps a separate suppression list, which you edit in the Cloudflare dashboard. See [Suppressions](/docs/deliverability/suppressions).
+
+## Stats
+
+```bash
+flaresend stats
+```
+
+Counts by status for each project: today, the last 7 days and the last 30 days.
+
+## Send
+
+```bash
+flaresend send --to ada@example.com --subject "Hello" --text "Hi there"
+
+flaresend send --from "Acme <hello@acme.com>" --to ada@example.com,grace@example.com \
+  --subject "Report" --html-file ./report.html --cc boss@acme.com --reply-to support@acme.com \
+  --tag kind=report --tag user=42 --idempotency-key report-2026-09-25
+
+flaresend send --to ada@example.com --template welcome \
+  --data '{"name":"Ada","appName":"Acme","loginUrl":"https://acme.com/login"}'
+
+flaresend send --to ada@example.com --subject "Later" --text "..." --scheduled-at 2026-10-01T09:00:00Z
+```
+
+- Uses `FLARESEND_API_KEY`, not the admin key. The key decides the project; `--project` is accepted and ignored.
+- `--from` defaults to the project's default sender.
+- Body: at least one of `--text`, `--html`, `--html-file` or `--template`. `--html` and `--html-file` can't be combined. `--data` needs `--template`.
+- `--subject` is required unless `--template` is set.
+- `--to`, `--cc` and `--bcc` can be repeated or comma-separated. Commas inside quotes or `<…>` are kept.
+- `--tag key=value` can be repeated.
+- `--idempotency-key` is sent as the `Idempotency-Key` header.
+
+## Fake delivery events (development)
+
+```bash
+flaresend dev event <delivered|deferred|bounced|failed|rejected|complained> <emailId> \
+  [--recipient ada@example.com] [--bounce-type hard|soft] [--message-id <cloudflare message id>]
+```
+
+Cloudflare doesn't deliver email events to `wrangler dev`, so this command fakes them. It loads the email with `GET /v1/admin/emails/:id`, builds one Cloudflare event per recipient (or only `--recipient`) and posts each to `POST /v1/admin/dev/events`. The mailer accepts that route only when `ENVIRONMENT` is not `production`. `--bounce-type` defaults to `hard`.
+
+The email needs a `cloudflareMessageId`, which the send consumer sets after sending. Until then, pass `--message-id`.
+
+From the repo root, `pnpm dev:event delivered <emailId>` runs the same command (build the CLI first).

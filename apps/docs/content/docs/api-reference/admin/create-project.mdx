@@ -1,0 +1,157 @@
+---
+title: Create a project
+description: Create a project, the unit that owns API keys, sending domains, emails and settings.
+method: POST
+---
+
+<Endpoint method="POST" path="/v1/admin/projects" auth="admin" />
+
+<ApiPage>
+<ApiMain>
+
+A project is one app or team that sends email. It has its own API keys, allowed sending domains, daily limit, webhooks, templates and contacts. After you create one, [create an API key](/docs/api-reference/admin/create-api-key) for it. See [Projects](/docs/projects) for how the settings affect sending.
+
+## Body parameters
+
+<Fields>
+
+<ParamField body="slug" type="string" required>
+  The project's permanent identifier: lowercase letters, digits and dashes, starting with a letter or digit, at most 63 characters. Used in admin URLs and by Workers that send over [RPC](/docs/sdk/rpc) (`rpcClient(env.MAILER, { project: 'acme' })`). Must be unique.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  A display name, 1 to 200 characters.
+</ParamField>
+
+<ParamField body="allowedDomains" type="string[]" required>
+  The domains this project may send from, at least one. Values are trimmed and lowercased, and duplicates are removed. A `from` address on any other domain fails with `403 invalid_sender`.
+</ParamField>
+
+<ParamField body="defaultFrom" type="string">
+  The sender used when a send request has no `from`, as `"Name <address>"` or a bare address. Must be on one of `allowedDomains`. The address is stored lowercased.
+</ParamField>
+
+<ParamField body="allowedSenders" type="string[]">
+  Restrict `from` to these exact addresses. When this is not set, any address on the allowed domains may send.
+</ParamField>
+
+<ParamField body="domainSenders" type="Record<string, string>">
+  A default sender per domain, for example `{ "acme.com": "Acme <hello@acme.com>" }`. Each key must be one of `allowedDomains` and each sender must be an address on that key's domain. The dashboard uses these when it sends from a domain; see [Domains](/docs/deliverability/domains).
+</ParamField>
+
+<ParamField body="rpcEnabled" type="boolean" default="true">
+  Whether Workers may send for this project over the `MailerRpc` service binding. When `false`, RPC calls fail with `403 rpc_disabled`.
+</ParamField>
+
+<ParamField body="dailyLimit" type="integer" default="5000">
+  The most live emails the project may send per UTC day. `0` means no limit. Once used up, sends fail with `429 daily_limit_exceeded` until 00:00 UTC.
+</ParamField>
+
+<ParamField body="trackOpens" type="boolean" default="false">
+  Add an open-tracking pixel to HTML emails by default. A send can override it with `trackOpens`.
+</ParamField>
+
+<ParamField body="trackClicks" type="boolean" default="false">
+  Rewrite links in HTML emails to count clicks by default. A send can override it with `trackClicks`.
+</ParamField>
+
+<ParamField body="broadcastsEnabled" type="boolean" default="false">
+  Allow [broadcasts](/docs/contacts/broadcasts) for this project. Cloudflare Email Service is for transactional email, so only turn this on for small, opted-in lists.
+</ParamField>
+
+</Fields>
+
+## Response
+
+Status `201` with the new [project](/docs/api-reference/admin/retrieve-project#response).
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_body` | A field is missing or malformed, or `defaultFrom` / a `domainSenders` value is not on an allowed domain. `param` names the field. |
+| 409 | `slug_taken` | A project with this slug already exists. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+const res = await fetch('https://mailer.example.com/v1/admin/projects', {
+  method: 'POST',
+  headers: {
+    Authorization: `Bearer ${process.env.FLARESEND_ADMIN_KEY}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    slug: 'acme',
+    name: 'Acme',
+    allowedDomains: ['acme.com'],
+    defaultFrom: 'Acme <hello@acme.com>',
+    dailyLimit: 2000,
+  }),
+});
+const project = await res.json();
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/admin/projects \
+  -H "Authorization: Bearer $FLARESEND_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "slug": "acme",
+    "name": "Acme",
+    "allowedDomains": ["acme.com"],
+    "defaultFrom": "Acme <hello@acme.com>",
+    "dailyLimit": 2000
+  }'
+```
+
+```bash tab="CLI" tab-group="lang"
+flaresend projects create \
+  --slug acme --name Acme \
+  --domains acme.com \
+  --default-from "Acme <hello@acme.com>" \
+  --daily-limit 2000
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="201" tab-group="status"
+{
+  "id": "proj_01K6B1QZ3M8H2V5T7R9N4XW6CD",
+  "slug": "acme",
+  "name": "Acme",
+  "defaultFrom": "Acme <hello@acme.com>",
+  "allowedDomains": ["acme.com"],
+  "allowedSenders": null,
+  "domainSenders": {},
+  "rpcEnabled": true,
+  "dailyLimit": 2000,
+  "trackOpens": false,
+  "trackClicks": false,
+  "broadcastsEnabled": false,
+  "createdAt": "2026-09-26T10:00:00.000Z",
+  "updatedAt": "2026-09-26T10:00:00.000Z",
+  "disabledAt": null
+}
+```
+
+```json tab="409" tab-group="status"
+{
+  "error": {
+    "type": "conflict",
+    "code": "slug_taken",
+    "message": "a project with slug \"acme\" already exists",
+    "param": "slug"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

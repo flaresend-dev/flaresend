@@ -1,0 +1,67 @@
+---
+title: Overview
+description: What you deploy to run Flaresend, which Cloudflare products it uses, and what you need before you start.
+icon: Server
+---
+
+import { Rocket, Settings, LayoutDashboard, Terminal, Network, Laptop } from 'lucide-react';
+
+Flaresend is not a hosted service. You deploy it to your own Cloudflare account, and every email your apps send goes out through your account's Cloudflare Email Service.
+
+## What you deploy
+
+| Worker | Required | What it does |
+|---|---|---|
+| `flaresend` (`apps/mailer`) | Yes | The mailer. Serves the HTTP API, the `MailerRpc` and `AdminRpc` service-binding entrypoints, the four queue consumers and the cron job. It is the only thing in the account that sends email. |
+| `flaresend-dashboard` (`apps/dashboard`) | No | The admin dashboard, a Next.js app behind Cloudflare Access. It talks to the mailer over the `MAILER_ADMIN` service binding and holds no API key. |
+
+The CLI (`packages/cli`) is a third way to manage the mailer. It runs on your machine and calls the admin HTTP API.
+
+## Cloudflare products it uses
+
+| Product | Name in the account | Used for |
+|---|---|---|
+| Email Service (Email Sending) | binding `EMAIL` | Sending the email, and publishing delivery events |
+| D1 | database `flaresend`, binding `DB` | Projects, keys, emails, recipients, events, webhooks, templates, contacts, analytics |
+| R2 | bucket `flaresend-payloads`, binding `PAYLOADS` | Email bodies and attachments, deleted after 30 days by a lifecycle rule |
+| Queues | `flaresend-send`, `flaresend-events`, `flaresend-webhooks`, `flaresend-dlq` | Sending with retries, delivery events, webhook deliveries, and the dead letter queue |
+| Rate Limiting | binding `RATE_LIMITER` | A per-project cap of 300 sends per 60 seconds |
+| Cron Triggers | `*/5 * * * *` | Scheduled sends more than 12 hours out, broadcasts, the daily analytics rollup |
+| Access | (dashboard only) | The dashboard's login |
+
+## What you need
+
+- A Cloudflare account with Email Service available.
+- Your sending domains on Cloudflare DNS. `wrangler email sending enable` adds the SPF and DKIM records to Cloudflare zones. Cloudflare's docs say Email Service requires Cloudflare DNS, so a domain whose DNS is elsewhere may not work at all. This has not been tested with Flaresend yet.
+- Node.js 22 (the repo's `.nvmrc` says `22`) and pnpm 10.
+- A clone of the repository and `pnpm install` at its root.
+- The Workers Paid plan, for Queues.
+
+With those in place, `npx wrangler login` and then `pnpm bootstrap` set up everything. See [Deploy](/docs/self-hosting/deploy).
+
+<Callout type="warn" title="Transactional email only">
+  Cloudflare Email Service is for transactional email. Marketing and bulk campaigns are not permitted. Broadcasts are off per project by default and each one is capped at `BROADCAST_MAX_RECIPIENTS` (500 unless you change it).
+</Callout>
+
+## Next steps
+
+<Cards>
+  <Card icon={<Rocket />} title="Deploy" href="/docs/self-hosting/deploy">
+    Run `pnpm bootstrap`, or create the resources, onboard a domain, set secrets and deploy by hand.
+  </Card>
+  <Card icon={<Settings />} title="Configuration" href="/docs/self-hosting/configuration">
+    Every variable, secret and binding the mailer reads.
+  </Card>
+  <Card icon={<LayoutDashboard />} title="Dashboard" href="/docs/self-hosting/dashboard">
+    Deploy the admin dashboard behind Cloudflare Access.
+  </Card>
+  <Card icon={<Terminal />} title="CLI" href="/docs/self-hosting/cli">
+    Manage projects, keys, emails and suppressions from a terminal.
+  </Card>
+  <Card icon={<Network />} title="Architecture" href="/docs/self-hosting/architecture">
+    Tables, queues, retries and the cron job.
+  </Card>
+  <Card icon={<Laptop />} title="Local development" href="/docs/self-hosting/local-development">
+    Run the mailer on your machine and fake delivery events.
+  </Card>
+</Cards>

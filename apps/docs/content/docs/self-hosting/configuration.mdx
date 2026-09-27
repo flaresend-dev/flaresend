@@ -1,0 +1,121 @@
+---
+title: Configuration
+description: Every variable, secret and binding the mailer Worker reads, and what changes when you set it.
+icon: Settings
+---
+
+The mailer's configuration lives in `apps/mailer/wrangler.jsonc` (deployed) and `apps/mailer/wrangler.dev.jsonc` (`pnpm dev`). Those files hold nothing specific to one account. Everything that is (the public URL, the account ID, keys and tokens) is a secret, set with `wrangler secret put` or by `pnpm bootstrap`.
+
+## Variables
+
+Set in `vars` in `wrangler.jsonc`.
+
+| Variable | Default in the repo | What it does |
+|---|---|---|
+| `ENVIRONMENT` | `production` | Anything other than `production` turns on `POST /v1/admin/dev/events`, the route that fakes Cloudflare delivery events. `wrangler.dev.jsonc` sets `development`. |
+| `BROADCAST_MAX_RECIPIENTS` | `500` | The most subscribed contacts a broadcast may go to. A value that isn't a positive number falls back to 500. |
+
+## Secrets
+
+| Secret | Required | What it does |
+|---|---|---|
+| `PUBLIC_BASE_URL` | Yes | The mailer's public URL, without a trailing slash, for example `https://mailer.example.com` or its `workers.dev` URL. Used to build open-tracking pixels (`/t/o/…`), click links (`/t/c/…`) and unsubscribe links (`/u/…`). `wrangler.dev.jsonc` sets it to `http://localhost:8787` as a var. |
+| `ADMIN_API_KEY` | Yes, for admin access | The Bearer token for every `/v1/admin/*` route and for the CLI. When it is not set, every admin request fails with `401 invalid_api_key`. Generate it with `openssl rand -base64 32`. |
+| `TRACKING_SECRET` | For tracking and unsubscribe | Signs open-tracking tokens and unsubscribe links. Without it, open tracking is skipped (a warning is logged), broadcasts go out without `List-Unsubscribe` headers, and `/u/:token` pages answer "Link not valid". Click tracking does not need it. |
+| `CF_API_TOKEN` | No | A Cloudflare API token for domain status, domain setup, and showing the mailer's URL in the dashboard. Sending never uses it: sending goes through the `EMAIL` binding. Without it, every domain's status is `unknown` and domain setup fails with `422 cf_token_missing`. |
+| `CF_ACCOUNT_ID` | With `CF_API_TOKEN` | Your account ID. Narrows the zone lookup (`GET /zones?name=…&account.id=…`) when the mailer checks or sets up a sending domain. Delivery-event subscriptions and the mailer's URL in the dashboard need it too. |
+
+Set them on the deployed Worker:
+
+```bash
+cd apps/mailer
+npx wrangler secret put PUBLIC_BASE_URL
+npx wrangler secret put ADMIN_API_KEY
+npx wrangler secret put TRACKING_SECRET
+npx wrangler secret put CF_API_TOKEN
+npx wrangler secret put CF_ACCOUNT_ID
+```
+
+For local development, put them in `apps/mailer/.dev.vars` (copy `.dev.vars.example`):
+
+```bash title="apps/mailer/.dev.vars"
+ADMIN_API_KEY=dev-admin-key
+TRACKING_SECRET=dev-tracking-secret
+CF_API_TOKEN=
+CF_ACCOUNT_ID=
+```
+
+### CF_API_TOKEN
+
+Create it in the Cloudflare dashboard under **My Profile → API Tokens → Create Token → Create Custom Token**. Under Zone Resources, pick **All zones from an account** and your account, so new domains work without editing the token.
+
+| Permission | Why |
+|---|---|
+| Zone → Zone → Read | `GET /zones?name=…` finds the zone that holds the domain |
+| Email Sending → Read | Reads the domain's sending status |
+| Email Sending → Edit | **Set up in Cloudflare** adds the domain to Email Sending |
+| DNS → Edit | **Set up in Cloudflare** adds the SPF, DKIM, return-path and DMARC records |
+| Queues → Edit | **Set up in Cloudflare** subscribes the domain's delivery events to `flaresend-events` |
+| Account → Workers Scripts → Read | The dashboard shows the mailer's URL (its custom domains and `workers.dev` address) on the API Keys and Settings pages |
+
+With only the two Read permissions, the status check works and setup doesn't. Domain setup only adds missing records. It never changes a DNS record that already exists; a clashing record is reported as a conflict for you to fix by hand. The DMARC record it adds is `v=DMARC1; p=none`, and only when neither the domain nor the zone apex already has one.
+
+<Callout type="warn">
+  Email Sending → Edit also allows sending mail from any onboarded domain in the account. Treat this token like a password.
+</Callout>
+
+Domain status is cached in the `domain_status` table for 10 minutes. `GET /v1/domains?refresh=1` checks again right away.
+
+## Bindings
+
+| Binding | Type | Points at |
+|---|---|---|
+| `EMAIL` | `send_email` | Cloudflare Email Service. Don't add `allowed_sender_addresses`: senders are restricted per project in code. |
+| `DB` | D1 | database `flaresend`, found by name (no `database_id` in the file), migrations in `apps/mailer/migrations` |
+| `PAYLOADS` | R2 | bucket `flaresend-payloads` |
+| `SEND_QUEUE` | Queue producer | `flaresend-send` |
+| `WEBHOOK_QUEUE` | Queue producer | `flaresend-webhooks` |
+| `RATE_LIMITER` | Rate limiting | namespace `1001`, 300 requests per 60 seconds |
+
+The mailer never produces to `flaresend-events`: Cloudflare puts delivery events there through the queue subscription you created during [deployment](/docs/self-hosting/deploy).
+
+## Queue consumers
+
+| Queue | `max_batch_size` | `max_batch_timeout` | `max_retries` | Other | Dead letter queue |
+|---|---|---|---|---|---|
+| `flaresend-send` | 10 | 2 s | 8 | `max_concurrency: 5` | `flaresend-dlq` |
+| `flaresend-events` | 50 | 5 s | 10 | | `flaresend-dlq` |
+| `flaresend-webhooks` | 10 | 2 s | 8 | | `flaresend-dlq` |
+| `flaresend-dlq` | 50 | | 0 | | |
+
+`max_concurrency: 5` on the send queue limits how many consumer invocations send at the same time. `wrangler.dev.jsonc` leaves it out. What each consumer does with failures is in [Architecture](/docs/self-hosting/architecture#queues).
+
+## Rate limiting
+
+```jsonc title="apps/mailer/wrangler.jsonc"
+"ratelimits": [
+  { "name": "RATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 300, "period": 60 } }
+]
+```
+
+This is a safety valve per project: every live send counts against the key `project.id`. Over the limit, the API returns `429 rate_limited` with `Retry-After: 60`. `period` can only be 10 or 60. Test-key sends don't count.
+
+The per-project daily limit is separate. It is stored on the project (`dailyLimit`, `0` means no limit), counted in D1 per UTC day, and returns `429 daily_limit_exceeded` when used up.
+
+## Cron
+
+```jsonc title="apps/mailer/wrangler.jsonc"
+"triggers": { "crons": ["*/5 * * * *"] }
+```
+
+Every 5 minutes the mailer queues scheduled emails due in the next 12 hours, sends the next chunk of every running broadcast, and rolls up yesterday's analytics once a day. See [Architecture](/docs/self-hosting/architecture#cron).
+
+## Other settings
+
+| Setting | Value | Why |
+|---|---|---|
+| `compatibility_date` | `2026-09-01` | |
+| `compatibility_flags` | `nodejs_compat` | Needed by React Email rendering |
+| `alias` | `prettier/standalone` and `prettier/plugins/html` → `src/stubs/prettier.ts` | Keeps prettier, which `@react-email/render` imports but never uses, out of the bundle |
+| `observability.enabled` | `true` | Workers Logs for `console.log` output |
+| `workers_dev` | `true` | The Worker is also reachable on `workers.dev` |

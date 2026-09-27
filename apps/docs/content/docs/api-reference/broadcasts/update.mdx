@@ -1,0 +1,133 @@
+---
+title: Update a broadcast
+description: Change a draft broadcast's audience, sender, subject or body.
+method: PATCH
+---
+
+<Endpoint method="PATCH" path="/v1/broadcasts/:id" />
+
+<ApiPage>
+<ApiMain>
+
+Only `draft` broadcasts can be edited. Once a broadcast is scheduled or sending, [cancel it](/docs/api-reference/broadcasts/cancel) and create a new one.
+
+Every field is optional; the ones you leave out keep their value.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="id" type="string" required>
+  The broadcast ID.
+</ParamField>
+
+</Fields>
+
+## Body parameters
+
+<Fields>
+
+<ParamField body="audienceId" type="string">
+  Send to a different audience.
+</ParamField>
+
+<ParamField body="from" type="string">
+  A new sender. Checked against the project's allowed domains and senders.
+</ParamField>
+
+<ParamField body="subject" type="string">
+  1 to 998 characters.
+</ParamField>
+
+<ParamField body="html" type="string">
+  The new HTML body.
+</ParamField>
+
+<ParamField body="text" type="string">
+  The new plain text body.
+</ParamField>
+
+</Fields>
+
+The same [per-contact variables](/docs/api-reference/broadcasts/create#per-contact-variables) work in `subject`, `html` and `text`.
+
+## Response
+
+The updated broadcast with `counts`, as in [Retrieve a broadcast](/docs/api-reference/broadcasts/retrieve#response).
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `invalid_body` | A field is malformed, or `from` is not a valid address. |
+| 403 | `invalid_sender` | `from` is not on the project's allowed domains or senders. |
+| 404 | `broadcast_not_found` | No broadcast with that ID in this project. |
+| 404 | `audience_not_found` | `audienceId` is not an audience in this project. |
+| 409 | `broadcast_not_draft` | The broadcast is not a draft. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const broadcast = await flaresend.broadcasts.update('bc_01K6C3D9G2J4L7N0Q3S5U8W1YZ', {
+  subject: 'You are in the beta, {{first_name}}',
+});
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X PATCH https://mailer.example.com/v1/broadcasts/bc_01K6C3D9G2J4L7N0Q3S5U8W1YZ \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "subject": "You are in the beta, {{first_name}}" }'
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "id": "bc_01K6C3D9G2J4L7N0Q3S5U8W1YZ",
+  "projectId": "proj_01K5Z8W2Q4R6T8V0X2Z4B6D8FG",
+  "audienceId": "aud_01K6C2A7F3H5J8K1M4N6P9Q2RS",
+  "from": "hello@acme.com",
+  "fromName": "Acme",
+  "subject": "You are in the beta, {{first_name}}",
+  "html": "<p>Hi {{first_name}}, …</p>",
+  "text": null,
+  "status": "draft",
+  "scheduledAt": null,
+  "startedAt": null,
+  "completedAt": null,
+  "total": 0,
+  "sent": 0,
+  "createdAt": "2026-09-26T10:10:00.000Z",
+  "updatedAt": "2026-09-26T10:12:00.000Z",
+  "counts": {}
+}
+```
+
+```json tab="409" tab-group="status"
+{
+  "error": {
+    "type": "conflict",
+    "code": "broadcast_not_draft",
+    "message": "only draft broadcasts can be edited",
+    "param": "id"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

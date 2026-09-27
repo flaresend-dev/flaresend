@@ -1,0 +1,169 @@
+---
+title: Send emails with Cloudflare Workers
+description: Call the mailer over a service binding with no API key, or over HTTP from any Worker.
+---
+
+A Worker can reach the mailer in two ways:
+
+- **RPC over a service binding.** For Workers in the **same Cloudflare account** as the mailer. No API key, no network hop, and no public URL needed.
+- **HTTP with an API key.** For Workers in other accounts, or when you need endpoints the RPC client doesn't have (webhooks, templates, contacts…).
+
+## RPC (service binding)
+
+### Prerequisites
+
+- The mailer Worker (`flaresend`) is deployed in the same account. See [Deploy](/docs/self-hosting/deploy).
+- Your project has RPC enabled. It is on by default (`rpcEnabled: true`). If it's off, every call fails with `403 rpc_disabled`.
+
+### 1. Add the binding
+
+```jsonc title="wrangler.jsonc"
+{
+  "services": [
+    { "binding": "MAILER", "service": "flaresend", "entrypoint": "MailerRpc" }
+  ]
+}
+```
+
+`entrypoint: "MailerRpc"` matters: it selects the mailer's RPC class instead of its HTTP handler.
+
+### 2. Install the client
+
+```bash tab="npm" tab-group="pm"
+npm install @flaresend/client
+```
+
+```bash tab="pnpm" tab-group="pm"
+pnpm add @flaresend/client
+```
+
+```bash tab="yarn" tab-group="pm"
+yarn add @flaresend/client
+```
+
+```bash tab="bun" tab-group="pm"
+bun add @flaresend/client
+```
+
+### 3. Send
+
+```ts title="src/index.ts"
+import { rpcClient, type MailerRpcBinding } from '@flaresend/client/rpc';
+
+interface Env {
+  MAILER: MailerRpcBinding;
+}
+
+export default {
+  async fetch(req: Request, env: Env): Promise<Response> {
+    const mail = rpcClient(env.MAILER, { project: 'acme' }); // the project slug
+
+    const { id } = await mail.send(
+      {
+        from: 'Acme <hello@acme.com>',
+        to: 'ada@example.com',
+        subject: 'Welcome to Acme',
+        html: '<p>Thanks for signing up.</p>',
+        text: 'Thanks for signing up.',
+      },
+      { idempotencyKey: 'welcome-42' },
+    );
+
+    const email = await mail.get(id); // EmailRecord, or null if it doesn't exist
+    return Response.json(email);
+  },
+};
+```
+
+There is no key: only Workers in the same account can bind to the mailer, so the project slug you pass is trusted. RPC sends always run in live mode.
+
+The RPC client has five methods:
+
+| Method | Does |
+|---|---|
+| `send(input, { idempotencyKey? })` | Send one email. The key is merged into `input.idempotencyKey`. |
+| `sendBatch(inputs)` | Up to 100 emails, results in input order. |
+| `get(emailId)` | One email with recipients and events, or `null`. |
+| `list(query?)` | Paginated list, same filters as [List emails](/docs/api-reference/emails/list). |
+| `cancel(emailId)` | Cancel a scheduled email. |
+
+RPC calls are **not retried** by the client. See [RPC client](/docs/sdk/rpc).
+
+### Errors over RPC
+
+Error classes don't survive a service binding, so the mailer encodes the error into the thrown message and the client rebuilds a `FlaresendError` with the same fields as the HTTP API:
+
+```ts
+import { FlaresendError } from '@flaresend/client/rpc';
+
+try {
+  await mail.send(input);
+} catch (err) {
+  if (err instanceof FlaresendError && err.code === 'recipient_suppressed') {
+    // err.type === 'unprocessable', err.param === the address
+  }
+  throw err;
+}
+```
+
+```json
+{
+  "type": "unprocessable",
+  "code": "recipient_suppressed",
+  "message": "ada@example.com is on the suppression list (hard_bounce)",
+  "param": "ada@example.com"
+}
+```
+
+## HTTP (API key)
+
+Use the HTTP client from a Worker exactly as from Node.js. Store the key as a secret:
+
+```bash
+npx wrangler secret put FLARESEND_API_KEY
+```
+
+```ts title="src/index.ts"
+import { Flaresend } from '@flaresend/client';
+
+interface Env {
+  FLARESEND_API_KEY: string;
+}
+
+export default {
+  async fetch(req: Request, env: Env): Promise<Response> {
+    const flaresend = new Flaresend({
+      apiKey: env.FLARESEND_API_KEY,
+      baseUrl: 'https://mailer.example.com',
+    });
+
+    const { id } = await flaresend.emails.send({
+      from: 'Acme <hello@acme.com>',
+      to: 'ada@example.com',
+      subject: 'Welcome to Acme',
+      text: 'Thanks for signing up.',
+    });
+
+    return Response.json({ id });
+  },
+};
+```
+
+The client always calls `fetch` with `globalThis` as its receiver, so it doesn't hit Workers' "Illegal invocation" error, even if you pass `fetch` in yourself.
+
+## Which one to use
+
+| | RPC | HTTP |
+|---|---|---|
+| Same account as the mailer | Yes | Yes |
+| Other account | No | Yes |
+| Needs an API key | No | Yes |
+| Methods | `send`, `sendBatch`, `get`, `list`, `cancel` | All endpoints |
+| Test mode | No, always live | Yes, with an `fs_test_` key |
+| Client retries | No | 429, 5xx and network errors |
+
+## Next steps
+
+- [Send with Hono](/docs/send-with/hono)
+- [RPC client reference](/docs/sdk/rpc)
+- [Verify webhooks in a Worker](/docs/webhooks/verify)

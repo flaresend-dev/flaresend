@@ -1,0 +1,117 @@
+---
+title: Architecture
+description: How the mailer Worker stores data, uses its queues, retries failures and what the cron job does.
+icon: Network
+---
+
+The mailer is one Worker with four handlers: `fetch` (the Hono HTTP app), `queue` (four consumers), `scheduled` (the cron job) and two RPC entrypoints, `MailerRpc` and `AdminRpc`. The HTTP API, RPC, batch sends, resends, scheduled sends and broadcasts all go through the same send function, so they validate and log the same way.
+
+<ArchitectureDiagram />
+
+## The path of one email
+
+1. **Accept.** The request is validated: sender against the project's allowed domains and senders, recipients, suppression list, headers, template, size, schedule. Then the idempotency key and the rate limits are checked.
+2. **Store.** The body goes to R2 at `payloads/{emailId}.json`. The `emails` row, one `email_recipients` row per address and the first `email_events` row are written in one D1 batch.
+3. **Queue.** `{ kind: "send", emailId, projectId, attempt: 0 }` goes on `flaresend-send`, and the API answers `202 queued`.
+4. **Send.** The send consumer claims the email (`status = 'sending'`), applies open and click tracking, calls `env.EMAIL.send()`, stores the returned `messageId` and sets `sent`.
+5. **Events.** Cloudflare publishes one event per recipient to `flaresend-events`. The events consumer updates the recipient, adds a timeline event, recomputes the email's status and mirrors hard bounces and complaints into `suppressions`.
+6. **Webhooks.** Every new timeline event that a webhook subscribes to becomes a `webhook_deliveries` row and a message on `flaresend-webhooks`.
+
+## D1 tables
+
+The schema is in `apps/mailer/migrations` (`0001_init.sql` to `0008_domain_senders.sql`).
+
+| Table | What it holds |
+|---|---|
+| `projects` | Slug, name, default sender, allowed domains and senders, per-domain default senders, RPC access, daily limit (default 5000), tracking and broadcast switches, `disabled_at` |
+| `api_keys` | Key name, mode (`live`/`test`), the first 12 characters, the SHA-256 hash, last use, expiry, revocation |
+| `emails` | One row per email: addresses, subject, text preview, tags, template, idempotency key and body hash, status, Cloudflare message ID, last error, attempts, timestamps |
+| `email_recipients` | One row per recipient, with its own status, provider, SMTP status and response, delivery time and bounce type |
+| `email_events` | The timeline: Flaresend's own events and Cloudflare's, deduplicated on `cloudflare_event_id` |
+| `orphan_events` | Cloudflare events that arrived before the email's message ID was stored |
+| `suppressions` | Addresses that won't be sent to: `hard_bounce`, `complaint` or `manual`. Shared by every project |
+| `daily_counts` | Emails sent per project per UTC day, for the daily limit |
+| `webhooks`, `webhook_deliveries` | Endpoints and every delivery attempt, with the exact JSON body sent |
+| `domain_status` | Cached Cloudflare verification status per domain (10 minutes) |
+| `templates`, `template_versions` | Templates edited in the dashboard or API, and their append-only history |
+| `email_links` | Tracked links and their click counts |
+| `contacts`, `audiences`, `audience_contacts`, `broadcasts` | Contacts and broadcasts |
+| `analytics_daily` | Rolled-up daily metrics per project |
+
+## R2
+
+| Key | What |
+|---|---|
+| `payloads/{emailId}.json` | The full body as sent: addresses, subject, HTML, text, headers and attachments (base64) |
+| `payloads/{emailId}.tracked.html` | The HTML with the tracking pixel and rewritten links, when tracking is on. The original is never changed. |
+
+The lifecycle rule from [deployment](/docs/self-hosting/deploy) deletes both after 30 days. From then on, reading the content or resending returns `404 content_expired`.
+
+## Queues
+
+### `flaresend-send`
+
+For each message, the consumer:
+
+1. Skips the email unless its status is `queued`, `sending` or `scheduled` (so a canceled email is never sent).
+2. Puts the message back if `scheduledAt` is more than 60 seconds away. This happens after a reschedule.
+3. Claims the email with a guarded `UPDATE`, so two messages for the same email can't both send it.
+4. Fails the email with `payload_missing` if the body isn't in R2.
+5. Sends, then sets `sent` and replays any parked events for the new message ID.
+
+When `send()` throws, the error code decides what happens:
+
+| Error | Result |
+|---|---|
+| `E_RATE_LIMIT_EXCEEDED`, `E_INTERNAL_SERVER_ERROR`, `E_DELIVERY_FAILED`, or no code (network) | Retried after `min(2^attempt × 15 s, 1 h)` plus up to 20% jitter. The email goes back to `queued` and gets an `email.retrying` event. |
+| `E_DAILY_LIMIT_EXCEEDED` | Retried after 1 hour. |
+| `E_RECIPIENT_SUPPRESSED` | Status `rejected`, and every recipient is added to `suppressions` as `hard_bounce`. |
+| Anything else | Status `failed` straight away. |
+
+After 8 retries the message goes to the dead letter queue.
+
+<Callout>
+  Whether `E_DELIVERY_FAILED` is really temporary hasn't been confirmed against real sends yet. If it turns out to be permanent, it should be removed from `RETRYABLE` in `apps/mailer/src/queue/send-consumer.ts`.
+</Callout>
+
+### `flaresend-events`
+
+Delivery events can arrive more than once and out of order. The consumer:
+
+- ignores an event whose `eventId` it has already stored,
+- never moves a recipient to a lower status (from lowest to highest: `deferred`, `delivered`, `failed` and `rejected`, `bounced`, `complained`),
+- recomputes the email's status in the same D1 batch, with the priority complained > bounced > rejected > failed > delivered (only when every recipient is delivered) > deferred,
+- adds hard bounces and complaints to `suppressions`.
+
+If no email has the event's message ID yet (the event beat the send consumer's write), the message is retried after 10, 20, 30, 40 and 50 seconds. After 6 attempts it is parked in `orphan_events`. When the send consumer later stores that message ID, it replays the parked events and deletes them.
+
+### `flaresend-webhooks`
+
+Each message is one delivery. The request is a `POST` with a 10-second timeout, and redirects are not followed. A `2xx` response is a success. Anything else is retried after 30 s, 2 min, 10 min, 30 min, 1 h, 3 h, 6 h and 12 h. Deliveries to a disabled or deleted webhook are marked failed without a request. See [Webhook retries](/docs/webhooks/retries).
+
+### `flaresend-dlq`
+
+Messages that ran out of retries on the other three queues end up here. The consumer never retries (`max_retries: 0`):
+
+| Message | What happens |
+|---|---|
+| Send | If the email is still `queued`, `sending` or `scheduled`, it becomes `failed` with `last_error_code = 'max_retries_exhausted'` and an `email.failed` event. |
+| Webhook delivery | The delivery is marked `failed`. |
+| Cloudflare event | Parked in `orphan_events`, so it can still be replayed if the email turns up. |
+
+## Cron
+
+`*/5 * * * *` runs three jobs side by side. One failing doesn't stop the others.
+
+| Job | What it does |
+|---|---|
+| Scheduled sends | Queues can only delay a message by 12 hours. A scheduled email further out is stored without a queue message. Each run picks up scheduled emails due within the next 12 hours that aren't queued yet (up to 10 rounds of 100) and queues them with the right delay. |
+| Broadcasts | Starts scheduled broadcasts whose time has come, then sends the next 100 contacts of up to 10 running broadcasts. A rate limit error pauses a broadcast until the next run. |
+| Analytics rollup | On the first run at or after 00:10 UTC, stores yesterday's per-project counts in `analytics_daily` and writes a `_done` marker so it runs once per day. Days that aren't rolled up yet are computed live. |
+
+## Rate limits
+
+- **Per-project safety valve:** the `RATE_LIMITER` binding allows 300 live sends per 60 seconds per project. Over it: `429 rate_limited` with `Retry-After: 60`.
+- **Daily limit:** a conditional upsert on `daily_counts` only increments while the count is under the project's `daily_limit`. Over it: `429 daily_limit_exceeded` until 00:00 UTC. `0` means no limit.
+
+Test-key sends skip both.

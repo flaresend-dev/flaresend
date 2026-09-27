@@ -1,0 +1,212 @@
+---
+title: Webhooks
+description: Get a signed HTTP request every time one of your emails is sent, delivered, bounced, opened or clicked.
+icon: Webhook
+---
+
+A webhook is a URL on your server that Flaresend calls when something happens to an email. Instead of polling [Retrieve an email](/docs/api-reference/emails/retrieve), you get a `POST` with a JSON body seconds after the event.
+
+Typical uses:
+
+- Mark a user's address as bad when a welcome email bounces.
+- Stop emailing someone who marked you as spam (Flaresend already [suppresses](/docs/deliverability/suppressions) them; your app may want to know too).
+- Record opens and clicks in your own analytics.
+- Alert on `email.failed`.
+
+## How it works
+
+1. You register an endpoint URL and pick the [event types](/docs/webhooks/event-types) it should receive.
+2. Flaresend creates a signing secret that starts with `whsec_`. It is shown once, when the webhook is created or its secret is rotated.
+3. Every time an email in the project gets a matching event, Flaresend queues one delivery per matching webhook and `POST`s the event to your URL.
+4. Your endpoint [checks the signature](/docs/webhooks/verify), handles the event, and answers with any `2xx` status within 10 seconds.
+5. Anything else is [retried](/docs/webhooks/retries) for about a day.
+
+Webhooks belong to a project. Only events for emails in that project are sent.
+
+## Create a webhook
+
+<Tabs items={['Dashboard', 'Node.js', 'cURL']}>
+<Tab value="Dashboard">
+
+Open your project, go to **Webhooks**, and click **Add webhook**. Enter the URL, pick the events, and save. Copy the signing secret from the dialog: it is not shown again.
+
+</Tab>
+<Tab value="Node.js">
+
+```ts
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const webhook = await flaresend.webhooks.create({
+  url: 'https://acme.com/api/flaresend-webhook',
+  events: ['email.delivered', 'email.bounced', 'email.complained'],
+});
+
+// Store this in your app's secrets. It is only returned here and on rotateSecret.
+console.log(webhook.secret); // whsec_...
+```
+
+</Tab>
+<Tab value="cURL">
+
+```bash
+curl -X POST https://mailer.example.com/v1/webhooks \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://acme.com/api/flaresend-webhook",
+    "events": ["email.delivered", "email.bounced", "email.complained"]
+  }'
+```
+
+</Tab>
+</Tabs>
+
+`events` defaults to `["*"]`, which means every event type. `enabled` defaults to `true`. The URL must start with `http://` or `https://`.
+
+See [Create a webhook](/docs/api-reference/webhooks/create) for the full request.
+
+## Handle the event
+
+Read the **raw** request body, verify the `Flaresend-Signature` header, then parse the JSON. Answer quickly: if your work is slow, store the event and process it in the background.
+
+<Tabs items={['Node.js (Express)', 'Cloudflare Workers', 'Next.js']} groupId="webhook-runtime" persist>
+<Tab value="Node.js (Express)">
+
+```ts
+import express from 'express';
+import { verifyWebhookSignature, type WebhookPayload } from '@flaresend/client';
+
+const app = express();
+
+// express.raw keeps the exact bytes. Do not use express.json() on this route.
+app.post('/api/flaresend-webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  const ok = await verifyWebhookSignature(
+    process.env.FLARESEND_WEBHOOK_SECRET!,
+    req.header('Flaresend-Signature'),
+    req.body, // a Buffer, which is a Uint8Array
+  );
+  if (!ok) return res.status(401).send('bad signature');
+
+  const event = JSON.parse(req.body.toString('utf8')) as WebhookPayload;
+
+  if (event.type === 'email.bounced') {
+    await markAddressBad(event.data.recipient);
+  }
+
+  res.sendStatus(200);
+});
+```
+
+</Tab>
+<Tab value="Cloudflare Workers">
+
+```ts
+import { verifyWebhookSignature } from '@flaresend/client/webhooks';
+import type { WebhookPayload } from '@flaresend/client';
+
+interface Env {
+  FLARESEND_WEBHOOK_SECRET: string;
+}
+
+export default {
+  async fetch(req: Request, env: Env, ctx: ExecutionContext) {
+    const raw = await req.text();
+    const ok = await verifyWebhookSignature(env.FLARESEND_WEBHOOK_SECRET, req.headers.get('Flaresend-Signature'), raw);
+    if (!ok) return new Response('bad signature', { status: 401 });
+
+    const event = JSON.parse(raw) as WebhookPayload;
+    ctx.waitUntil(handle(event)); // answer now, finish the work after
+    return new Response('ok');
+  },
+};
+```
+
+</Tab>
+<Tab value="Next.js">
+
+```ts title="app/api/flaresend-webhook/route.ts"
+import { verifyWebhookSignature, type WebhookPayload } from '@flaresend/client';
+
+export async function POST(req: Request) {
+  const raw = await req.text();
+  const ok = await verifyWebhookSignature(
+    process.env.FLARESEND_WEBHOOK_SECRET!,
+    req.headers.get('Flaresend-Signature'),
+    raw,
+  );
+  if (!ok) return new Response('bad signature', { status: 401 });
+
+  const event = JSON.parse(raw) as WebhookPayload;
+  switch (event.type) {
+    case 'email.delivered':
+      // ...
+      break;
+    case 'email.complained':
+      // ...
+      break;
+  }
+  return new Response('ok');
+}
+```
+
+</Tab>
+</Tabs>
+
+<Callout type="warn" title="Events can arrive more than once">
+  A delivery is retried when your endpoint doesn't answer with `2xx` in time, even if it did the work. Use the event `id` (also sent as the `Flaresend-Event-Id` header) to skip events you have already handled.
+</Callout>
+
+## The payload
+
+Every event has the same outer shape:
+
+```json
+{
+  "id": "evt_01K6B2ZC1W7Q3T9M4X8V2N5R6P",
+  "type": "email.delivered",
+  "createdAt": "2026-09-26T14:02:11.482Z",
+  "data": {
+    "emailId": "email_01K6B2Y4ZP9R3M7T8V5N2QXW4C",
+    "recipient": "ada@example.com",
+    "from": "hello@acme.com",
+    "subject": "Welcome to Acme",
+    "tags": { "kind": "welcome" },
+    "delivery": { "status": "delivered", "provider": "gmail", "deliveryTimeMs": 1234 }
+  }
+}
+```
+
+`data` always has `emailId`, `recipient` (or `null` when the event is about the whole email), `from`, `subject` and `tags`. The other fields depend on the type. [Event types](/docs/webhooks/event-types) lists them all.
+
+## Test it
+
+Send a test event from the dashboard (**Send test event** on the webhook's page) or with [`POST /v1/webhooks/:id/test`](/docs/api-reference/webhooks/test). It delivers a synthetic `email.delivered` event with `"test": true` in `data`, signed like a real one. The webhook must be enabled.
+
+## Manage webhooks
+
+| Task | API | SDK |
+|---|---|---|
+| List | [`GET /v1/webhooks`](/docs/api-reference/webhooks/list) | `flaresend.webhooks.list()` |
+| Change URL, events or on/off | [`PATCH /v1/webhooks/:id`](/docs/api-reference/webhooks/update) | `flaresend.webhooks.update(id, input)` |
+| New secret | [`POST /v1/webhooks/:id/rotate-secret`](/docs/api-reference/webhooks/rotate-secret) | `flaresend.webhooks.rotateSecret(id)` |
+| See recent attempts | [`GET /v1/webhooks/:id/deliveries`](/docs/api-reference/webhooks/deliveries) | `flaresend.webhooks.deliveries(id)` |
+| Delete | [`DELETE /v1/webhooks/:id`](/docs/api-reference/webhooks/delete) | `flaresend.webhooks.remove(id)` |
+
+Turning a webhook off (`enabled: false`) stops new deliveries. Deliveries still waiting for a retry are marked `failed` with the response body `webhook disabled` when their turn comes.
+
+<Cards>
+  <Card title="Event types" href="/docs/webhooks/event-types">
+    Every event and what its `data` contains.
+  </Card>
+  <Card title="Verify signatures" href="/docs/webhooks/verify">
+    The signing algorithm, with Node.js, Python and Go code.
+  </Card>
+  <Card title="Retries" href="/docs/webhooks/retries">
+    Timeouts, the retry schedule and the deliveries log.
+  </Card>
+</Cards>

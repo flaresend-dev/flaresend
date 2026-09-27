@@ -1,0 +1,100 @@
+---
+title: Local development
+description: Run the mailer on your machine, fake delivery events, and run the tests.
+icon: Laptop
+---
+
+## Set up
+
+From the repo root:
+
+```bash
+pnpm install
+pnpm build        # builds the packages the mailer imports (turbo)
+```
+
+Then in `apps/mailer`:
+
+```bash
+cp .dev.vars.example .dev.vars
+npx wrangler d1 migrations apply flaresend --local
+```
+
+`.dev.vars.example` sets `ADMIN_API_KEY=dev-admin-key`, `TRACKING_SECRET=dev-tracking-secret`, and empty `CF_API_TOKEN` and `CF_ACCOUNT_ID`. Fill in those two only to try domain status and setup against your real account. `pnpm migrate:local` in `apps/mailer` runs the same migration command.
+
+## Two ways to run it
+
+<Tabs items={['No real email', 'Real email']}>
+<Tab value="No real email">
+
+```bash
+cd apps/mailer
+npx wrangler dev --var ENVIRONMENT:development
+```
+
+Uses `wrangler.jsonc` with a local `send_email` binding. Nothing is delivered: emails reach `sent` with a fake message ID. Good for API and dashboard work.
+
+`--var ENVIRONMENT:development` matters: `wrangler.jsonc` says `production`, which turns off the fake-events route below.
+
+</Tab>
+<Tab value="Real email">
+
+```bash
+cd apps/mailer
+pnpm dev
+```
+
+Uses `wrangler.dev.jsonc`, which sets `"remote": true` on `send_email`, so **real emails are sent** through your Cloudflare account. It also sets `ENVIRONMENT` to `development` and `PUBLIC_BASE_URL` to `http://localhost:8787`.
+
+<Callout type="warn">
+  Only send to addresses you control. Never put `"remote": true` in `wrangler.jsonc`. Binary attachments don't work with `remote: true`; deploy to test them.
+</Callout>
+
+</Tab>
+</Tabs>
+
+Either way the mailer listens on `http://localhost:8787`. Create a project and key with the [CLI](/docs/self-hosting/cli) or the admin API:
+
+```bash
+export FLARESEND_BASE_URL=http://localhost:8787 FLARESEND_ADMIN_KEY=dev-admin-key
+flaresend projects create --slug acme --name Acme --domains acme.com --default-from "Acme <hello@acme.com>"
+flaresend keys create --project acme --name local --mode live
+```
+
+## Fake delivery events
+
+Cloudflare's event subscriptions don't deliver to `wrangler dev`, so emails stop at `sent`. Push them further with a fake event:
+
+```bash
+pnpm dev:event delivered <emailId>    # from the repo root
+```
+
+The other types are `deferred`, `bounced`, `failed`, `rejected` and `complained`. This runs `flaresend dev event`, which posts a Cloudflare-shaped event per recipient to `POST /v1/admin/dev/events`. That route answers `404` when `ENVIRONMENT` is `production`. Options are in the [CLI reference](/docs/self-hosting/cli#fake-delivery-events-development).
+
+The events go through the same code as real ones, so status updates, suppressions and webhooks all run.
+
+## Run the dashboard against it
+
+See [Dashboard → Run it locally](/docs/self-hosting/dashboard#run-it-locally).
+
+## Tests
+
+```bash
+pnpm test         # every package (turbo)
+pnpm typecheck
+```
+
+Or one package:
+
+```bash
+pnpm --filter @flaresend/mailer test
+pnpm --filter @flaresend/client test
+```
+
+The mailer's tests run inside workerd with `@cloudflare/vitest-pool-workers`. They apply the D1 migrations to a fresh database and use `ADMIN_API_KEY=test-admin-key` and `TRACKING_SECRET=test-tracking-secret`. Sample Cloudflare events are in `apps/mailer/test/fixtures/cf-events`.
+
+## The docs site
+
+```bash
+pnpm --filter @flaresend/docs dev     # http://localhost:3217
+```

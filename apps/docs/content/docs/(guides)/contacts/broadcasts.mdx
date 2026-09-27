@@ -1,0 +1,151 @@
+---
+title: Broadcasts
+description: Send one personalized email to every subscribed contact in an audience. For small, opted-in lists only.
+icon: Radio
+---
+
+A broadcast is one email (subject, HTML, optional text) sent to every subscribed contact in one [audience](/docs/contacts/audiences), with each contact's name and data filled in. Flaresend sends it in the background and adds a one-click unsubscribe link to every copy.
+
+<Callout type="warn" title="Transactional email only">
+  Cloudflare Email Service is for transactional email. Its terms don't permit marketing or bulk campaigns. Broadcasts in Flaresend exist for small lists of people who asked for the email, like a beta group or release notes for your own users. That is why they are **off by default** and **capped at 500 recipients** per broadcast.
+</Callout>
+
+## Turn broadcasts on
+
+Broadcasts are disabled per project until you turn them on. Until then, creating or sending a broadcast fails with `403 broadcasts_disabled`.
+
+- **Dashboard:** project **Settings**, then turn on broadcasts.
+- **Admin API:** [`PATCH /v1/admin/projects/:slug`](/docs/api-reference/admin/update-project) with `{ "broadcastsEnabled": true }`.
+
+The recipient cap is the mailer's `BROADCAST_MAX_RECIPIENTS` variable (default `500`). It applies to the number of subscribed contacts in the audience when you press send. See [Configuration](/docs/self-hosting/configuration).
+
+Also set the `TRACKING_SECRET` secret on the mailer. Without it, broadcasts go out **without** unsubscribe links and headers. See [Unsubscribe](/docs/contacts/unsubscribe).
+
+## Lifecycle
+
+| Status | Meaning |
+|---|---|
+| `draft` | Created, can be edited. |
+| `scheduled` | Send was called with a `scheduledAt` in the future. |
+| `sending` | Being sent in batches. |
+| `sent` | Every contact has been handled. |
+| `canceled` | Stopped. Nothing more is sent. |
+
+Only drafts can be edited. `scheduled`, `sending` and `draft` broadcasts can be canceled. A `scheduled` or `sending` broadcast can't be deleted until you cancel it (`409 broadcast_active`).
+
+## Create and send
+
+<Steps>
+<Step>
+
+### Create a draft
+
+```ts tab="Node.js" tab-group="lang"
+const broadcast = await flaresend.broadcasts.create({
+  audienceId: 'aud_01K6B4F7R2M9T5Q1V8X3N6P4WD',
+  from: 'Acme <hello@acme.com>',
+  subject: 'What shipped in September, {{first_name}}',
+  html: '<p>Hi {{first_name}},</p><p>Here is what is new…</p><p><a href="{{unsubscribe_url}}">Unsubscribe</a></p>',
+  text: 'Hi {{first_name}},\n\nHere is what is new…\n\nUnsubscribe: {{unsubscribe_url}}',
+});
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/broadcasts \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "audienceId": "aud_01K6B4F7R2M9T5Q1V8X3N6P4WD",
+    "from": "Acme <hello@acme.com>",
+    "subject": "What shipped in September, {{first_name}}",
+    "html": "<p>Hi {{first_name}},</p><p>Here is what is new…</p>"
+  }'
+```
+
+`from` is checked against the project's allowed domains and senders, the same as a normal send. `subject` is 1–998 characters and `html` is required.
+
+</Step>
+<Step>
+
+### Send it, now or later
+
+```ts
+await flaresend.broadcasts.send(broadcast.id);
+// or
+await flaresend.broadcasts.send(broadcast.id, { scheduledAt: '2026-10-01T09:00:00Z' });
+```
+
+Send fails when the audience has no subscribed contacts (`400 invalid_body`) or more than the cap (`400 too_many_recipients`). `scheduledAt` follows the same rules as [scheduled emails](/docs/emails/scheduling): in the future and at most 30 days ahead.
+
+</Step>
+<Step>
+
+### Watch it go
+
+```ts
+const b = await flaresend.broadcasts.get(broadcast.id);
+b.status; // 'sending'
+b.total;  // subscribed contacts when it started
+b.sent;   // emails queued so far
+b.counts; // { queued: 12, delivered: 80, bounced: 1 }: the broadcast's emails by status
+```
+
+The dashboard's broadcast page shows the same numbers and refreshes every 5 seconds while sending.
+
+</Step>
+</Steps>
+
+## How sending works
+
+A cron job runs every 5 minutes. On each run it:
+
+1. Moves broadcasts whose `scheduledAt` has passed from `scheduled` to `sending`.
+2. For up to 10 `sending` broadcasts, takes the next **100** contacts in the audience and sends each one an email.
+
+So a broadcast starts within about 5 minutes of being sent or of its scheduled time, and goes out at up to 100 emails per 5 minutes. A 500-contact broadcast takes about 25 minutes.
+
+For each contact:
+
+- Contacts that are `unsubscribed` or on the [suppression list](/docs/deliverability/suppressions) are skipped.
+- The email is a normal send: it appears in your email log, fires webhooks, and counts toward the project's daily limit. It is tagged `broadcast_id: <id>`, so you can [filter the email list](/docs/api-reference/emails/list) with `tag=broadcast_id:bc_…`.
+- Each email has the idempotency key `bc:<broadcastId>:<contactId>`, so a contact never gets the same broadcast twice, even if a run is repeated.
+- If the project hits its rate limit or daily limit, the run stops there and the next run carries on from the same contact.
+- Any other error for one contact (for example an address that fails validation) is logged and that contact is skipped.
+
+Canceling stops the next runs. Emails already queued before you canceled still go out.
+
+If the project is disabled or broadcasts are turned off while one is sending, the broadcast is canceled on the next run.
+
+## Personalize
+
+Subject, HTML and text are [Mustache-style templates](/docs/templates/custom#syntax), rendered once per contact with these variables:
+
+| Variable | Value |
+|---|---|
+| `{{first_name}}` | The contact's first name, or empty |
+| `{{last_name}}` | The contact's last name, or empty |
+| `{{email}}` | The contact's address |
+| `{{unsubscribe_url}}` | The contact's unsubscribe link. Only set when the mailer has `TRACKING_SECRET` |
+| Any key of the contact's `data` | For example `{{plan}}` for `data: { plan: 'pro' }` |
+
+`first_name`, `last_name`, `email` and `unsubscribe_url` win over keys with the same name in `data`. In HTML, values are HTML-escaped; use `{{{triple braces}}}` to insert raw HTML. `{{#if plan}}…{{else}}…{{/if}}` and `{{#each list}}…{{/each}}` work too.
+
+## Edit, cancel, delete
+
+```ts
+await flaresend.broadcasts.update(id, { subject: 'New subject' }); // drafts only, else 409 broadcast_not_draft
+await flaresend.broadcasts.cancel(id);                             // draft, scheduled or sending
+await flaresend.broadcasts.remove(id);                             // not while scheduled or sending
+```
+
+## API
+
+| Task | Endpoint | SDK |
+|---|---|---|
+| Create a draft | [`POST /v1/broadcasts`](/docs/api-reference/broadcasts/create) | `broadcasts.create(input)` |
+| List | [`GET /v1/broadcasts`](/docs/api-reference/broadcasts/list) | `broadcasts.list()` |
+| Get one, with counts | [`GET /v1/broadcasts/:id`](/docs/api-reference/broadcasts/retrieve) | `broadcasts.get(id)` |
+| Edit a draft | [`PATCH /v1/broadcasts/:id`](/docs/api-reference/broadcasts/update) | `broadcasts.update(id, input)` |
+| Delete | [`DELETE /v1/broadcasts/:id`](/docs/api-reference/broadcasts/delete) | `broadcasts.remove(id)` |
+| Send or schedule | [`POST /v1/broadcasts/:id/send`](/docs/api-reference/broadcasts/send) | `broadcasts.send(id, { scheduledAt? })` |
+| Cancel | [`POST /v1/broadcasts/:id/cancel`](/docs/api-reference/broadcasts/cancel) | `broadcasts.cancel(id)` |

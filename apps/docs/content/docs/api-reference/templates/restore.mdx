@@ -1,0 +1,109 @@
+---
+title: Restore a template version
+description: Bring back an older version of a stored template as a new version.
+method: POST
+---
+
+<Endpoint method="POST" path="/v1/templates/:name/restore" />
+
+<ApiPage>
+<ApiMain>
+
+Copies the subject, HTML, text and variables of an older version into a **new** version. History is never rewritten: restoring version 2 of a template that is at version 5 creates version 6 with the content of version 2. Sends use it straight away.
+
+Like [Update a template](/docs/api-reference/templates/update), this fails with `409 template_conflict` if the template changes while the restore runs.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="name" type="string" required>
+  The template name.
+</ParamField>
+
+</Fields>
+
+## Body parameters
+
+<Fields>
+
+<ParamField body="version" type="number" required>
+  The version to restore, a whole number from 1. See [List template versions](/docs/api-reference/templates/versions).
+</ParamField>
+
+</Fields>
+
+## Response
+
+The template at its new version. Same fields as [Retrieve a template](/docs/api-reference/templates/retrieve).
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `missing_body` | The request has no body. |
+| 400 | `invalid_body` | `version` is missing or not a whole number of at least 1. |
+| 404 | `template_not_found` | No stored template with this name. Built-in templates also return this. |
+| 404 | `template_version_not_found` | The template has no such version. |
+| 409 | `template_conflict` | The template changed while the restore ran. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const template = await flaresend.templates.restore('order-shipped', 2);
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/templates/order-shipped/restore \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "version": 2 }'
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "id": "tmpl_01K6B5A7C9E1G3J5L7N9Q1S3U5",
+  "source": "db",
+  "projectId": "proj_01K6A9W2E4R6T8Y0U2I4O6P8A0",
+  "name": "order-shipped",
+  "subject": "Good news: order {{order.number}} has shipped",
+  "html": "<p>Hi {{first_name}}, your order has shipped.</p>",
+  "text": null,
+  "variables": [
+    { "name": "first_name", "required": true, "example": "Ada" }
+  ],
+  "version": 6,
+  "createdAt": "2026-09-26T10:00:00.000Z",
+  "updatedAt": "2026-09-30T08:45:00.000Z"
+}
+```
+
+```json tab="404" tab-group="status"
+{
+  "error": {
+    "type": "not_found",
+    "code": "template_version_not_found",
+    "message": "version 9 not found",
+    "param": "version"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

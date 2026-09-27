@@ -1,0 +1,100 @@
+---
+title: List API keys
+description: Every API key, across all projects or for one project, newest first.
+method: GET
+---
+
+<Endpoint method="GET" path="/v1/admin/api-keys" auth="admin" />
+
+<ApiPage>
+<ApiMain>
+
+Returns keys newest first, revoked and expired ones included. The full key is never returned, only its `prefix`. The list is not paginated.
+
+A project can list its own keys with its API key through [`GET /v1/api-keys`](/docs/api-reference/api-keys/list).
+
+## Query parameters
+
+<Fields>
+
+<ParamField query="project" type="string">
+  A project slug. Without it, keys from every project are returned.
+</ParamField>
+
+</Fields>
+
+## Response
+
+<Fields>
+
+<ResponseField name="data" type="ApiKey[]">
+  The keys. Each has `id`, `projectId`, `name`, `mode`, `prefix`, `lastUsedAt`, `createdAt`, `revokedAt` and `expiresAt`, as described in [Create an API key](/docs/api-reference/admin/create-api-key#response).
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `project_not_found` | `project` is set and no project has that slug. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+const res = await fetch(
+  'https://mailer.example.com/v1/admin/api-keys?project=acme',
+  { headers: { Authorization: `Bearer ${process.env.FLARESEND_ADMIN_KEY}` } },
+);
+const { data: keys } = await res.json();
+```
+
+```bash tab="cURL" tab-group="lang"
+curl "https://mailer.example.com/v1/admin/api-keys?project=acme" \
+  -H "Authorization: Bearer $FLARESEND_ADMIN_KEY"
+```
+
+```bash tab="CLI" tab-group="lang"
+flaresend keys list --project acme
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "data": [
+    {
+      "id": "key_01K6B1T8W2N5R7X9Q3M6V4ZP8H",
+      "projectId": "proj_01K6B1QZ3M8H2V5T7R9N4XW6CD",
+      "name": "production-web",
+      "mode": "live",
+      "prefix": "fs_live_7Hq2",
+      "lastUsedAt": "2026-09-26T14:02:11.000Z",
+      "createdAt": "2026-09-26T10:05:00.000Z",
+      "revokedAt": null,
+      "expiresAt": null
+    },
+    {
+      "id": "key_01K6B1S4F7K2P9T5W8N3R6XQ1D",
+      "projectId": "proj_01K6B1QZ3M8H2V5T7R9N4XW6CD",
+      "name": "ci",
+      "mode": "test",
+      "prefix": "fs_test_Pz81",
+      "lastUsedAt": null,
+      "createdAt": "2026-09-26T10:03:00.000Z",
+      "revokedAt": null,
+      "expiresAt": "2027-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

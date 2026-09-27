@@ -1,0 +1,1 @@
+{ "title": "Templates", "icon": "LayoutTemplate", "pages": ["create", "list", "retrieve", "update", "delete", "versions", "restore", "render"] }

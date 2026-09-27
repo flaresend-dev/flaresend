@@ -1,0 +1,107 @@
+---
+title: Contacts
+description: Store the people you send broadcasts to, with their names, your own data and their unsubscribe state.
+icon: Contact
+---
+
+A contact is one email address in a project, with an optional first and last name, any extra data you want to use in broadcasts, and an `unsubscribed` flag. Contacts exist for [broadcasts](/docs/contacts/broadcasts). Transactional sends with [`POST /v1/emails`](/docs/api-reference/emails/send) don't need or use them.
+
+Each project has its own contacts. An address can be a contact in two projects at once, with separate data and unsubscribe state.
+
+## The contact record
+
+```json
+{
+  "id": "ct_01K6B4D2M8Q5T1V9X3N7R2P4WE",
+  "projectId": "proj_01K6A9W3N5R8T2M6Q1V4X7P9ZB",
+  "email": "ada@example.com",
+  "firstName": "Ada",
+  "lastName": "Lovelace",
+  "unsubscribed": false,
+  "data": { "plan": "pro", "company": "Analytical Engines" },
+  "createdAt": "2026-09-26T09:12:44.018Z",
+  "updatedAt": "2026-09-26T09:12:44.018Z"
+}
+```
+
+| Field | Rules |
+|---|---|
+| `email` | Required. Trimmed and lowercased. Unique within the project. |
+| `firstName`, `lastName` | Up to 200 characters, or `null`. |
+| `unsubscribed` | `true` means broadcasts skip this contact. Set by you or by the contact clicking an [unsubscribe link](/docs/contacts/unsubscribe). |
+| `data` | Any JSON object, or `null`. Its top-level keys become [broadcast variables](/docs/contacts/broadcasts#personalize). |
+
+## Add or update a contact
+
+Creating a contact is an **upsert** by email: if the address already exists in the project, the existing contact is updated and returned with the same ID.
+
+```ts tab="Node.js" tab-group="lang"
+const contact = await flaresend.contacts.create({
+  email: 'ada@example.com',
+  firstName: 'Ada',
+  lastName: 'Lovelace',
+  data: { plan: 'pro' },
+});
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/contacts \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "email": "ada@example.com", "firstName": "Ada", "lastName": "Lovelace", "data": { "plan": "pro" } }'
+```
+
+On an upsert, fields you leave out or send as `null` keep their stored value. `unsubscribed` changes only when you send it. `data` replaces the stored object as a whole; it is not merged key by key.
+
+To change one contact by ID, use [`PATCH /v1/contacts/:id`](/docs/api-reference/contacts/update). There, sending `null` does clear a field.
+
+## Import many at once
+
+[`POST /v1/contacts/import`](/docs/api-reference/contacts/import) takes a JSON array of up to **5,000** contacts and upserts each one the same way. If the same email appears twice in one import, the last one wins.
+
+```ts
+const { created, updated } = await flaresend.contacts.import([
+  { email: 'ada@example.com', firstName: 'Ada' },
+  { email: 'grace@example.com', firstName: 'Grace', data: { plan: 'team' } },
+]);
+```
+
+### From a CSV file
+
+The dashboard's **Contacts** page has a CSV import. The first row must be a header with an `email` column (`e-mail`, `email_address` and `emailaddress` also work). Other known columns:
+
+| Column | Also accepted | Becomes |
+|---|---|---|
+| `first_name` | `firstname`, `first` | `firstName` |
+| `last_name` | `lastname`, `last` | `lastName` |
+| `unsubscribed` | | `true` for `1`, `true`, `yes` or `y` |
+
+Every other non-empty column is stored in `data` as a string, under the header name in lowercase with spaces turned into `_`. Rows with an invalid email are skipped and listed as errors.
+
+## List and search
+
+```ts
+const page = await flaresend.contacts.list({ q: 'lovelace', limit: 50 });
+const next = page.nextCursor ? await flaresend.contacts.list({ q: 'lovelace', cursor: page.nextCursor }) : null;
+```
+
+`q` matches part of the email, first name or last name. Results are newest first and [paginated](/docs/api-reference/pagination) with `limit` (1–100, default 25) and `cursor`.
+
+## Delete a contact
+
+[`DELETE /v1/contacts/:id`](/docs/api-reference/contacts/delete) removes the contact and takes it out of every audience. Emails already sent to it stay in the email log.
+
+<Callout type="info" title="Unsubscribe instead of deleting">
+  If someone asked to stop receiving broadcasts, set `unsubscribed: true` rather than deleting them. A deleted contact can be imported again by accident; an unsubscribed one stays skipped.
+</Callout>
+
+## API
+
+| Task | Endpoint | SDK |
+|---|---|---|
+| Add or update | [`POST /v1/contacts`](/docs/api-reference/contacts/create) | `contacts.create(input)` |
+| List | [`GET /v1/contacts`](/docs/api-reference/contacts/list) | `contacts.list(query)` |
+| Get one | [`GET /v1/contacts/:id`](/docs/api-reference/contacts/retrieve) | `contacts.get(id)` |
+| Update | [`PATCH /v1/contacts/:id`](/docs/api-reference/contacts/update) | `contacts.update(id, input)` |
+| Delete | [`DELETE /v1/contacts/:id`](/docs/api-reference/contacts/delete) | `contacts.remove(id)` |
+| Import | [`POST /v1/contacts/import`](/docs/api-reference/contacts/import) | `contacts.import(list)` |

@@ -1,0 +1,92 @@
+---
+title: Open and click tracking
+description: Count opens with a tracking pixel and clicks with rewritten links.
+icon: MousePointerClick
+---
+
+Tracking is off unless you turn it on. It only applies to emails with an HTML body.
+
+## Turn it on
+
+Each project has two defaults, **Open tracking** and **Click tracking**, under **Settings → Tracking** in the dashboard (`trackOpens` and `trackClicks` on the project). Any send can override them:
+
+```ts tab="Node.js" tab-group="lang"
+await flaresend.emails.send({
+  from: 'Acme <hello@acme.com>',
+  to: 'ada@example.com',
+  subject: 'New features in October',
+  html: '<p>Read about them <a href="https://acme.com/blog/october">on our blog</a>.</p>',
+  trackOpens: true,
+  trackClicks: true,
+});
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/emails \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "from": "Acme <hello@acme.com>",
+    "to": "ada@example.com",
+    "subject": "New features in October",
+    "html": "<p>Read about them <a href=\"https://acme.com/blog/october\">on our blog</a>.</p>",
+    "trackOpens": true,
+    "trackClicks": true
+  }'
+```
+
+```ts tab="Worker (RPC)" tab-group="lang"
+await mail.send({
+  from: 'Acme <hello@acme.com>',
+  to: 'ada@example.com',
+  subject: 'New features in October',
+  html,
+  trackOpens: true,
+  trackClicks: true,
+});
+```
+
+The email record shows what was applied in `trackOpens` and `trackClicks`. Both are `false` for a text-only email, whatever you asked for.
+
+## How opens are tracked
+
+Just before sending, Flaresend adds a 1×1 transparent image to the HTML, before `</body>` (or at the end if there is no `</body>`). Its URL is `<PUBLIC_BASE_URL>/t/o/<token>`, where the token is an HMAC of the email ID.
+
+When a mail client loads the image:
+
+- The **first** load sets `openedAt` on the email and adds an `email.opened` event with the `User-Agent` in its data. That event goes to webhooks subscribed to `email.opened`.
+- Later loads return the image and record nothing. An email has at most one `email.opened` event.
+
+<Callout type="warn" title="Needs TRACKING_SECRET">
+  The open token is signed with the mailer's `TRACKING_SECRET`. If that secret isn't set, open tracking is skipped (with a warning in the Worker logs) and the email is sent without a pixel. Click tracking doesn't need it. See [Configuration](/docs/self-hosting/configuration).
+</Callout>
+
+## How clicks are tracked
+
+Flaresend rewrites the `href` of every `<a>` tag to `<PUBLIC_BASE_URL>/t/c/<token>`, and stores the original URL. A click records the event and answers with a `302` redirect to the original URL.
+
+Links that are **not** rewritten:
+
+- Anything that isn't `http://` or `https://`: `mailto:`, `tel:`, `#anchors` and relative links.
+- URLs that still contain `{{`, such as an unrendered template variable.
+- Links that already point at the mailer itself (tracking and unsubscribe links).
+
+Every click is recorded, not just the first. Each one adds an `email.clicked` event with the `url` and `User-Agent`, increases that link's click count, and sets `firstClickedAt` on the email the first time. A token that doesn't exist returns `404`; the click route never redirects to a URL it didn't store.
+
+## What doesn't change
+
+- The original HTML you sent is stored untouched. The tracked copy is stored next to it, and [Retrieve email content](/docs/api-reference/emails/content) returns both (`html` and `trackedHtml`).
+- If the send is retried, the same tracked copy is reused, so links aren't rewritten twice.
+
+## Accuracy and privacy
+
+- **Opens are an estimate.** Many clients block remote images, so real opens are missed. Others (for example Apple Mail Privacy Protection and some security scanners) load images automatically, so an "open" can happen without a person reading the email.
+- **Clicks can come from scanners too.** Link-checking software in some mail systems follows links before the recipient does.
+- Tracking adds your mailer's domain to every link, which some spam filters look at. For password resets, sign-in links and other security email, leave click tracking off.
+- Tracking records when and from which user agent an email was opened or clicked. Tell your users if your privacy policy requires it.
+
+## Reading the numbers
+
+- Per email: `openedAt`, `firstClickedAt` and the `email.opened` / `email.clicked` events on [Retrieve an email](/docs/api-reference/emails/retrieve).
+- Per project: `opened` and `clicked` in [Analytics](/docs/api-reference/analytics/retrieve).
+- Live: subscribe a [webhook](/docs/webhooks) to `email.opened` and `email.clicked`.

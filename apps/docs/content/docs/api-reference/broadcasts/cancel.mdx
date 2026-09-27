@@ -1,0 +1,104 @@
+---
+title: Cancel a broadcast
+description: Stop a draft, scheduled or sending broadcast.
+method: POST
+---
+
+<Endpoint method="POST" path="/v1/broadcasts/:id/cancel" />
+
+<ApiPage>
+<ApiMain>
+
+Sets the broadcast to `canceled`. Works on `draft`, `scheduled` and `sending` broadcasts.
+
+For a broadcast that is already `sending`, cancel stops it from starting another batch of contacts. Emails it already queued are not recalled, and a batch that is being processed at that moment finishes. `sent` and `counts` show how far it got.
+
+A canceled broadcast can't be restarted. Create a new one to send again; contacts who already received the old one are not skipped by the new one, because it has a different ID.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="id" type="string" required>
+  The broadcast ID.
+</ParamField>
+
+</Fields>
+
+## Response
+
+The broadcast with `status: "canceled"` and `counts`, as in [Retrieve a broadcast](/docs/api-reference/broadcasts/retrieve#response).
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `broadcast_not_found` | No broadcast with that ID in this project. |
+| 409 | `not_cancelable` | The broadcast is already `sent` or `canceled`. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const broadcast = await flaresend.broadcasts.cancel('bc_01K6C3D9G2J4L7N0Q3S5U8W1YZ');
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/broadcasts/bc_01K6C3D9G2J4L7N0Q3S5U8W1YZ/cancel \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "id": "bc_01K6C3D9G2J4L7N0Q3S5U8W1YZ",
+  "projectId": "proj_01K5Z8W2Q4R6T8V0X2Z4B6D8FG",
+  "audienceId": "aud_01K6C2A7F3H5J8K1M4N6P9Q2RS",
+  "from": "hello@acme.com",
+  "fromName": "Acme",
+  "subject": "The beta is open, {{first_name}}",
+  "html": "<p>Hi {{first_name}}, …</p>",
+  "text": null,
+  "status": "canceled",
+  "scheduledAt": null,
+  "startedAt": "2026-09-26T10:15:00.000Z",
+  "completedAt": null,
+  "total": 420,
+  "sent": 200,
+  "createdAt": "2026-09-26T10:10:00.000Z",
+  "updatedAt": "2026-09-26T10:22:00.000Z",
+  "counts": {
+    "delivered": 187,
+    "sent": 12,
+    "deferred": 1
+  }
+}
+```
+
+```json tab="409" tab-group="status"
+{
+  "error": {
+    "type": "conflict",
+    "code": "not_cancelable",
+    "message": "broadcast is already sent",
+    "param": "id"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

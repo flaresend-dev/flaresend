@@ -1,0 +1,141 @@
+---
+title: Retrieve a template
+description: One template by name. Built-in templates come back rendered with their example data.
+method: GET
+---
+
+<Endpoint method="GET" path="/v1/templates/:name" />
+
+<ApiPage>
+<ApiMain>
+
+Looks the name up the same way a send does: a template stored in the project first, then the [built-in templates](/docs/templates/built-in).
+
+- A **stored** template comes back as saved, with its variables unrendered and its current `version`.
+- A **built-in** template comes back with `subject`, `html` and `text` rendered from its example data, so you can see what it looks like. `id`, `version` and the timestamps are `null`.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="name" type="string" required>
+  The template name, for example `order-shipped` or `welcome`.
+</ParamField>
+
+</Fields>
+
+## Response
+
+<Fields>
+
+<ResponseField name="id" type="string | null">
+  `tmpl_…` for stored templates, `null` for built-in ones.
+</ResponseField>
+
+<ResponseField name="source" type="'db' | 'git'">
+  `db` for stored templates, `git` for built-in ones.
+</ResponseField>
+
+<ResponseField name="projectId" type="string | null">
+  `null` for built-in templates.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  The template name.
+</ResponseField>
+
+<ResponseField name="subject" type="string">
+  Stored: the unrendered subject. Built-in: the subject rendered from the example data.
+</ResponseField>
+
+<ResponseField name="html" type="string | null">
+  Stored: the unrendered HTML. Built-in: the rendered HTML.
+</ResponseField>
+
+<ResponseField name="text" type="string | null">
+  Stored: the text body or `null`. Built-in: the rendered plain text.
+</ResponseField>
+
+<ResponseField name="variables" type="Variable[]">
+  `{ name, required, example }` for each variable.
+</ResponseField>
+
+<ResponseField name="version" type="number | null">
+  The current version of a stored template. `null` for built-in ones.
+</ResponseField>
+
+<ResponseField name="createdAt" type="string | null">
+  ISO 8601 timestamp, or `null` for built-in templates.
+</ResponseField>
+
+<ResponseField name="updatedAt" type="string | null">
+  ISO 8601 timestamp, or `null` for built-in templates.
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `template_not_found` | No stored or built-in template with this name. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const template = await flaresend.templates.get('order-shipped');
+```
+
+```bash tab="cURL" tab-group="lang"
+curl https://mailer.example.com/v1/templates/order-shipped \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "id": "tmpl_01K6B5A7C9E1G3J5L7N9Q1S3U5",
+  "source": "db",
+  "projectId": "proj_01K6A9W2E4R6T8Y0U2I4O6P8A0",
+  "name": "order-shipped",
+  "subject": "Order {{order.number}} is on its way",
+  "html": "<p>Hi {{first_name}}, your order has shipped.</p>",
+  "text": null,
+  "variables": [
+    { "name": "first_name", "required": true, "example": "Ada" },
+    { "name": "order.number", "required": true, "example": "1042" }
+  ],
+  "version": 3,
+  "createdAt": "2026-09-26T10:00:00.000Z",
+  "updatedAt": "2026-09-27T09:12:00.000Z"
+}
+```
+
+```json tab="404" tab-group="status"
+{
+  "error": {
+    "type": "not_found",
+    "code": "template_not_found",
+    "message": "template \"order-shiped\" not found",
+    "param": "name"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

@@ -1,0 +1,123 @@
+---
+title: API keys
+description: Project keys authenticate REST calls. Live keys send; test keys record the email and never send it.
+icon: KeyRound
+---
+
+Every REST call to `/v1/*` (except the admin routes) needs a project API key in the `Authorization` header:
+
+```http
+Authorization: Bearer fs_live_Xa9...32 characters
+```
+
+The key decides the project. There is no project parameter in the REST API.
+
+## Live and test keys
+
+| | `fs_live_…` | `fs_test_…` |
+|---|---|---|
+| Sends email | Yes | **No** |
+| Stored in the email log | Yes, as a normal email | Yes, with status `test` |
+| Response to a send | `202 { status: "queued" }` | `200 { status: "test" }` |
+| Validation (sender, headers, size, template data) | Yes | Yes |
+| Suppression check | Yes | Skipped |
+| Rate limit and daily limit | Counted | Not counted |
+| Webhooks | Fired | Not fired (`email.test` is not a webhook event) |
+| Other endpoints (list, templates, webhooks, contacts…) | Work normally | Work normally, on the same project's data |
+
+Use a test key in CI and local development to exercise your email code without sending anything. See [Test mode](/docs/emails/test-mode).
+
+## Key format and storage
+
+A key is `fs_live_` or `fs_test_` followed by 32 random letters and digits. Flaresend stores only:
+
+- The first 12 characters (`prefix`, for example `fs_live_Xa9Q`), so you can tell keys apart.
+- A SHA-256 hash of the full key, to check requests.
+
+The full key is shown **once**, when it is created. If you lose it, create a new one and revoke the old one.
+
+## Create a key
+
+Keys are created with admin rights.
+
+<Tabs items={['Dashboard', 'CLI', 'Admin API']}>
+<Tab value="Dashboard">
+
+Open the project, go to **API Keys**, click **Create API key**, pick a name and **live** or **test**, and optionally an expiry date. Copy the key from the next dialog.
+
+</Tab>
+<Tab value="CLI">
+
+```bash
+flaresend keys create --project acme --name production --mode live
+flaresend keys create --project acme --name ci --mode test --expires-at 2027-01-01T00:00:00Z
+```
+
+The key is printed once, in a box.
+
+</Tab>
+<Tab value="Admin API">
+
+```bash
+curl -X POST https://mailer.example.com/v1/admin/projects/acme/api-keys \
+  -H "Authorization: Bearer $FLARESEND_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "production", "mode": "live" }'
+```
+
+```json
+{
+  "id": "key_01K6A9Y2P7R4T1M8Q5V3X6N9ZC",
+  "projectId": "proj_01K6A9W3N5R8T2M6Q1V4X7P9ZB",
+  "name": "production",
+  "mode": "live",
+  "prefix": "fs_live_Xa9Q",
+  "lastUsedAt": null,
+  "createdAt": "2026-09-25T10:05:00.000Z",
+  "revokedAt": null,
+  "expiresAt": null,
+  "key": "fs_live_Xa9Q..."
+}
+```
+
+See [Create an API key](/docs/api-reference/admin/create-api-key).
+
+</Tab>
+</Tabs>
+
+| Field | Rules |
+|---|---|
+| `name` | 1–200 characters. For your own reference, like the app and environment. |
+| `mode` | `live` or `test`. |
+| `expiresAt` | Optional ISO 8601 date-time with offset, in the future. After it, requests fail with `401 expired_api_key`. |
+
+## Rename, revoke, list
+
+- **Rename:** the key's menu in the dashboard, `flaresend keys rename <id> <name>`, or `PATCH /v1/admin/api-keys/:id`.
+- **Revoke:** **Revoke key** in the dashboard, `flaresend keys revoke <id>`, or `DELETE /v1/admin/api-keys/:id`. Takes effect on the next request: it fails with `401 revoked_api_key`. Revoking can't be undone.
+- **List:** a project key can list its own project's keys with [`GET /v1/api-keys`](/docs/api-reference/api-keys/list) (never the full keys). The admin key lists all keys with `GET /v1/admin/api-keys?project=acme`.
+
+`lastUsedAt` is updated at most once a minute per key, so it can lag by up to 60 seconds.
+
+## Authentication errors
+
+All return status `401` with type `authentication_error`:
+
+| Code | Cause |
+|---|---|
+| `missing_api_key` | No `Authorization: Bearer …` header. |
+| `invalid_api_key` | Not a well-formed key, or no key with that hash. |
+| `revoked_api_key` | The key was revoked. |
+| `expired_api_key` | `expiresAt` has passed. |
+
+A valid key for a paused project gets `403 project_disabled`.
+
+## Keep keys safe
+
+- Keep keys on the server. Never ship one in browser or mobile code: anyone who has it can send email as your domain.
+- Use one key per app and environment, so you can revoke one without touching the others.
+- Workers in the same Cloudflare account don't need a key at all: use [RPC](/docs/sdk/rpc) over a service binding.
+
+## The admin key
+
+The admin key is different: it is the mailer's `ADMIN_API_KEY` secret, it works on `/v1/admin/*` only, and it can act on every project. Keep it for the dashboard, the CLI and your own ops scripts. See [Admin API](/docs/api-reference/admin).

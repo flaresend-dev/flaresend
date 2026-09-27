@@ -1,0 +1,1 @@
+{ "title": "Audiences", "icon": "Users", "pages": ["create", "list", "retrieve", "update", "delete", "list-contacts", "add-contacts", "remove-contacts"] }

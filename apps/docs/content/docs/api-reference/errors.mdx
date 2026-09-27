@@ -1,0 +1,162 @@
+---
+title: Errors
+description: The error body, the eight error types, and every error code the API returns.
+icon: TriangleAlert
+---
+
+Flaresend uses normal HTTP status codes: `2xx` for success, `4xx` when the request is wrong, `5xx` when something failed on the mailer's side. Every error has the same JSON body.
+
+## Error body
+
+```json
+{
+  "error": {
+    "type": "validation_error",
+    "code": "too_many_recipients",
+    "message": "at most 50 recipients (to + cc + bcc) per email",
+    "param": "to"
+  }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `type` | One of the eight types below. The HTTP status follows from it. |
+| `code` | A short machine-readable name for the exact problem. Branch on this in your code. |
+| `message` | A sentence for people. It can change between versions, so don't parse it. |
+| `param` | The field at fault, when there is one: `from`, `to`, `attachments.0.content`, `headers.X-Foo`, or a suppressed address. Not always present. |
+
+The response also has an `X-Request-Id` header. Include it when you report a problem.
+
+## Error types
+
+| Type | Status | Meaning |
+|---|---|---|
+| `validation_error` | 400 | The request is malformed or breaks a limit. Fix the request; retrying won't help. |
+| `authentication_error` | 401 | The key is missing, wrong, revoked or expired. |
+| `permission_error` | 403 | The key is valid but can't do this, for example send from a domain the project doesn't own. |
+| `not_found` | 404 | The thing you asked for doesn't exist in this project, or the route doesn't exist. |
+| `conflict` | 409 | The request clashes with the current state, for example canceling an email that already went out. |
+| `unprocessable` | 422 | The request is well formed but can't be done, for example sending to a suppressed address. |
+| `rate_limit_error` | 429 | Too many sends. Wait and retry. |
+| `internal_error` | 500 | Something failed inside the mailer. Safe to retry with the same idempotency key. |
+
+## Error codes
+
+### validation_error (400)
+
+| Code | When |
+|---|---|
+| `missing_body` | The route needs a JSON body and none was sent. |
+| `invalid_body` | The body isn't valid JSON, a field is missing or has the wrong type, an address is malformed, or `from` is missing and the project has no default sender. `param` names the field. |
+| `invalid_query` | A query parameter is wrong, for example `limit=500` or a `since` without a time zone. |
+| `too_many_recipients` | More than 50 unique addresses across `to`, `cc` and `bcc`, or a broadcast audience larger than the broadcast cap. |
+| `invalid_header` | A custom header uses a reserved name, contains a line break, or breaks a size limit. |
+| `invalid_attachment` | Attachment content isn't base64, an inline attachment has no `contentId`, or a filename has a line break or `"`. |
+| `payload_too_large` | The email, attachments included, is over 5 MiB. |
+| `invalid_schedule` | `scheduledAt` isn't a date, is in the past, or is more than 30 days ahead. |
+| `invalid_template` | A stored template has a syntax error, such as an unclosed `{{#if}}`. |
+| `invalid_template_data` | `data` is missing a variable the template requires, or doesn't match a built-in template's schema. |
+
+### authentication_error (401)
+
+| Code | When |
+|---|---|
+| `missing_api_key` | No `Authorization: Bearer …` header. |
+| `invalid_api_key` | The key doesn't exist or isn't in the right format. Also returned for a wrong admin key. |
+| `revoked_api_key` | The key was revoked. |
+| `expired_api_key` | The key's expiry time has passed. |
+
+### permission_error (403)
+
+| Code | When |
+|---|---|
+| `invalid_sender` | `from` isn't on one of the project's allowed domains, or isn't in its allowed senders list. |
+| `project_disabled` | The project is disabled. |
+| `rpc_disabled` | An RPC call for a project with `rpcEnabled: false`. |
+| `broadcasts_disabled` | A broadcast call for a project that doesn't have broadcasts enabled. |
+| `admin_only` | Domain setup called with a project key. It needs the admin key. |
+
+### not_found (404)
+
+| Code | When |
+|---|---|
+| `route_not_found` | No route matches the method and path. |
+| `email_not_found` | No email with that ID in this project. |
+| `content_expired` | The email exists, but its body was deleted. Bodies are kept for 30 days. |
+| `template_not_found` | No stored or built-in template with that name. |
+| `template_version_not_found` | The template has no such version. |
+| `webhook_not_found` | No webhook with that ID in this project. |
+| `contact_not_found` | No contact with that ID in this project. |
+| `audience_not_found` | No audience with that ID in this project. |
+| `broadcast_not_found` | No broadcast with that ID in this project. |
+| `project_not_found` | Admin API or RPC: no project with that slug. |
+| `api_key_not_found` | Admin API: no key with that ID. |
+| `domain_not_in_project` | Admin API: the domain isn't one of the project's allowed domains. |
+| `not_found` | Admin API: the dev events route was called on a production mailer. |
+
+### conflict (409)
+
+| Code | When |
+|---|---|
+| `idempotency_payload_mismatch` | The idempotency key was already used with a different body. |
+| `not_cancelable` | The email isn't scheduled any more (so it can't be canceled or moved), or the broadcast already finished. |
+| `template_exists` | A stored template with that name already exists. |
+| `template_conflict` | Someone else changed the template at the same moment. Reload and retry. |
+| `webhook_disabled` | You tried to send a test event to a disabled webhook. |
+| `audience_exists` | An audience with that name already exists. |
+| `audience_in_use` | The audience has a scheduled or sending broadcast. |
+| `broadcast_not_draft` | Only draft broadcasts can be edited or sent. |
+| `broadcast_active` | A scheduled or sending broadcast can't be deleted. Cancel it first. |
+| `slug_taken` | Admin API: a project with that slug already exists. |
+
+### unprocessable (422)
+
+| Code | When |
+|---|---|
+| `recipient_suppressed` | A recipient is on the suppression list. `param` is the address. See [Suppressions](/docs/deliverability/suppressions). |
+| `cf_token_missing` | Admin API: domain setup needs the mailer's `CF_API_TOKEN` secret. |
+| `zone_not_found` | Admin API: the token can't see a Cloudflare zone for the domain. |
+| `cloudflare_api_error` | Admin API: a Cloudflare API call during domain setup failed. |
+
+### rate_limit_error (429)
+
+| Code | When |
+|---|---|
+| `rate_limited` | The project sent too many emails in the last minute. The response has `Retry-After: 60`. |
+| `daily_limit_exceeded` | The project reached its daily limit. It resets at 00:00 UTC. |
+
+See [Rate limits](/docs/api-reference/rate-limits).
+
+### internal_error (500)
+
+| Code | When |
+|---|---|
+| `internal` | An unexpected error, or the email couldn't be put on the send queue (in which case it's marked `failed` and wasn't sent). The mailer logs the details with the request ID. |
+
+## Errors made by the client
+
+The [`@flaresend/client`](/docs/sdk/errors) package throws a `FlaresendError` with the same `type`, `code`, `message`, `param` and `status`. It adds three codes of its own:
+
+| Code | Type | `status` | When |
+|---|---|---|---|
+| `http_<status>` | `internal_error` | The response status | The response was an error but its body wasn't Flaresend's error JSON, for example a proxy's HTML page. |
+| `network_error` | `internal_error` | `0` | No response after every retry: DNS failure, connection reset, and so on. |
+| `invalid_response` | `internal_error` | The response status | A `2xx` response whose body isn't JSON. |
+
+## Errors over RPC
+
+Custom error properties don't survive a Cloudflare service binding, only the message does. So the mailer puts the error into the message, as `FLARESEND_ERROR:` followed by the error JSON, and the RPC client turns it back into a `FlaresendError`. Its `status` comes from the type, since there is no HTTP response. If you call the binding without the client, decode it yourself with `decodeRpcError` from `@flaresend/types`.
+
+```ts
+import { FlaresendError } from '@flaresend/client/rpc';
+
+try {
+  await mail.send({ to: 'ada@example.com', subject: 'Hi', text: 'Hello' });
+} catch (e) {
+  if (e instanceof FlaresendError && e.code === 'recipient_suppressed') {
+    // e.param is the suppressed address
+  }
+  throw e;
+}
+```

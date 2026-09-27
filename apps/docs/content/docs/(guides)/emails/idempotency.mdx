@@ -1,0 +1,80 @@
+---
+title: Idempotency
+description: Retry a send as often as you like without the email going out twice.
+icon: ShieldCheck
+---
+
+Networks fail. A request can time out after Flaresend has already accepted the email, and if you simply retry, the recipient gets it twice. An **idempotency key** prevents that: Flaresend remembers the key, and a repeat request with the same key returns the first email instead of creating a new one.
+
+## Send a key
+
+Use the `Idempotency-Key` header, or the `idempotencyKey` body field if you can't set headers. When both are sent, the header wins.
+
+```ts tab="Node.js" tab-group="lang"
+await flaresend.emails.send(
+  {
+    from: 'Acme <hello@acme.com>',
+    to: user.email,
+    subject: 'Welcome to Acme',
+    template: 'welcome',
+    data: { name: user.name, appName: 'Acme', loginUrl },
+  },
+  { idempotencyKey: `welcome-${user.id}` },
+);
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X POST https://mailer.example.com/v1/emails \
+  -H "Authorization: Bearer $FLARESEND_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: welcome-42" \
+  -d '{ "to": "ada@example.com", "template": "welcome", "data": { "name": "Ada", "appName": "Acme", "loginUrl": "https://acme.com/login" } }'
+```
+
+```ts tab="Worker (RPC)" tab-group="lang"
+// Merged into input.idempotencyKey (the option wins if both are set).
+await mail.send(input, { idempotencyKey: `welcome-${user.id}` });
+```
+
+Keys are 1 to 256 characters.
+
+## What happens on a repeat
+
+| Request | Result |
+|---|---|
+| New key | The email is created as normal. `202`. |
+| Same key, same body | Nothing new is created. `200` with the **first** email's ID, its status (`queued`, `scheduled` or `test`) and `idempotent: true`. |
+| Same key, different body | `409 idempotency_payload_mismatch`. Nothing is sent. |
+
+```json
+{ "id": "email_01K6B2Y4ZP9R3M7T8V5N2QXW4C", "status": "queued", "idempotent": true }
+```
+
+"Same body" is decided by a SHA-256 hash of the parsed request, with object keys sorted and the key itself left out. So the order of fields in your JSON doesn't matter, but any change to a value does. A repeat returns `status: "queued"` even if the first email has since been sent or delivered; call [Retrieve an email](/docs/api-reference/emails/retrieve) for its current status.
+
+Two requests with the same key that arrive at the same moment are also safe: one creates the email, and the other gets the replay.
+
+## Scope and lifetime
+
+- Keys belong to a **project**. The same key in two projects creates two emails.
+- Keys **never expire**. `welcome-42` can only ever send one welcome email in that project.
+- Keys are checked before the rate limit and daily limit, so a replay doesn't use up either.
+
+## Automatic keys in the Node.js client
+
+`flaresend.emails.send` and `flaresend.emails.sendBatch` always send a key. If you don't pass one, the client makes a random one for that call (`auto_<uuid>`) and reuses it on its own retries. That makes the client's retries after a timeout or `5xx` safe with no work from you.
+
+An automatic key only covers one call. To stop duplicates across separate calls (a double click, a job that runs twice, a queue that redelivers), pass your own key made from something stable:
+
+| Situation | Good key |
+|---|---|
+| Welcome email | `welcome-${user.id}` |
+| Receipt | `receipt-${order.id}` |
+| Password reset | `reset-${resetToken.id}` |
+| Daily digest | `digest-${user.id}-${date}` |
+
+The RPC client does not retry and does not add keys. Pass one yourself if the calling code can run twice.
+
+## Batches
+
+A batch `Idempotency-Key` is stored per item as `<key>:<index>`. See [Batch sending](/docs/emails/batch#idempotency).

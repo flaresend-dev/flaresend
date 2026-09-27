@@ -1,0 +1,7 @@
+ADMIN_API_KEY=dev-admin-key
+TRACKING_SECRET=dev-tracking-secret
+# Optional. Only needed to try domain status and setup, or the dashboard's mailer URL, against your real account.
+CF_API_TOKEN=
+CF_ACCOUNT_ID=
+# wrangler.dev.jsonc already sets this; listed here so `wrangler types` types it as a string.
+PUBLIC_BASE_URL=http://localhost:8787

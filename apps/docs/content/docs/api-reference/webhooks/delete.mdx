@@ -1,0 +1,79 @@
+---
+title: Delete a webhook
+description: Remove a webhook and its delivery history.
+method: DELETE
+---
+
+<Endpoint method="DELETE" path="/v1/webhooks/:id" />
+
+<ApiPage>
+<ApiMain>
+
+Deletes the webhook and every delivery record it has. This can't be undone. Deliveries still waiting in the queue are dropped when their turn comes, so nothing more is sent to the endpoint. To stop deliveries but keep the history, [update](/docs/api-reference/webhooks/update) the webhook with `enabled: false` instead.
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="id" type="string" required>
+  The webhook ID.
+</ParamField>
+
+</Fields>
+
+## Response
+
+<Fields>
+
+<ResponseField name="id" type="string">
+  The ID of the deleted webhook.
+</ResponseField>
+
+<ResponseField name="deleted" type="true">
+  Always `true`.
+</ResponseField>
+
+</Fields>
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `webhook_not_found` | No webhook with this ID in the project. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+await flaresend.webhooks.remove('wh_01K6B3C8R2M5T7V9X1Z3B5D7F9');
+```
+
+```bash tab="cURL" tab-group="lang"
+curl -X DELETE https://mailer.example.com/v1/webhooks/wh_01K6B3C8R2M5T7V9X1Z3B5D7F9 \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "id": "wh_01K6B3C8R2M5T7V9X1Z3B5D7F9",
+  "deleted": true
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>

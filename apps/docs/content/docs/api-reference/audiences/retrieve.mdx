@@ -1,0 +1,83 @@
+---
+title: Retrieve an audience
+description: Get one audience and its contact count.
+method: GET
+---
+
+<Endpoint method="GET" path="/v1/audiences/:id" />
+
+<ApiPage>
+<ApiMain>
+
+Returns one audience. To see who is in it, use [List audience contacts](/docs/api-reference/audiences/list-contacts).
+
+## Path parameters
+
+<Fields>
+
+<ParamField path="id" type="string" required>
+  The audience ID, for example `aud_01K6C2A7F3H5J8K1M4N6P9Q2RS`.
+</ParamField>
+
+</Fields>
+
+## Response
+
+The audience, with the fields described in [Create an audience](/docs/api-reference/audiences/create#response).
+
+## Errors
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `audience_not_found` | No audience with that ID in this project. |
+
+</ApiMain>
+<ApiAside>
+
+<ApiExample title="Request">
+
+```ts tab="Node.js" tab-group="lang"
+import { Flaresend } from '@flaresend/client';
+
+const flaresend = new Flaresend({
+  apiKey: process.env.FLARESEND_API_KEY!,
+  baseUrl: 'https://mailer.example.com',
+});
+
+const audience = await flaresend.audiences.get('aud_01K6C2A7F3H5J8K1M4N6P9Q2RS');
+```
+
+```bash tab="cURL" tab-group="lang"
+curl https://mailer.example.com/v1/audiences/aud_01K6C2A7F3H5J8K1M4N6P9Q2RS \
+  -H "Authorization: Bearer $FLARESEND_API_KEY"
+```
+
+</ApiExample>
+
+<ApiExample title="Response">
+
+```json tab="200" tab-group="status"
+{
+  "id": "aud_01K6C2A7F3H5J8K1M4N6P9Q2RS",
+  "projectId": "proj_01K5Z8W2Q4R6T8V0X2Z4B6D8FG",
+  "name": "Beta testers",
+  "contactCount": 42,
+  "createdAt": "2026-09-26T10:05:00.000Z"
+}
+```
+
+```json tab="404" tab-group="status"
+{
+  "error": {
+    "type": "not_found",
+    "code": "audience_not_found",
+    "message": "audience aud_01K6C2A7F3H5J8K1M4N6P9Q2RS not found",
+    "param": "id"
+  }
+}
+```
+
+</ApiExample>
+
+</ApiAside>
+</ApiPage>
