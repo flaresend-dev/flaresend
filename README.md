@@ -35,7 +35,7 @@ Flaresend is an email API you deploy to Cloudflare. Your apps send over REST fro
 ### Before you start
 
 - **A Cloudflare account on the Workers Paid plan** ($5 a month). Cloudflare Email Service only sends to any address on the paid plan. On the free plan it can only send to addresses verified in your own account.
-- **A domain whose DNS is on Cloudflare**, in that account. This is the domain you send from, like `acme.com`.
+- **A domain whose DNS is on Cloudflare**, in that account. This is the domain you send from, like `acme.com`. Cloudflare Email Service [requires Cloudflare DNS](https://developers.cloudflare.com/email-service/get-started/send-emails/), so a domain on Route 53 or Namecheap DNS won't work. It can stay registered there; just point its nameservers at Cloudflare.
 - **Node.js 22 and pnpm 10.** If you have Node but not pnpm, run `corepack enable`.
 - **macOS, Linux or WSL.** On Windows, run everything below inside WSL (`wsl --install`, then open Ubuntu). The dashboard does not build on plain Windows.
 

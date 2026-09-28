@@ -170,7 +170,7 @@ const FAQ: Array<{ q: string; a: ReactNode }> = [
   },
   {
     q: 'Do my domains have to be on Cloudflare?',
-    a: 'Cloudflare’s docs say Email Service needs the domain’s DNS on Cloudflare. On those zones Flaresend adds the SPF and DKIM records for you.',
+    a: 'Their DNS does. Cloudflare Email Service only works with domains that use Cloudflare DNS, so a domain on Route 53 or Namecheap DNS cannot send. It can stay registered there: point its nameservers at Cloudflare. Flaresend then adds the SPF, DKIM and DMARC records for you.',
   },
   {
     q: 'Can other Workers send without an API key?',

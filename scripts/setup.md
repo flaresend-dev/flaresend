@@ -42,7 +42,7 @@ Email bodies in R2 are deleted after 30 days by that lifecycle rule. After that,
 
 ### 3. Onboard each sending domain
 
-Repeat for every domain a project will send from. On zones that use Cloudflare DNS this adds the SPF and DKIM records for you.
+Repeat for every domain a project will send from. The domain's DNS must be on Cloudflare, in this account: Cloudflare Email Service [requires Cloudflare DNS](https://developers.cloudflare.com/email-service/get-started/send-emails/). This adds the SPF and DKIM records for you.
 
 ```bash
 npx wrangler email sending enable acme.com

@@ -8,7 +8,7 @@ This is the one-time setup. A script does almost all of it. The same steps by ha
 
 ## Quick setup
 
-You need a Cloudflare account on the Workers Paid plan, a sending domain whose DNS is on Cloudflare in that account, Node.js 22 and pnpm 10 (`corepack enable` installs pnpm). Run it on macOS, Linux or WSL. On plain Windows the mailer deploys but the dashboard does not build.
+You need a Cloudflare account on the Workers Paid plan, a sending domain whose DNS is on Cloudflare in that account ([Cloudflare Email Service requires it](https://developers.cloudflare.com/email-service/get-started/send-emails/)), Node.js 22 and pnpm 10 (`corepack enable` installs pnpm). Run it on macOS, Linux or WSL. On plain Windows the mailer deploys but the dashboard does not build.
 
 ```bash
 git clone https://github.com/flaresend-dev/flaresend.git
@@ -59,7 +59,7 @@ The lifecycle rule deletes email bodies from R2 after 30 days. After that, [`GET
 
 ### Onboard each sending domain
 
-Repeat this for every domain a project will send from. On zones that use Cloudflare DNS, it adds the SPF and DKIM records for you.
+Repeat this for every domain a project will send from. The domain's DNS must be on Cloudflare, in this account; Cloudflare Email Service does not work with DNS hosted elsewhere. It adds the SPF and DKIM records for you.
 
 ```bash
 npx wrangler email sending enable acme.com

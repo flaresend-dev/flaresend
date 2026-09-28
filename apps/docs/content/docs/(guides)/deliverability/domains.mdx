@@ -11,8 +11,10 @@ Every address you send from must be on a domain that is both:
 
 The first is a Flaresend setting. The second happens in your Cloudflare account. Flaresend can do it for you, or you can do it with `wrangler`.
 
-<Callout type="info" title="The domain's DNS must be on Cloudflare">
-  Cloudflare's docs say Email Service needs the domain's DNS on Cloudflare. A domain whose DNS is hosted elsewhere may not work at all.
+<Callout type="warn" title="The domain's DNS must be on Cloudflare">
+  This is Cloudflare's rule, not Flaresend's: ["You must be using Cloudflare DNS to use Email Service."](https://developers.cloudflare.com/email-service/get-started/send-emails/) A domain whose DNS is on Route 53, Namecheap or another provider cannot be onboarded, so Flaresend cannot send from it.
+
+  The domain can stay registered where it is. Add it to Cloudflare (the free plan is enough), check that Cloudflare copied all its existing DNS records, then change the domain's nameservers at your registrar to the two Cloudflare gives you. See Cloudflare's [Onboard a domain](https://developers.cloudflare.com/fundamentals/manage-domains/add-site/). The zone must be in the same Cloudflare account as the mailer.
 </Callout>
 
 ## What DNS records are needed

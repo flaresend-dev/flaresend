@@ -57,7 +57,7 @@ These need a real Cloudflare account and real sends, so they are **not verified 
 - **A1** One `messageId` per `send()` call, and every per-recipient event carries it. Test: send one email to 2 addresses you control and check both `email_recipients` rows move to `delivered`. If each recipient gets its own id, move `cloudflare_message_id` to `email_recipients`. **Answer:** _not yet checked_
 - **A2** `E_DELIVERY_FAILED` is transient. If it turns out to be terminal, move it out of `RETRYABLE` in `apps/mailer/src/queue/send-consumer.ts`. **Answer:** _not yet checked_
 - **A3** Events are delivered at least once, possibly out of order. Already handled: dedupe on `eventId`, no downgrades (covered by tests).
-- **A4** `wrangler email sending enable` adds DNS records on Cloudflare zones. Cloudflare's current docs say Email Service requires Cloudflare DNS, so domains with DNS elsewhere may not work at all. **Answer:** _not yet checked_
+- **A4** `wrangler email sending enable` adds DNS records on Cloudflare zones. Does a domain with DNS elsewhere work? **Answer:** no. Cloudflare's docs say "You must be using Cloudflare DNS to use Email Service." ([Send emails](https://developers.cloudflare.com/email-service/get-started/send-emails/), checked 2026-09-28). The docs tell users to move the domain's nameservers to Cloudflare.
 
 ## Implementation notes
 
