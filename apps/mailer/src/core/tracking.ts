@@ -15,7 +15,8 @@ export interface TrackedLink {
 }
 
 function decodeEntities(s: string): string {
-  return s.replace(/&amp;/g, "&").replace(/&#38;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+  const values: Record<string, string> = { "&amp;": "&", "&#38;": "&", "&quot;": '"', "&#39;": "'" };
+  return s.replace(/&(?:amp|#38|quot|#39);/g, (entity) => values[entity] ?? entity);
 }
 
 export function shouldTrackUrl(url: string, baseUrl: string): boolean {

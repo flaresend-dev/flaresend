@@ -42,13 +42,13 @@ const TOKEN_PERMISSIONS = [
   ["Account → Workers Scripts → Read", "show the mailer's URL in the dashboard", { key: "workers_scripts", type: "read" }],
 ];
 
-/** The token page with the permissions above already ticked, scoped to this account and all its zones. */
-const tokenUrl = (account) =>
+/** The token page with the permissions above already ticked, scoped to this account and the sending zone. */
+const tokenUrl = (account, zoneId) =>
   "https://dash.cloudflare.com/profile/api-tokens?" +
   new URLSearchParams({
     permissionGroupKeys: JSON.stringify(TOKEN_PERMISSIONS.map(([, , p]) => p)),
     accountId: account,
-    zoneId: "all",
+    zoneId,
     name: "Flaresend mailer",
   });
 
@@ -412,11 +412,12 @@ async function main() {
   if (mailerSecrets.has("CF_API_TOKEN") && (await confirm("The mailer already has a CF_API_TOKEN. Keep it?"))) {
     ok("keeping the existing token");
   } else {
-    const url = tokenUrl(accountId);
+    if (!zone) fail("no sending zone was found in this account; check the project domains before you create a token.");
+    const url = tokenUrl(accountId, zone.id);
     info("The mailer uses this token at runtime to onboard domains and check their status.");
     info("Opening the token page with the permissions filled in. Check it has all of these, then Continue → Create Token:");
     for (const [perm, why] of TOKEN_PERMISSIONS) info(`  • ${perm.padEnd(34)} ${dim(why)}`);
-    info(`Zone Resources: All zones from an account → ${account.name}.`);
+    info(`Zone Resources: Specific zone - ${zone.name}. Add more zones to the token before you onboard them.`);
     info(dim(`If no browser opens: ${url}`));
     openBrowser(url);
     for (;;) {
@@ -481,7 +482,8 @@ async function main() {
 
   const sub = await cf(oauthToken, `/accounts/${accountId}/workers/subdomain`);
   const workersDevUrl = () => (state.workersSubdomain ? `https://${MAILER}.${state.workersSubdomain}.workers.dev` : "");
-  if (sub.ok && sub.result?.subdomain) state.workersSubdomain = sub.result.subdomain;
+  // Do not trust a saved hostname as a destination for requests that carry the admin key.
+  state.workersSubdomain = sub.ok && /^[a-z0-9-]+$/.test(sub.result?.subdomain ?? "") ? sub.result.subdomain : undefined;
   const publicUrl = () => (state.mailerHost ? `https://${state.mailerHost}` : workersDevUrl());
 
   const secrets = { CF_ACCOUNT_ID: accountId };
@@ -506,7 +508,7 @@ async function main() {
   if (!state.workersSubdomain) {
     // A new account registers its workers.dev subdomain during the first deploy.
     const again = await cf(oauthToken, `/accounts/${accountId}/workers/subdomain`);
-    if (again.ok && again.result?.subdomain) state.workersSubdomain = again.result.subdomain;
+    if (again.ok && /^[a-z0-9-]+$/.test(again.result?.subdomain ?? "")) state.workersSubdomain = again.result.subdomain;
     saveState(state);
     if (!state.mailerHost && workersDevUrl()) {
       withSecretsFile({ PUBLIC_BASE_URL: workersDevUrl() }, (file) => wrangler(["secret", "bulk", file, "--name", MAILER]));

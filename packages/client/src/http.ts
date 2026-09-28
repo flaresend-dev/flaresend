@@ -64,7 +64,9 @@ export class HttpClient {
     if (!opts.apiKey) throw new TypeError("Flaresend: apiKey is required");
     if (!opts.baseUrl) throw new TypeError("Flaresend: baseUrl is required (for example https://mailer.yourdomain.com)");
     this.apiKey = opts.apiKey;
-    this.baseUrl = opts.baseUrl.replace(/\/+$/, "");
+    let end = opts.baseUrl.length;
+    while (end > 0 && opts.baseUrl[end - 1] === "/") end--;
+    this.baseUrl = opts.baseUrl.slice(0, end);
     // Always call fetch with globalThis as the receiver so Workers do not throw "Illegal invocation".
     const f = opts.fetch ?? globalThis.fetch;
     if (typeof f !== "function") throw new TypeError("Flaresend: no fetch implementation available; pass one in options.fetch");
