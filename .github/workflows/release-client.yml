@@ -36,7 +36,7 @@ jobs:
           cache: pnpm
           registry-url: https://registry.npmjs.org
       # Trusted publishing needs npm 11.5.1 or newer; Node 22 ships with npm 10.
-      - run: npm install -g npm@latest
+      - run: npm install -g npm@11.20.0
 
       - name: Work out next version
         id: next
@@ -44,6 +44,8 @@ jobs:
 
       - if: steps.next.outputs.version != ''
         run: pnpm install --frozen-lockfile
+      - if: steps.next.outputs.version != ''
+        run: pnpm audit --audit-level moderate
       - if: steps.next.outputs.version != ''
         run: pnpm --filter @flaresend/types --filter @flaresend/client build
       - if: steps.next.outputs.version != ''

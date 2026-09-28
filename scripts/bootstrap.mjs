@@ -152,7 +152,7 @@ function wranglerBin() {
   try {
     pkgPath = createRequire(path.join(MAILER_DIR, "package.json")).resolve("wrangler/package.json");
   } catch {
-    fail("wrangler is not installed. Run `pnpm install` from the repo root first.");
+    fail("wrangler is not installed. Run `pnpm install --frozen-lockfile` from the repo root first.");
   }
   const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
   const bin = typeof pkg.bin === "string" ? pkg.bin : pkg.bin.wrangler;

@@ -5,7 +5,7 @@
 Run it on macOS, Linux or WSL. On plain Windows the mailer deploys but the dashboard does not build.
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 npx wrangler login
 pnpm bootstrap
 ```
