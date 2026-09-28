@@ -1,6 +1,6 @@
 {
   "name": "@flaresend/client",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Flaresend client over HTTP (fetch) or a Cloudflare service binding (RPC)",
   "license": "MIT",
   "repository": {
