@@ -27,6 +27,7 @@ import { CodeTabs, type CodeTab } from '@/components/code-tabs';
 import { DashboardPreview } from '@/components/dashboard-preview';
 import { GitHubIcon as Github } from '@/components/github-icon';
 import { Logo, LogoMark } from '@/components/logo';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { docs, githubUrl, npmUrl } from '@/lib/site';
 
 const EXAMPLES: Array<Omit<CodeTab, 'html'> & { lang: string }> = [
@@ -226,6 +227,7 @@ function Header() {
             <Github className="size-4" />
             <span className="hidden sm:inline">GitHub</span>
           </a>
+          <ThemeToggle />
           <a
             href={docs('/quickstart')}
             className="inline-flex items-center gap-1.5 rounded-lg bg-fg px-3 py-1.5 text-sm font-medium text-bg transition hover:opacity-90"

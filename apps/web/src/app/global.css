@@ -1,6 +1,9 @@
 @import 'tailwindcss';
 
-/* Same palette as the dashboard and docs: white / #0a0a0a surfaces, orange brand. Dark mode follows the OS. */
+/* Dark mode follows the .dark class on <html> (on by default; the header button turns it off). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Same palette as the dashboard and docs: white / #0a0a0a surfaces, orange brand. */
 @theme {
   --color-bg: #ffffff;
   --color-fg: #0a0a0a;
@@ -16,24 +19,23 @@
   --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-bg: #0a0a0a;
-    --color-fg: #ededed;
-    --color-muted: #a3a3a3;
-    --color-card: #0f0f0f;
-    --color-subtle: #161616;
-    --color-line: #262626;
-    --color-brand: #fb923c;
-    --color-brand-strong: #fdba74;
-    --color-brand-soft: rgb(251 146 60 / 0.12);
-  }
+html.dark {
+  color-scheme: dark;
+  --color-bg: #0a0a0a;
+  --color-fg: #ededed;
+  --color-muted: #a3a3a3;
+  --color-card: #0f0f0f;
+  --color-subtle: #161616;
+  --color-line: #262626;
+  --color-brand: #fb923c;
+  --color-brand-strong: #fdba74;
+  --color-brand-soft: rgb(251 146 60 / 0.12);
 }
 
 html {
   scroll-behavior: smooth;
   scroll-padding-top: 5rem;
-  color-scheme: light dark;
+  color-scheme: light;
 }
 
 body {
@@ -47,16 +49,14 @@ body {
   background: color-mix(in srgb, var(--color-brand) 25%, transparent);
 }
 
-/* Shiki renders both themes; pick one with the OS setting. */
+/* Shiki renders both themes; pick one with the .dark class. */
 .shiki,
 .shiki span {
   background-color: transparent !important;
 }
-@media (prefers-color-scheme: dark) {
-  .shiki,
-  .shiki span {
-    color: var(--shiki-dark) !important;
-  }
+.dark .shiki,
+.dark .shiki span {
+  color: var(--shiki-dark) !important;
 }
 .shiki {
   counter-reset: line;

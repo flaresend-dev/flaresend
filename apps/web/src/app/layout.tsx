@@ -30,16 +30,18 @@ export const metadata: Metadata = {
   },
 };
 
-export const viewport: Viewport = {
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
-    { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' },
-  ],
-};
+export const viewport: Viewport = { themeColor: '#0a0a0a' };
+
+// Dark by default. Runs before the page paints, so a visitor who picked light (ThemeToggle) never sees a dark flash.
+const themeScript = `try{if(localStorage.getItem('theme')==='light')document.documentElement.classList.remove('dark')}catch(e){}`;
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${mono.variable}`}>
+    // The script above may remove "dark" before React loads, so the class can differ from the server HTML.
+    <html lang="en" className={`dark ${inter.variable} ${mono.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body className="min-h-screen font-sans">{children}</body>
     </html>
   );
