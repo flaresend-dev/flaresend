@@ -73,6 +73,28 @@ jobs:
             npm publish "$RUNNER_TEMP/pack/flaresend-$pkg-$VERSION.tgz" --access public --provenance --loglevel=verbose
           done
 
+      # npm can accept an upload before its tarball is available for installs.
+      - name: Verify npm packages are installable
+        if: steps.next.outputs.version != ''
+        env:
+          VERSION: ${{ steps.next.outputs.version }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/verify"
+          for pkg in types client; do
+            name="@flaresend/$pkg"
+            for attempt in $(seq 1 60); do
+              if npm pack "$name@$VERSION" --pack-destination "$RUNNER_TEMP/verify" --ignore-scripts --prefer-online --silent >/dev/null 2>&1; then
+                echo "Verified download of $name@$VERSION"
+                break
+              fi
+              if [ "$attempt" -eq 60 ]; then
+                echo "Timed out waiting for $name@$VERSION to become installable" >&2
+                exit 1
+              fi
+              sleep 10
+            done
+          done
+
       # Publish before the version commit and tag. A failed publish leaves the
       # release ready for a workflow_dispatch retry without a new commit.
       # The push uses GITHUB_TOKEN, so it does not trigger another workflow.
@@ -98,6 +120,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.next.outputs.version }}
         run: |
-          if ! gh release view "client-v$VERSION" >/dev/null 2>&1; then
+          if gh release view "client-v$VERSION" --json isDraft --jq .isDraft 2>/dev/null | grep -qx true; then
+            gh release edit "client-v$VERSION" --draft=false
+          elif ! gh release view "client-v$VERSION" >/dev/null 2>&1; then
             gh release create "client-v$VERSION" --generate-notes --title "@flaresend/client $VERSION"
           fi
