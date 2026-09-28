@@ -247,7 +247,7 @@ function Hero({ tabs }: { tabs: CodeTab[] }) {
         className="pointer-events-none absolute inset-x-0 top-0 h-[560px]"
         style={{ background: 'radial-gradient(55% 50% at 50% 0%, var(--color-brand-soft) 0%, transparent 70%)' }}
       />
-      <div className="relative mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-4 pb-20 pt-16 md:px-6 md:pt-24 lg:grid-cols-[1fr_1.1fr]">
+      <div className="relative mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-4 pb-12 pt-12 md:px-6 md:pt-16 lg:grid-cols-[1.15fr_1fr]">
         <div className="min-w-0">
           <a
             href={githubUrl}
@@ -413,16 +413,17 @@ function Features() {
   );
 }
 
+// Right under the BuiltOn strip, with the preview before the heading, so its top shows above the fold.
 function Dashboard() {
   return (
-    <section className="border-t border-line bg-card">
-      <div className="mx-auto max-w-6xl px-4 py-24 md:px-6">
+    <section className="mx-auto max-w-6xl px-4 pt-8 md:px-6 md:pt-10">
+      <DashboardPreview />
+      <div className="mt-12 [&>div]:mb-0">
         <SectionHeading
           eyebrow="Dashboard"
           title="See every email you send"
           body="Open any email to see its full timeline, from queued to delivered, and the exact HTML that went out. Manage keys, domains, templates and webhooks in the same place."
         />
-        <DashboardPreview />
       </div>
     </section>
   );
@@ -614,10 +615,10 @@ export default async function Page() {
       <main>
         <Hero tabs={tabs} />
         <BuiltOn />
+        <Dashboard />
         <Pillars />
         <HowItWorks />
         <Features />
-        <Dashboard />
         <SelfHost />
         <OpenSource />
         <Faq />
