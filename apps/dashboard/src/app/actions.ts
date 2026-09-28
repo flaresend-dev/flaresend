@@ -137,7 +137,8 @@ export async function addDomainAction(slug: string, _: ActionState, fd: FormData
 export async function setDomainSenderAction(slug: string, domain: string, _: ActionState, fd: FormData): Promise<ActionState> {
   if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain)) return bad("invalid domain");
   const sender = str(fd, "sender") || null;
-  return run((m) => m.updateProject(slug, { domainSenders: { [domain]: sender } }), {
+  // Object.fromEntries creates an own data property, including for reserved names.
+  return run((m) => m.updateProject(slug, { domainSenders: Object.fromEntries([[domain, sender]]) }), {
     paths: at.projects(slug),
     ok: () => ({ message: sender ? `Default sender for ${domain} saved.` : `Default sender for ${domain} removed.` }),
   });
