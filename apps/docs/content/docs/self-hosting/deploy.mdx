@@ -8,7 +8,11 @@ This is the one-time setup. A script does almost all of it. The same steps by ha
 
 ## Quick setup
 
+You need a Cloudflare account on the Workers Paid plan, a sending domain whose DNS is on Cloudflare in that account, Node.js 22 and pnpm 10 (`corepack enable` installs pnpm). Run it on macOS, Linux or WSL. On plain Windows the mailer deploys but the dashboard does not build.
+
 ```bash
+git clone https://github.com/flaresend-dev/flaresend.git
+cd flaresend
 pnpm install
 npx wrangler login
 pnpm bootstrap
@@ -17,8 +21,6 @@ pnpm bootstrap
 `pnpm bootstrap` (`scripts/bootstrap.mjs`) asks for your sending domain, an optional hostname for the mailer, and a `CF_API_TOKEN`. It lists the token's permissions and checks the token before using it. Then it creates the D1 database, R2 bucket and queues, deploys the mailer with its secrets, creates the first project and a live API key, onboards the domain, and deploys the [dashboard](/docs/self-hosting/dashboard). At the end it asks for the two Cloudflare Access values for the dashboard. You can skip that and run it again later.
 
 It is safe to run again: anything that already exists is kept, and existing secrets are not replaced. Your answers and the admin key are saved in `.flaresend/bootstrap.json` (gitignored).
-
-You need the Workers Paid plan (for Queues), and the sending domain's DNS on Cloudflare in the same account.
 
 ## Manual setup
 

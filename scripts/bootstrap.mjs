@@ -31,14 +31,26 @@ const LIFECYCLE_RULE = "expire-payloads-30-days";
 const QUEUES = ["flaresend-send", "flaresend-events", "flaresend-webhooks", "flaresend-dlq"];
 const CF_API = "https://api.cloudflare.com/client/v4";
 
+// [label, why, key for the pre-filled token link (https://developers.cloudflare.com/fundamentals/api/how-to/account-owned-token-template/)]
 const TOKEN_PERMISSIONS = [
-  ["Zone → Zone → Read", "find the zone that holds each sending domain"],
-  ["Zone → Email Sending → Read", "show whether a domain is onboarded"],
-  ["Zone → Email Sending → Edit", "onboard new sending domains"],
-  ["Zone → DNS → Edit", "add the SPF, DKIM, return-path and DMARC records"],
-  ["Account → Queues → Edit", "send each domain's delivery events to flaresend-events"],
-  ["Account → Workers Scripts → Read", "show the mailer's URL in the dashboard"],
+  ["Zone → Zone → Read", "find the zone that holds each sending domain", { key: "zone", type: "read" }],
+  // "email_sending" is not in Cloudflare's list of documented keys. If the page leaves it out, the user ticks it by hand.
+  ["Zone → Email Sending → Read", "show whether a domain is onboarded", { key: "email_sending", type: "read" }],
+  ["Zone → Email Sending → Edit", "onboard new sending domains", { key: "email_sending", type: "edit" }],
+  ["Zone → DNS → Edit", "add the SPF, DKIM, return-path and DMARC records", { key: "dns", type: "edit" }],
+  ["Account → Queues → Edit", "send each domain's delivery events to flaresend-events", { key: "queues", type: "edit" }],
+  ["Account → Workers Scripts → Read", "show the mailer's URL in the dashboard", { key: "workers_scripts", type: "read" }],
 ];
+
+/** The token page with the permissions above already ticked, scoped to this account and all its zones. */
+const tokenUrl = (account) =>
+  "https://dash.cloudflare.com/profile/api-tokens?" +
+  new URLSearchParams({
+    permissionGroupKeys: JSON.stringify(TOKEN_PERMISSIONS.map(([, , p]) => p)),
+    accountId: account,
+    zoneId: "all",
+    name: "Flaresend mailer",
+  });
 
 // ---------- output ----------
 
@@ -244,11 +256,20 @@ const validDomain = (v) => (DOMAIN_RE.test(v) ? null : "enter a domain like acme
 const newSecret = () => randomBytes(32).toString("base64");
 
 function openBrowser(url) {
-  const [cmd, args] =
-    process.platform === "win32" ? ["cmd", ["/c", "start", "", url]] : process.platform === "darwin" ? ["open", [url]] : ["xdg-open", [url]];
-  try {
-    spawnSync(cmd, args, { stdio: "ignore" });
-  } catch {}
+  // Not `cmd /c start`: cmd splits the URL at its `&`s. Under WSL, open it in the Windows browser.
+  const wsl = process.platform === "linux" && /microsoft/i.test(os.release());
+  const tries =
+    process.platform === "win32"
+      ? [["rundll32", ["url.dll,FileProtocolHandler", url]]]
+      : process.platform === "darwin"
+        ? [["open", [url]]]
+        : wsl
+          ? [["wslview", [url]], ["rundll32.exe", ["url.dll,FileProtocolHandler", url]]]
+          : [["xdg-open", [url]]];
+  for (const [cmd, args] of tries) {
+    const res = spawnSync(cmd, args, { stdio: "ignore" });
+    if (!res.error && res.status === 0) return;
+  }
 }
 
 function withSecretsFile(values, fn) {
@@ -272,14 +293,32 @@ function secretNames(worker, cwd) {
   }
 }
 
+/** Projects already in the account's flaresend database, or [] when there is no database or no tables yet. */
+function existingProjects() {
+  const res = wrangler(["d1", "execute", DATABASE, "--remote", "--json", "--command", "SELECT slug, allowed_domains FROM projects ORDER BY created_at"], {
+    allowFail: true,
+  });
+  if (!res.ok) return [];
+  try {
+    const rows = JSON.parse(res.stdout.slice(res.stdout.indexOf("[")))[0]?.results ?? [];
+    return rows.map((r) => ({ slug: r.slug, domains: JSON.parse(r.allowed_domains) }));
+  } catch {
+    return [];
+  }
+}
+
 /** Checks what it can of CF_API_TOKEN without changing anything. Returns the permissions that are missing. */
 async function probeToken(token, zone) {
   const verify = (await cf(token, "/user/tokens/verify")).ok || (await cf(token, `/accounts/${accountId}/tokens/verify`)).ok;
   if (!verify) return { valid: false, missing: [] };
   const checks = [
-    ["Zone → Zone → Read", `/zones/${zone.id}`],
-    ["Zone → Email Sending → Read", `/zones/${zone.id}/email/sending/subdomains`],
-    ["Zone → DNS → Edit", `/zones/${zone.id}/dns_records?per_page=1`],
+    ...(zone
+      ? [
+          ["Zone → Zone → Read", `/zones/${zone.id}`],
+          ["Zone → Email Sending → Read", `/zones/${zone.id}/email/sending/subdomains`],
+          ["Zone → DNS → Edit", `/zones/${zone.id}/dns_records?per_page=1`],
+        ]
+      : []),
     ["Account → Queues → Edit", `/accounts/${accountId}/queues`],
     ["Account → Workers Scripts → Read", `/accounts/${accountId}/workers/scripts`],
   ];
@@ -321,31 +360,44 @@ async function main() {
   ok(`${account.name} ${dim(accountId)}`);
   const oauthToken = wranglerJson(["auth", "token", "--json"]).token;
 
-  // 2. Questions
-  step("Your sending domain");
-  info("The domain your apps send email from. Its DNS must be on Cloudflare, in this account.");
-  let zone;
-  for (;;) {
-    const domain = await ask("Sending domain", { def: state.domain, validate: validDomain });
-    zone = await findZone(oauthToken, domain);
-    if (zone) {
-      state.domain = domain;
-      break;
+  // 2. Existing install, or questions for a new one
+  const existing = existingProjects();
+  let zone = null;
+  if (existing.length) {
+    step("Existing setup");
+    info("This account already runs Flaresend, so no project or domain is created. Projects found:");
+    for (const p of existing) info(`  • ${p.slug.padEnd(20)} ${dim(p.domains.join(", "))}`);
+    info(dim("Add domains and projects in the dashboard."));
+    for (const d of existing.flatMap((p) => p.domains)) {
+      zone = await findZone(oauthToken, d);
+      if (zone) break;
     }
-    warn(`no zone for ${domain} in this account. Add the domain to Cloudflare first, or pick another.`);
+  } else {
+    step("Your sending domain");
+    info("The domain your apps send email from, like acme.com or send.acme.com. Its DNS must be on Cloudflare, in this account.");
+    for (;;) {
+      const domain = await ask("Sending domain", { def: state.domain, validate: validDomain });
+      zone = await findZone(oauthToken, domain);
+      if (zone) {
+        state.domain = domain;
+        break;
+      }
+      warn(`no zone for ${domain} in this account. Add the domain to Cloudflare first, or pick another.`);
+    }
+    ok(`zone ${zone.name}`);
+    // The zone's first label names the project: mail.acme.com -> acme.
+    const label = zone.name.split(".")[0].replace(/[^a-z0-9-]/g, "-").replace(/^-+/, "") || "app";
+    state.slug = await ask("Project slug", {
+      def: state.slug ?? label,
+      validate: (v) => (/^[a-z0-9][a-z0-9-]{0,62}$/.test(v) ? null : "lowercase letters, digits and dashes"),
+    });
+    state.name = await ask("Project name", { def: state.name ?? label[0].toUpperCase() + label.slice(1) });
+    state.defaultFrom = await ask("Default sender", {
+      def: state.defaultFrom ?? `${state.name} <hello@${state.domain}>`,
+      validate: (v) => (v.toLowerCase().includes(`@${state.domain}`) ? null : `the address must be @${state.domain}`),
+    });
   }
-  ok(`zone ${zone.name}`);
-  const label = state.domain.split(".")[0].replace(/[^a-z0-9-]/g, "-").replace(/^-+/, "") || "app";
-  state.slug = await ask("Project slug", {
-    def: state.slug ?? label,
-    validate: (v) => (/^[a-z0-9][a-z0-9-]{0,62}$/.test(v) ? null : "lowercase letters, digits and dashes"),
-  });
-  state.name = await ask("Project name", { def: state.name ?? label[0].toUpperCase() + label.slice(1) });
-  state.defaultFrom = await ask("Default sender", {
-    def: state.defaultFrom ?? `${state.name} <hello@${state.domain}>`,
-    validate: (v) => (v.toLowerCase().includes(`@${state.domain}`) ? null : `the address must be @${state.domain}`),
-  });
-  info(`Optional: a hostname for the mailer, like mailer.${zone.name}. Leave empty to use its workers.dev address.`);
+  info(`Optional: a hostname for the mailer, like mailer.${zone?.name ?? "acme.com"}. Leave empty to use its workers.dev address.`);
   const host = await ask("Mailer hostname", { def: state.mailerHost ?? "", validate: (v) => (!v || DOMAIN_RE.test(v) ? null : "enter a hostname") });
   state.mailerHost = host || undefined;
   if (state.mailerHost && !(await findZone(oauthToken, state.mailerHost))) {
@@ -360,11 +412,13 @@ async function main() {
   if (mailerSecrets.has("CF_API_TOKEN") && (await confirm("The mailer already has a CF_API_TOKEN. Keep it?"))) {
     ok("keeping the existing token");
   } else {
-    info("The mailer uses this token at runtime to onboard domains and check their status. Create it at");
-    info(bold("  https://dash.cloudflare.com/profile/api-tokens") + " → Create Token → Create Custom Token, with:");
+    const url = tokenUrl(accountId);
+    info("The mailer uses this token at runtime to onboard domains and check their status.");
+    info("Opening the token page with the permissions filled in. Check it has all of these, then Continue → Create Token:");
     for (const [perm, why] of TOKEN_PERMISSIONS) info(`  • ${perm.padEnd(34)} ${dim(why)}`);
     info(`Zone Resources: All zones from an account → ${account.name}.`);
-    openBrowser("https://dash.cloudflare.com/profile/api-tokens");
+    info(dim(`If no browser opens: ${url}`));
+    openBrowser(url);
     for (;;) {
       cfToken = await askSecret("Paste the token");
       if (!cfToken) continue;
@@ -374,7 +428,7 @@ async function main() {
         continue;
       }
       if (!probe.missing.length) {
-        ok("token works (the three Edit permissions can only be checked by using them, in step 7)");
+        ok("token works (the three Edit permissions can only be checked by using them, when a domain is set up)");
         break;
       }
       warn(`the token is missing: ${probe.missing.join(", ")}`);
@@ -415,7 +469,7 @@ async function main() {
     const res = wrangler(["queues", "create", q], { allowFail: true });
     if (!res.ok) {
       console.log(res.output.trim().replace(/^/gm, "   │ "));
-      fail("could not create the queue. Queues need the Workers Paid plan: Workers & Pages → Plans in the Cloudflare dashboard.");
+      fail("could not create the queue. See the error above.");
     }
     ok(`created queue ${q}`);
   }
@@ -466,11 +520,12 @@ async function main() {
   if (!(await waitForHealth(apiBase, 120))) fail(`${apiBase}/health did not answer within 2 minutes. Run \`pnpm bootstrap\` again in a minute.`);
   ok("mailer is up");
 
-  // 6. Project and key
+  // 6. Project, key and domain (new installs only)
+  let apiKey = "";
+  if (!existing.length) {
   step("First project and API key");
   const projects = (await admin(apiBase, state.adminKey, "/projects")).data ?? [];
   let project = projects.find((p) => p.slug === state.slug);
-  let apiKey = "";
   if (project) ok(`project ${state.slug} exists (no new API key made; create more in the dashboard)`);
   else {
     project = await admin(apiBase, state.adminKey, "/projects", {
@@ -497,15 +552,21 @@ async function main() {
       warn("fix the lines marked ✗, then run this again or use Set up in Cloudflare in the dashboard.");
     }
   }
+  }
 
   // 8. Dashboard
   step("Deploy the dashboard");
-  if (process.platform === "win32") {
-    info(dim("On Windows the dashboard build needs Developer Mode on (Settings → System → For developers)."));
-  }
   const dashboardUrl = state.workersSubdomain ? `https://${DASHBOARD}.${state.workersSubdomain}.workers.dev` : "";
-  let dashboardDeployed = pnpm(["--filter", "@flaresend/dashboard", "run", "deploy"]);
-  if (!dashboardDeployed) warn("the dashboard did not deploy. Fix the error above and run `pnpm bootstrap` again.");
+  let dashboardDeployed = false;
+  if (process.platform === "win32") {
+    // OpenNext's build does not work on Windows: the pnpm symlinks it copies point back into the repo's node_modules,
+    // so the bundle picks up sharp's native Windows binary. It works on Linux (CI or WSL).
+    warn("skipped: the dashboard can't be built on Windows. The mailer is done.");
+    warn("Run `pnpm bootstrap` from WSL, or let CI deploy the dashboard and then set its Access secrets (scripts/setup.md step 9).");
+  } else {
+    dashboardDeployed = pnpm(["--filter", "@flaresend/dashboard", "run", "deploy"]);
+    if (!dashboardDeployed) warn("the dashboard did not deploy. Fix the error above and run `pnpm bootstrap` again.");
+  }
 
   const dashboardSecrets = dashboardDeployed ? secretNames(DASHBOARD, DASHBOARD_DIR) : new Set();
   const accessDone = dashboardSecrets.has("ACCESS_AUD") && dashboardSecrets.has("ACCESS_TEAM_DOMAIN");

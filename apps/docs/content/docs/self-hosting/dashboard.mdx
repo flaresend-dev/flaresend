@@ -68,7 +68,7 @@ They are secrets rather than `vars`, so `wrangler.jsonc` holds nothing specific 
 </Steps>
 
 <Callout type="warn" title="Building on Windows">
-  `opennextjs-cloudflare build` fails on Windows with `EPERM: operation not permitted, symlink` unless your account may create symlinks (Developer Mode on, or an elevated shell). Build in WSL or CI, or turn on Developer Mode. `next dev` and `next build` are not affected.
+  `opennextjs-cloudflare build` does not work on Windows, even with Developer Mode on: the copied pnpm symlinks point back into the repo's own `node_modules`, so the bundler picks up `sharp`'s native Windows binary (`No loader is configured for ".node" files`). Without Developer Mode it fails even earlier, with `EPERM: operation not permitted, symlink`. Build and deploy from WSL or CI. `next dev` and `next build` are not affected.
 </Callout>
 
 ## How the Access check works

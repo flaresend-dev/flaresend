@@ -78,9 +78,8 @@ a 500 "Access is not configured". To click around locally, use option 1.
 
 ### Windows note
 
-`opennextjs-cloudflare build` fails on Windows with `EPERM: operation not permitted, symlink` unless the account may
-create symlinks (Developer Mode on, or an elevated shell), because Next's standalone output copies pnpm's symlinks.
-Build in WSL/CI, or turn on Developer Mode. `next dev` and `next build` are not affected.
+`opennextjs-cloudflare build` does not work on Windows, even with Developer Mode on: the copied pnpm symlinks point back into the repo's own `node_modules`, so the bundler picks up `sharp`'s native Windows binary (`No loader is configured for ".node" files`). Without Developer Mode it fails even earlier, with `EPERM: operation not permitted, symlink`.
+Build and deploy from WSL or CI. `next dev` and `next build` are not affected.
 
 ## Tests and checks
 

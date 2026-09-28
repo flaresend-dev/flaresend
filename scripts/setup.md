@@ -2,6 +2,8 @@
 
 ## Quick setup
 
+Run it on macOS, Linux or WSL. On plain Windows the mailer deploys but the dashboard does not build.
+
 ```bash
 pnpm install
 npx wrangler login
@@ -10,7 +12,7 @@ pnpm bootstrap
 
 `pnpm bootstrap` (`scripts/bootstrap.mjs`) does steps 2 to 9 below. It asks for your sending domain, an optional hostname for the mailer, and a `CF_API_TOKEN` (it lists the permissions and checks the token before using it). It then creates the D1 database, R2 bucket and queues, deploys the mailer with its secrets, creates the first project and a live API key, onboards the domain, and deploys the dashboard. At the end it asks for the two Cloudflare Access values for the dashboard; you can skip that and run it again later.
 
-It is safe to run again: anything that already exists is kept, and existing secrets are not replaced. Your answers and the admin key are saved in `.flaresend/bootstrap.json` (gitignored). You need the Workers Paid plan (for Queues) and the sending domain's DNS on Cloudflare in the same account.
+It is safe to run again: anything that already exists is kept, and existing secrets are not replaced. Your answers and the admin key are saved in `.flaresend/bootstrap.json` (gitignored). You need the Workers Paid plan (Cloudflare Email Service needs it to send to any address) and the sending domain's DNS on Cloudflare in the same account.
 
 The rest of this file is the same setup by hand.
 

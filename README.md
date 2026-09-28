@@ -32,15 +32,40 @@ Flaresend is an email API you deploy to Cloudflare. Your apps send over REST fro
 
 ## Quickstart
 
-Deploy Flaresend to your Cloudflare account. From a clone of this repo:
+### Before you start
+
+- **A Cloudflare account on the Workers Paid plan** ($5 a month). Cloudflare Email Service only sends to any address on the paid plan. On the free plan it can only send to addresses verified in your own account.
+- **A domain whose DNS is on Cloudflare**, in that account. This is the domain you send from, like `acme.com`.
+- **Node.js 22 and pnpm 10.** If you have Node but not pnpm, run `corepack enable`.
+- **macOS, Linux or WSL.** On Windows, run everything below inside WSL (`wsl --install`, then open Ubuntu). The dashboard does not build on plain Windows.
+
+### Deploy
 
 ```bash
+git clone https://github.com/flaresend-dev/flaresend.git
+cd flaresend
 pnpm install
-npx wrangler login
+npx wrangler login     # opens a browser; log in to your Cloudflare account
 pnpm bootstrap
 ```
 
-It asks for your sending domain and a Cloudflare API token, sets everything up, and prints your first API key. [Deploy](https://docs.flaresend.dev/docs/self-hosting/deploy) has the details and the manual steps. Then, in your app:
+`pnpm bootstrap` asks you a few questions and does the rest:
+
+1. **Your sending domain.** It checks that the domain is on Cloudflare and suggests a project name from it.
+2. **A mailer hostname.** Press Enter to use the free `workers.dev` address, or type one like `mailer.acme.com`.
+3. **A Cloudflare API token.** It opens Cloudflare's token page with the six permissions already filled in, so you check them and click Create Token. The mailer uses this token to onboard your domains. Paste it back, and the script checks it.
+4. It creates the database, storage bucket and queues, deploys the mailer, creates your first project and API key, and adds the SPF, DKIM and DMARC records for your domain.
+5. It deploys the dashboard. The dashboard's login is Cloudflare Access, so the script tells you where to turn Access on and asks for two values. Press Enter to skip this and run `pnpm bootstrap` again later. Nothing else is repeated.
+
+At the end it prints your mailer URL, the admin key and a live API key. The API key is shown once, so copy it now. Then send a test email to yourself:
+
+```bash
+curl https://<your mailer URL>/v1/emails \
+  -H "Authorization: Bearer <API key>" -H "Content-Type: application/json" \
+  -d '{"from":"hello@acme.com","to":"you@example.com","subject":"It works","html":"<p>Sent with Flaresend.</p>"}'
+```
+
+[Deploy](https://docs.flaresend.dev/docs/self-hosting/deploy) has the details and the same setup by hand. Then, in your app:
 
 ```bash
 npm install @flaresend/client

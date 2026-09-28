@@ -34,8 +34,9 @@ The CLI (`packages/cli`) is a third way to manage the mailer. It runs on your ma
 - A Cloudflare account with Email Service available.
 - Your sending domains on Cloudflare DNS. `wrangler email sending enable` adds the SPF and DKIM records to Cloudflare zones. Cloudflare's docs say Email Service requires Cloudflare DNS, so a domain whose DNS is elsewhere may not work at all. This has not been tested with Flaresend yet.
 - Node.js 22 (the repo's `.nvmrc` says `22`) and pnpm 10.
+- macOS, Linux or WSL. On plain Windows the mailer deploys, but the dashboard does not build.
 - A clone of the repository and `pnpm install` at its root.
-- The Workers Paid plan, for Queues.
+- The Workers Paid plan. Cloudflare Email Service needs it to send to any address. On the free plan it only sends to addresses verified in your account.
 
 With those in place, `npx wrangler login` and then `pnpm bootstrap` set up everything. See [Deploy](/docs/self-hosting/deploy).
 
