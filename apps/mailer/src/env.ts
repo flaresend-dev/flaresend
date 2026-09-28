@@ -35,7 +35,10 @@ export function broadcastMaxRecipients(env: Env): number {
 }
 
 export function publicBaseUrl(env: Env): string {
-  return String(env.PUBLIC_BASE_URL).replace(/\/+$/, "");
+  const url = String(env.PUBLIC_BASE_URL);
+  let end = url.length;
+  while (end > 0 && url[end - 1] === "/") end--;
+  return url.slice(0, end);
 }
 
 /** Lets callers hand background work to ctx.waitUntil when they have one, or await it otherwise. */

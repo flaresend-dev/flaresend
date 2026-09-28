@@ -135,6 +135,7 @@ export async function addDomainAction(slug: string, _: ActionState, fd: FormData
 
 /** "Default sender" in a domain's menu. An empty value removes the domain's own sender. */
 export async function setDomainSenderAction(slug: string, domain: string, _: ActionState, fd: FormData): Promise<ActionState> {
+  if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain)) return bad("invalid domain");
   const sender = str(fd, "sender") || null;
   return run((m) => m.updateProject(slug, { domainSenders: { [domain]: sender } }), {
     paths: at.projects(slug),

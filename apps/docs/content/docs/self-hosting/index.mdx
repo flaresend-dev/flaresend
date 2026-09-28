@@ -35,7 +35,7 @@ The CLI (`packages/cli`) is a third way to manage the mailer. It runs on your ma
 - Your sending domains on Cloudflare DNS, in the same account. Cloudflare Email Service [requires Cloudflare DNS](https://developers.cloudflare.com/email-service/get-started/send-emails/), so a domain whose DNS is on Route 53, Namecheap or anywhere else cannot send. The domain can stay registered there: point its nameservers at Cloudflare. See [Domains](/docs/deliverability/domains).
 - Node.js 22 (the repo's `.nvmrc` says `22`) and pnpm 10.
 - macOS, Linux or WSL. On plain Windows the mailer deploys, but the dashboard does not build.
-- A clone of the repository and `pnpm install` at its root.
+- A clone of the repository and `pnpm install --frozen-lockfile` at its root.
 - The Workers Paid plan. Cloudflare Email Service needs it to send to any address. On the free plan it only sends to addresses verified in your account.
 
 With those in place, `npx wrangler login` and then `pnpm bootstrap` set up everything. See [Deploy](/docs/self-hosting/deploy).

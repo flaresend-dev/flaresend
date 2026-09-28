@@ -44,7 +44,7 @@ Flaresend is an email API you deploy to Cloudflare. Your apps send over REST fro
 ```bash
 git clone https://github.com/flaresend-dev/flaresend.git
 cd flaresend
-pnpm install
+pnpm install --frozen-lockfile
 npx wrangler login     # opens a browser; log in to your Cloudflare account
 pnpm bootstrap
 ```

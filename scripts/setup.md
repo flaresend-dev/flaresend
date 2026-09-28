@@ -5,7 +5,7 @@
 Run it on macOS, Linux or WSL. On plain Windows the mailer deploys but the dashboard does not build.
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 npx wrangler login
 pnpm bootstrap
 ```
@@ -97,7 +97,7 @@ Create it in the Cloudflare dashboard under **My Profile → API Tokens → Crea
 | Queues → Edit | **Set up in Cloudflare** subscribes the domain's delivery events to `flaresend-events` (step 4) |
 | Account → Workers Scripts → Read | The dashboard shows the mailer's URL (its custom domains and `workers.dev` address) on the API Keys and Settings pages |
 
-Zone Resources: **All zones from an account** → your account, so new domains work without editing the token.
+Zone Resources: **Specific zone** - your sending zone. Add a new zone to the token before you onboard a domain in that zone.
 
 Set it on the mailer Worker (`flaresend`), not the dashboard:
 

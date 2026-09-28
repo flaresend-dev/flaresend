@@ -90,6 +90,8 @@ describe("tracking", () => {
     expect(r.html).toContain('src="https://img.com/a.png"');
     expect(r.html).toContain(`${base}/u/tok`);
     expect(shouldTrackUrl("ftp://x", base)).toBe(false);
+    expect(rewriteLinks('<a href="https://a.com/?x=&amp;#38;">A</a>', base, () => "single").links[0]?.url)
+      .toBe("https://a.com/?x=&#38;");
   });
   it("injects the pixel before </body> or at the end", () => {
     expect(injectPixel("<html><body>x</body></html>", "P")).toBe('<html><body>x<img src="P" width="1" height="1" alt="" style="display:none"></body></html>');

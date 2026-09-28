@@ -127,6 +127,7 @@ describe("previews and schedules", () => {
     expect(textPreview(undefined, undefined)).toBeNull();
     expect(textPreview("x".repeat(500), undefined)).toHaveLength(200);
     expect(stripHtml("<a href='x'>link</a>")).toBe("link");
+    expect(stripHtml("&amp;lt;script&amp;gt;")).toBe("&lt;script&gt;");
   });
   it("validates scheduledAt", () => {
     const now = Date.parse("2026-09-25T00:00:00Z");
