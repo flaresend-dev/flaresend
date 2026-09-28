@@ -34,7 +34,8 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
-          registry-url: https://registry.npmjs.org
+          # Do not set registry-url. setup-node then writes an auth token
+          # placeholder that prevents npm from using trusted publishing.
       # Trusted publishing needs npm 11.5.1 or newer; Node 22 ships with npm 10.
       - run: npm install -g npm@11.20.0
 
@@ -52,24 +53,6 @@ jobs:
         run: pnpm --filter @flaresend/types --filter @flaresend/client typecheck
       - if: steps.next.outputs.version != ''
         run: pnpm --filter @flaresend/types --filter @flaresend/client test
-
-      # The push uses GITHUB_TOKEN, so it does not trigger this or any other
-      # workflow again.
-      - name: Commit version and tag
-        if: steps.next.outputs.version != ''
-        env:
-          VERSION: ${{ steps.next.outputs.version }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if [ "${{ steps.next.outputs.bumped }}" = "true" ]; then
-            git commit -am "chore(release): @flaresend/client v$VERSION"
-            git tag "client-v$VERSION"
-            git push --atomic origin HEAD:main "client-v$VERSION"
-          elif ! git rev-parse -q --verify "refs/tags/client-v$VERSION" >/dev/null; then
-            git tag "client-v$VERSION"
-            git push origin "client-v$VERSION"
-          fi
 
       # pnpm pack swaps "workspace:*" for the real version; npm publish then
       # uploads the tarball using the OIDC token. types goes first because
@@ -89,6 +72,25 @@ jobs:
             (cd "packages/$pkg" && pnpm pack --pack-destination "$RUNNER_TEMP/pack")
             npm publish "$RUNNER_TEMP/pack/flaresend-$pkg-$VERSION.tgz" --access public --provenance
           done
+
+      # Publish before the version commit and tag. A failed publish leaves the
+      # release ready for a workflow_dispatch retry without a new commit.
+      # The push uses GITHUB_TOKEN, so it does not trigger another workflow.
+      - name: Commit version and tag
+        if: steps.next.outputs.version != ''
+        env:
+          VERSION: ${{ steps.next.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ "${{ steps.next.outputs.bumped }}" = "true" ]; then
+            git commit -am "chore(release): @flaresend/client v$VERSION"
+            git tag "client-v$VERSION"
+            git push --atomic origin HEAD:main "client-v$VERSION"
+          elif ! git rev-parse -q --verify "refs/tags/client-v$VERSION" >/dev/null; then
+            git tag "client-v$VERSION"
+            git push origin "client-v$VERSION"
+          fi
 
       - name: Create GitHub release
         if: steps.next.outputs.version != ''
