@@ -87,7 +87,7 @@ jobs:
               continue
             fi
             (cd "packages/$pkg" && pnpm pack --pack-destination "$RUNNER_TEMP/pack")
-            npm publish "$RUNNER_TEMP/pack/flaresend-$pkg-$VERSION.tgz" --access public
+            npm publish "$RUNNER_TEMP/pack/flaresend-$pkg-$VERSION.tgz" --access public --provenance
           done
 
       - name: Create GitHub release
