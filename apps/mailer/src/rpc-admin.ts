@@ -5,7 +5,7 @@ import * as admin from "./core/admin";
 import { getAnalytics } from "./core/analytics";
 import * as broadcasts from "./core/broadcasts";
 import * as contacts from "./core/contacts";
-import { listDomainRecords, setupDomain } from "./core/domains";
+import { listAllDomainRecords, listDomainRecords, setupDomain } from "./core/domains";
 import * as emails from "./core/emails";
 import { sendEmail } from "./core/send";
 import * as templates from "./core/templates";
@@ -30,6 +30,7 @@ export const adminHandlers: Handlers = {
   updateProject: async (env, _ctx, slug, patch) => admin.patchProject(env, slug, patch),
   disableProject: async (env, _ctx, slug) => admin.disableProject(env, slug),
   listDomains: async (env, _ctx, slug, opts) => listDomainRecords(env, await project(env, slug), opts ?? {}),
+  listAllDomains: async (env, _ctx, opts) => listAllDomainRecords(env, opts ?? {}),
   setupDomain: async (env, _ctx, slug, domain) => setupDomain(env, await project(env, slug), domain),
 
   // keys

@@ -42,14 +42,15 @@ const bad = (message: string): ActionState => ({ ok: false, error: `validation_e
 
 // Pages that show each kind of data (section 4.3).
 const at = {
-  projects: (slug: string) => [`/${slug}/settings`, `/${slug}/domains`, "/projects", `/${slug}`],
+  projects: (slug: string) => [`/${slug}/settings`, `/${slug}/domains`, "/projects", `/${slug}`, "/all/domains"],
   keys: (slug: string) => [`/${slug}/api-keys`],
   webhooks: (slug: string, id?: string) => [`/${slug}/webhooks`, ...(id ? [`/${slug}/webhooks/${id}`] : [])],
   templates: (slug: string, name?: string) => [`/${slug}/templates`, ...(name ? [`/${slug}/templates/${encodeURIComponent(name)}`] : [])],
   contacts: (slug: string) => [`/${slug}/contacts`],
   audiences: (slug: string, id?: string) => [`/${slug}/audiences`, ...(id ? [`/${slug}/audiences/${id}`] : [])],
   broadcasts: (slug: string, id?: string) => [`/${slug}/broadcasts`, ...(id ? [`/${slug}/broadcasts/${id}`] : [])],
-  emails: (slug: string | null, id?: string) => (slug ? [`/${slug}/emails`, ...(id ? [`/${slug}/emails/${id}`] : [])] : []),
+  emails: (slug: string | null, id?: string) =>
+    [...new Set([slug, "all"])].flatMap((s) => (s ? [`/${s}/emails`, ...(id ? [`/${s}/emails/${id}`] : [])] : [])),
   suppressions: (slug: string | null) => (slug ? [`/${slug}/suppressions`] : []),
 };
 

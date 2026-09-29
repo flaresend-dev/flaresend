@@ -5,8 +5,14 @@
  * to `/` (next.config.ts); a project with one of those slugs could not be reached at `/{slug}`.
  */
 export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
-  "projects", "api", "new", "_next", "favicon.ico", "emails", "analytics", "logs", "suppressions",
+  "projects", "api", "new", "_next", "favicon.ico", "all", "emails", "analytics", "logs", "suppressions",
 ]);
+
+/** First path segment of the "All projects" view: `/all/emails` shows every project's emails. */
+export const ALL = "all";
+
+/** The pages that make sense across every project. The rest configure one project, so they stay per project. */
+export const ALL_SECTIONS: readonly ProjectSection[] = ["emails", "metrics", "logs", "domains", "suppressions"];
 
 /** Same rule as the mailer's CreateProjectInput slug. */
 export const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
@@ -42,7 +48,7 @@ export const NAV: NavItem[][] = [
 
 export const NAV_ITEMS: NavItem[] = NAV.flat();
 
-/** Project URL: p("acme", "api-keys") -> "/acme/api-keys"; extra parts are URI-encoded. */
+/** Project URL: p("acme", "api-keys") -> "/acme/api-keys"; extra parts are URI-encoded. p(ALL, …) builds "All projects" URLs. */
 export function p(slug: string, section?: ProjectSection, ...rest: string[]): string {
   const parts = [slug, ...(section ? [section] : []), ...rest.map(encodeURIComponent)];
   return `/${parts.join("/")}`;
@@ -71,11 +77,20 @@ export function slugify(name: string): string {
     .slice(0, 63);
 }
 
-/** The project slug a path belongs to, or null for global/reserved paths. Used for the last-project cookie. */
+/**
+ * The project slug a path belongs to, ALL for the "All projects" view, or null for other global/reserved paths.
+ * Used for the last-project cookie.
+ */
 export function projectFromPath(pathname: string): string | null {
   const seg = pathname.split("/")[1] ?? "";
+  if (seg === ALL) return ALL;
   if (!seg || isReservedSlug(seg) || seg.includes(".") || !SLUG_RE.test(seg)) return null;
   return seg;
+}
+
+/** Where to go when switching to the "All projects" view: the same section when it has one, else Emails. */
+export function allSection(section: ProjectSection | null): ProjectSection {
+  return section && ALL_SECTIONS.includes(section) ? section : "emails";
 }
 
 /** Which nav item a path is in, e.g. "/acme/webhooks/wh_1" -> "webhooks". */

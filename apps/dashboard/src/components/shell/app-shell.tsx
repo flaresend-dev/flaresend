@@ -3,18 +3,23 @@ import type { ProjectRecord } from "@flaresend/types";
 import { Sidebar } from "./sidebar-nav";
 import { MobileNav } from "./mobile-nav";
 import { CommandPalette } from "./command-palette";
-import type { ShellProject } from "./project-switcher";
+import { ALL_PROJECTS, type ShellProject } from "./project-switcher";
 
 function toShell(p: ProjectRecord): ShellProject {
   return { slug: p.slug, name: p.name, paused: Boolean(p.disabledAt) };
 }
 
 /**
- * Sidebar + content frame. With `project` the sidebar has the switcher and the project nav; without it (the
- * /projects pages) it shows only "Projects".
+ * Sidebar + content frame. With `project` (or `all`, the "All projects" view) the sidebar has the switcher and the
+ * nav; without either (the /projects pages) it shows only "Projects".
  */
-export function AppShell({ project, projects, children }: { project?: ProjectRecord; projects: ProjectRecord[]; children: React.ReactNode }) {
-  const current = project ? toShell(project) : undefined;
+export function AppShell({ project, all, projects, children }: {
+  project?: ProjectRecord;
+  all?: boolean;
+  projects: ProjectRecord[];
+  children: React.ReactNode;
+}) {
+  const current = all ? ALL_PROJECTS : project ? toShell(project) : undefined;
   const list = projects.map(toShell);
   return (
     <div className="min-h-dvh md:flex">

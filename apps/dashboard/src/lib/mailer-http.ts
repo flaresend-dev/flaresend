@@ -90,6 +90,7 @@ export function createHttpAdminClient(baseUrl: string, adminKey: string, fetchIm
     updateProject: (slug, patch) => call("PATCH", p(slug), { body: patch }),
     disableProject: (slug) => call("DELETE", p(slug)),
     listDomains: (slug, opts) => data(call("GET", `${p(slug)}/domains`, { query: { refresh: opts?.refresh ? "1" : undefined } })),
+    listAllDomains: (opts) => data(call("GET", "/domains", { query: { refresh: opts?.refresh ? "1" : undefined } })),
     setupDomain: (slug, domain) => call("POST", `${p(slug)}/domains/${seg(domain)}/setup`),
 
     // keys

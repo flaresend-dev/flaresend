@@ -2,12 +2,13 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { mailerCall } from "@/lib/mailer";
 import { PROJECT_COOKIE } from "@/lib/project-cookie";
-import { p } from "@/lib/nav";
+import { ALL, p } from "@/lib/nav";
 import { PageError } from "@/components/page-error";
 
-/** `/` -> the last project's Emails (cookie), else the first project, else /projects/new. */
+/** `/` -> the last project's Emails (cookie; may be the "All projects" view), else the first project, else /projects/new. */
 export default async function RootPage() {
   const last = (await cookies()).get(PROJECT_COOKIE)?.value;
+  if (last === ALL) redirect(p(ALL, "emails"));
   if (last) {
     const r = await mailerCall((m) => m.getProject(last));
     if (r.ok) redirect(p(r.data.slug, "emails"));

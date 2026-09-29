@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowUpRight, FolderOpen, Search } from "lucide-react";
-import { NAV, activeSection, p } from "@/lib/nav";
+import { ALL, ALL_SECTIONS, NAV, activeSection, p } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { Kbd } from "@/components/ui/kbd";
 import { Logo, NAV_ICONS } from "./icons";
@@ -46,6 +46,8 @@ export function Sidebar({ project, projects, onNavigate }: { project?: ShellProj
   const pathname = usePathname() ?? "";
   const section = activeSection(pathname);
   const mac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+  // The "All projects" view only has the sections that work across projects.
+  const groups = project?.slug === ALL ? NAV.map((g) => g.filter((n) => ALL_SECTIONS.includes(n.id))).filter((g) => g.length) : NAV;
 
   return (
     <div className="flex h-full flex-col">
@@ -62,7 +64,7 @@ export function Sidebar({ project, projects, onNavigate }: { project?: ShellProj
 
       <nav className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-3 pb-3" aria-label="Main">
         {project ? (
-          NAV.map((group, i) => (
+          groups.map((group, i) => (
             <ul key={i} className={cn("flex flex-col gap-0.5", i > 0 && "border-t border-border pt-4")}>
               {group.map((item) => (
                 <li key={item.id}>

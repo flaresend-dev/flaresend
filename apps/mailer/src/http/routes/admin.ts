@@ -8,6 +8,7 @@ import {
   listProjectRecords, listSuppressionRecords, patchProject, removeSuppression, renameKey, requireProjectBySlug, resendEmail, revokeKey,
 } from "../../core/admin";
 import { getAnalytics } from "../../core/analytics";
+import { listAllDomainRecords } from "../../core/domains";
 import { getEmailContent, getEmailRecord, listEmailRecords, listEventRecords, parseListEmailsQuery } from "../../core/emails";
 import { applyCfEvent } from "../../queue/events-consumer";
 import { ApiError } from "../errors";
@@ -25,6 +26,12 @@ export const adminRoutes = new Hono<AppEnv>()
   .patch("/projects/:slug", async (c) => c.json(await patchProject(c.env, c.req.param("slug"), await readJson(c))))
   .delete("/projects/:slug", async (c) => c.json(await disableProject(c.env, c.req.param("slug"))))
   .post("/projects/:slug/api-keys", async (c) => c.json(await createApiKey(c.env, c.req.param("slug"), await readJson(c)), 201))
+
+  // domains of every project (cross-project)
+  .get("/domains", async (c) => {
+    const refresh = ["1", "true"].includes(c.req.query("refresh") ?? "");
+    return c.json({ data: await listAllDomainRecords(c.env, { refresh }) });
+  })
 
   // keys
   .get("/api-keys", async (c) => c.json({ data: await listApiKeyRecords(c.env, c.req.query("project")) }))
