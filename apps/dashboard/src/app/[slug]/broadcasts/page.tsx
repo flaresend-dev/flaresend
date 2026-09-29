@@ -1,8 +1,8 @@
 import { Plus, Radio } from "lucide-react";
 import { mailerCall } from "@/lib/mailer";
-import { getProjectOr404, type SlugParams } from "@/lib/project";
+import { linker, listAcross, projectsFor, type SlugParams } from "@/lib/project";
 import { num } from "@/lib/format";
-import { p } from "@/lib/nav";
+import { ALL } from "@/lib/nav";
 import { PageHeader } from "@/components/ui/page-header";
 import { LinkButton } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
@@ -12,16 +12,27 @@ import { Time } from "@/components/ui/time";
 import { PageError } from "@/components/page-error";
 import { BroadcastNotices } from "@/components/broadcasts/notices";
 import { Progress } from "@/components/broadcasts/progress";
+import { ProjectTD, ProjectTH } from "@/components/project-name";
+import { ProjectMenuButton } from "@/components/project-menu-button";
 
 export const metadata = { title: "Broadcasts" };
 
+/** One project's broadcasts, or every project's when `slug` is ALL (the "All projects" view), newest first. */
 export default async function BroadcastsPage({ params }: SlugParams) {
-  const { slug } = await params;
-  const project = await getProjectOr404(slug);
-  const [list, audiences] = await Promise.all([mailerCall((m) => m.listBroadcasts(slug)), mailerCall((m) => m.listAudiences(slug))]);
+  const { slug, view } = await params;
+  const isAll = slug === ALL;
+  const projects = await projectsFor(slug);
+  const scope = projects.ok ? projects.data : [];
+  const [list, audiences] = await Promise.all([
+    projects.ok ? listAcross(scope, (s) => mailerCall((m) => m.listBroadcasts(s))) : projects,
+    listAcross(scope, (s) => mailerCall((m) => m.listAudiences(s))),
+  ]);
+  if (list.ok && isAll) list.data.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const audienceName = new Map(audiences.ok ? audiences.data.map((a) => [a.id, a.name]) : []);
-  const newButton = (
-    <LinkButton href={p(slug, "broadcasts", "new")} variant="primary">
+  const newButton = isAll ? (
+    <ProjectMenuButton label="New broadcast" projects={scope} section="broadcasts" rest={["new"]} />
+  ) : (
+    <LinkButton href={linker(slug, view)("broadcasts", "new")} variant="primary">
       <Plus /> New broadcast
     </LinkButton>
   );
@@ -29,7 +40,7 @@ export default async function BroadcastsPage({ params }: SlugParams) {
   return (
     <>
       <PageHeader title="Broadcasts" actions={newButton} />
-      <BroadcastNotices slug={slug} enabled={project.broadcastsEnabled} />
+      <BroadcastNotices slug={slug} view={view} enabled={isAll || (scope[0]?.broadcastsEnabled ?? true)} />
       {!list.ok ? (
         <PageError error={list.error} title="Could not load broadcasts" />
       ) : list.data.length === 0 ? (
@@ -41,6 +52,7 @@ export default async function BroadcastsPage({ params }: SlugParams) {
           <THead>
             <tr>
               <TH>Subject</TH>
+              {isAll ? <ProjectTH /> : null}
               <TH className="w-[140px]">Status</TH>
               <TH className="w-[200px]">Recipients</TH>
               <TH className="hidden w-[110px] text-right md:table-cell">Sent</TH>
@@ -48,11 +60,12 @@ export default async function BroadcastsPage({ params }: SlugParams) {
           </THead>
           <TBody>
             {list.data.map((b) => (
-              <TR key={b.id} href={p(slug, "broadcasts", b.id)} label={`Open broadcast ${b.subject}`}>
+              <TR key={b.id} href={linker(b.project.slug, view)("broadcasts", b.id)} label={`Open broadcast ${b.subject}`}>
                 <TD>
                   <span className="block truncate font-medium">{b.subject || <span className="text-foreground-subtle">(no subject)</span>}</span>
                   <span className="block truncate text-xs text-foreground-muted">{audienceName.get(b.audienceId) ?? "Deleted audience"}</span>
                 </TD>
+                {isAll ? <ProjectTD project={b.project} /> : null}
                 <TD>
                   <StatusBadge status={b.status} />
                 </TD>

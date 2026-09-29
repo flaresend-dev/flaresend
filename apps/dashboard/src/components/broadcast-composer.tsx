@@ -7,7 +7,7 @@ import type { AudienceRecord, BroadcastRecord, TemplateRecord } from "@flaresend
 import type { ActionState } from "@/lib/action-state";
 import { renderMustache } from "@/lib/mustache";
 import { num } from "@/lib/format";
-import { p } from "@/lib/nav";
+import { useLink } from "@/lib/use-link";
 import { saveBroadcastAction, sendBroadcastAction } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/dialog";
@@ -37,6 +37,7 @@ export function BroadcastComposer({ slug, broadcast, audiences, defaultFrom, tem
   templates: TemplateOption[];
 }) {
   const router = useRouter();
+  const to = useLink(slug);
   const [audienceId, setAudienceId] = useState(broadcast?.audienceId ?? audiences[0]?.id ?? "");
   const [from, setFrom] = useState(broadcast ? (broadcast.fromName ? `${broadcast.fromName} <${broadcast.from}>` : broadcast.from) : defaultFrom);
   const [subject, setSubject] = useState(broadcast?.subject ?? "");
@@ -59,7 +60,7 @@ export function BroadcastComposer({ slug, broadcast, audiences, defaultFrom, tem
     return r.ok ? (r.data as BroadcastRecord) : null;
   };
 
-  const go = (b: BroadcastRecord) => router.push(p(slug, "broadcasts", b.id));
+  const go = (b: BroadcastRecord) => router.push(to("broadcasts", b.id));
 
   const send = (when: string | null) =>
     start(async () => {

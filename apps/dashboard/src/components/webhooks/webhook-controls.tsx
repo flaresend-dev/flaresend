@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, RotateCw, Send, Trash2 } from "lucide-react";
 import { createWebhookAction, deleteWebhookAction, rotateWebhookSecretAction, setWebhookEnabledAction, testWebhookAction } from "@/app/actions";
-import { p } from "@/lib/nav";
+import { useLink } from "@/lib/use-link";
 import { useAutoOpen } from "@/lib/use-auto-open";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/dialog";
@@ -14,9 +14,11 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Switch, SwitchField } from "@/components/ui/switch";
 import { toastResult } from "@/components/ui/toast";
+import { ProjectField, type PickerProject } from "@/components/project-field";
 import { EventsPicker } from "./events-picker";
 
-export function AddWebhookButton({ slug, autoOpen = true }: { slug: string; autoOpen?: boolean }) {
+/** With `projects` (the "All projects" view, `slug` = ALL) the dialog asks which project the webhook is for. */
+export function AddWebhookButton({ slug, projects, autoOpen = true }: { slug: string; projects?: PickerProject[]; autoOpen?: boolean }) {
   const [open, setOpen] = useAutoOpen("new", autoOpen);
   return (
     <FormDialog
@@ -34,6 +36,7 @@ export function AddWebhookButton({ slug, autoOpen = true }: { slug: string; auto
       secretTitle="Copy your signing secret"
       size="lg"
     >
+      {projects ? <ProjectField projects={projects} /> : null}
       <Field label="Endpoint URL" htmlFor="wh-url">
         <Input id="wh-url" name="url" type="url" required autoFocus placeholder="https://example.com/webhooks/flaresend" className="font-mono" />
       </Field>
@@ -69,6 +72,7 @@ export function WebhookEnabledSwitch({ slug, id, enabled }: { slug: string; id: 
 
 /** Detail page header: Send test event, and ⋯ with Rotate signing secret / Delete. */
 export function WebhookActions({ slug, id }: { slug: string; id: string }) {
+  const to = useLink(slug);
   const router = useRouter();
   const [pending, start] = useTransition();
   const [dialog, setDialog] = useState<null | "rotate" | "delete">(null);
@@ -109,7 +113,7 @@ export function WebhookActions({ slug, id }: { slug: string; id: string }) {
         confirmLabel="Delete webhook"
         tone="danger"
         action={deleteWebhookAction.bind(null, slug, id)}
-        onSuccess={() => router.push(p(slug, "webhooks"))}
+        onSuccess={() => router.push(to("webhooks"))}
       />
       <SecretReveal open={secret !== null} value={secret ?? ""} title="Copy your signing secret" onDone={() => setSecret(null)} />
     </>

@@ -54,10 +54,49 @@ function Sender({ d, own }: { d: DomainRecord; own: boolean }) {
   );
 }
 
-/** Sets or clears one domain's own default sender. */
-function DomainSenderDialog({ slug, domain, current, onOpenChange }: {
+/** Removes `domain` from project `slug` after a confirm; a project's last domain can't be removed. Open while `domain` is set. */
+export function RemoveDomainDialog({ slug, domain, last, projectName, onClose }: {
   slug: string;
-  domain: DomainRecord;
+  domain: string | null;
+  last: boolean;
+  projectName?: string;
+  onClose: () => void;
+}) {
+  if (domain && last) {
+    return (
+      <Dialog open onOpenChange={(v) => !v && onClose()}>
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle>You can&apos;t remove the last domain</DialogTitle>
+            <DialogDescription>A project needs at least one domain to send from. Add another domain first, then remove {domain}.</DialogDescription>
+          </DialogHeader>
+          <DialogBody />
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="primary">OK</Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+  return (
+    <ConfirmDialog
+      open={domain !== null}
+      onOpenChange={(v) => !v && onClose()}
+      title={projectName ? `Remove ${domain ?? ""} from ${projectName}?` : `Remove ${domain ?? ""}?`}
+      body="Emails from this domain will be rejected. The domain stays onboarded in Cloudflare."
+      confirmLabel="Remove domain"
+      tone="danger"
+      action={domain ? removeDomainAction.bind(null, slug, domain) : undefined}
+    />
+  );
+}
+
+/** Sets or clears one domain's own default sender. */
+export function DomainSenderDialog({ slug, domain, current, onOpenChange }: {
+  slug: string;
+  domain: Pick<DomainRecord, "domain">;
   current: string | null;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -207,32 +246,7 @@ export function DomainsTable({ slug, domains, domainSenders }: { slug: string; d
 
       {settingUp ? <SetupDomainDialog slug={slug} domain={settingUp} open onOpenChange={(v) => !v && setSettingUp(null)} /> : null}
 
-      {removing && last ? (
-        <Dialog open onOpenChange={(v) => !v && setRemoving(null)}>
-          <DialogContent size="sm">
-            <DialogHeader>
-              <DialogTitle>You can&apos;t remove the last domain</DialogTitle>
-              <DialogDescription>A project needs at least one domain to send from. Add another domain first, then remove {removing}.</DialogDescription>
-            </DialogHeader>
-            <DialogBody />
-            <DialogFooter>
-              <DialogClose asChild>
-                <Button variant="primary">OK</Button>
-              </DialogClose>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      ) : (
-        <ConfirmDialog
-          open={removing !== null}
-          onOpenChange={(v) => !v && setRemoving(null)}
-          title={`Remove ${removing ?? ""}?`}
-          body="Emails from this domain will be rejected. The domain stays onboarded in Cloudflare."
-          confirmLabel="Remove domain"
-          tone="danger"
-          action={removing ? removeDomainAction.bind(null, slug, removing) : undefined}
-        />
-      )}
+      <RemoveDomainDialog slug={slug} domain={removing} last={last} onClose={() => setRemoving(null)} />
     </>
   );
 }

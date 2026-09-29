@@ -11,8 +11,14 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
 /** First path segment of the "All projects" view: `/all/emails` shows every project's emails. */
 export const ALL = "all";
 
-/** The pages that make sense across every project. The rest configure one project, so they stay per project. */
-export const ALL_SECTIONS: readonly ProjectSection[] = ["emails", "metrics", "logs", "domains", "suppressions"];
+/**
+ * Sections the "All projects" view shows one project at a time, with a project picker (`/all/contacts/{slug}`).
+ * Every other section has a combined list at `/all/{section}`.
+ */
+export const PER_PROJECT_SECTIONS: readonly ProjectSection[] = ["contacts", "settings"];
+
+/** Sections whose pages are not tied to one project (email ids are global, suppressions are shared). */
+const GLOBAL_SECTIONS: readonly ProjectSection[] = ["emails", "metrics", "logs", "suppressions"];
 
 /** Same rule as the mailer's CreateProjectInput slug. */
 export const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
@@ -88,9 +94,24 @@ export function projectFromPath(pathname: string): string | null {
   return seg;
 }
 
-/** Where to go when switching to the "All projects" view: the same section when it has one, else Emails. */
-export function allSection(section: ProjectSection | null): ProjectSection {
-  return section && ALL_SECTIONS.includes(section) ? section : "emails";
+/**
+ * A link to one project's page that stays in the view the user is in. `view` is the project slug in a project's
+ * pages and ALL in the "All projects" view, where project pages live at `/all/{section}/{slug}/...`:
+ *   link("acme", "acme", "webhooks", "wh_1") -> "/acme/webhooks/wh_1"
+ *   link(ALL, "acme", "webhooks", "wh_1")    -> "/all/webhooks/acme/wh_1"
+ *   link(ALL, "acme", "webhooks")            -> "/all/webhooks" (the combined list)
+ *   link(ALL, "acme", "contacts")            -> "/all/contacts/acme" (no combined list)
+ */
+export function link(view: string, slug: string, section: ProjectSection, ...rest: string[]): string {
+  if (view !== ALL) return p(slug, section, ...rest);
+  if (GLOBAL_SECTIONS.includes(section)) return p(ALL, section, ...rest);
+  if (!rest.length && !PER_PROJECT_SECTIONS.includes(section)) return p(ALL, section);
+  return p(ALL, section, slug, ...rest);
+}
+
+/** The view a path is in: ALL under `/all`, else the project slug (the first segment). */
+export function viewFromPath(pathname: string): string {
+  return pathname.split("/")[1] ?? "";
 }
 
 /** Which nav item a path is in, e.g. "/acme/webhooks/wh_1" -> "webhooks". */

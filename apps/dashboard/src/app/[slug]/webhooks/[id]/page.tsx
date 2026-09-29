@@ -1,9 +1,8 @@
 import { notFound } from "next/navigation";
 import { Send } from "lucide-react";
 import { mailerCall } from "@/lib/mailer";
-import type { SearchParamsProp } from "@/lib/project";
+import { linker, type SearchParamsProp } from "@/lib/project";
 import { first, withParams } from "@/lib/email-query";
-import { p } from "@/lib/nav";
 import { updateWebhookAction } from "@/app/actions";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,8 +29,9 @@ const ok = await verifyWebhookSignature(
   await request.text(), // the raw body, before JSON.parse
 );`;
 
-export default async function WebhookPage({ params, searchParams }: { params: Promise<{ slug: string; id: string }> } & SearchParamsProp) {
-  const [{ slug, id }, sp] = await Promise.all([params, searchParams]);
+export default async function WebhookPage({ params, searchParams }: { params: Promise<{ slug: string; id: string; view?: string }> } & SearchParamsProp) {
+  const [{ slug, id, view }, sp] = await Promise.all([params, searchParams]);
+  const to = linker(slug, view);
   const cursor = first(sp.cursor);
   const [hook, deliveries] = await Promise.all([
     mailerCall((m) => m.getWebhook(slug, id)),
@@ -42,12 +42,12 @@ export default async function WebhookPage({ params, searchParams }: { params: Pr
     return <PageError error={hook.error} title="Could not load this webhook" />;
   }
   const w = hook.data;
-  const base = p(slug, "webhooks", id);
+  const base = to("webhooks", id);
 
   return (
     <>
       <PageHeader
-        back={{ href: p(slug, "webhooks"), label: "Webhooks" }}
+        back={{ href: to("webhooks"), label: "Webhooks" }}
         title={<span className="font-mono text-section break-all md:text-lg">{w.url}</span>}
         description={
           <span className="flex flex-wrap items-center gap-2">

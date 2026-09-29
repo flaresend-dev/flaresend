@@ -1,8 +1,8 @@
 import { LayoutTemplate, Plus } from "lucide-react";
 import type { TemplateVariable } from "@flaresend/types";
 import { mailerCall } from "@/lib/mailer";
-import type { SlugParams } from "@/lib/project";
-import { p } from "@/lib/nav";
+import { linker, listAcross, projectsFor, type SlugParams } from "@/lib/project";
+import { ALL } from "@/lib/nav";
 import { PageHeader } from "@/components/ui/page-header";
 import { LinkButton } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Time } from "@/components/ui/time";
 import { PageError } from "@/components/page-error";
+import { ProjectTD, ProjectTH } from "@/components/project-name";
+import { ProjectMenuButton } from "@/components/project-menu-button";
 
 export const metadata = { title: "Templates" };
 
@@ -29,11 +31,16 @@ function Variables({ vars }: { vars: TemplateVariable[] }) {
   );
 }
 
+/** One project's templates, or every project's when `slug` is ALL (the "All projects" view). */
 export default async function TemplatesPage({ params }: SlugParams) {
-  const { slug } = await params;
-  const list = await mailerCall((m) => m.listTemplates(slug));
-  const newButton = (
-    <LinkButton href={p(slug, "templates", "new")} variant="primary">
+  const { slug, view } = await params;
+  const isAll = slug === ALL;
+  const projects = await projectsFor(slug);
+  const list = projects.ok ? await listAcross(projects.data, (s) => mailerCall((m) => m.listTemplates(s))) : projects;
+  const newButton = isAll ? (
+    <ProjectMenuButton label="New template" projects={projects.ok ? projects.data : []} section="templates" rest={["new"]} />
+  ) : (
+    <LinkButton href={linker(slug, view)("templates", "new")} variant="primary">
       <Plus /> New template
     </LinkButton>
   );
@@ -55,6 +62,7 @@ export default async function TemplatesPage({ params }: SlugParams) {
           <THead>
             <tr>
               <TH className="w-[20%]">Name</TH>
+              {isAll ? <ProjectTH /> : null}
               <TH className="w-[100px]">Type</TH>
               <TH>Subject</TH>
               <TH className="hidden w-[26%] lg:table-cell">Variables</TH>
@@ -64,8 +72,9 @@ export default async function TemplatesPage({ params }: SlugParams) {
           </THead>
           <TBody>
             {list.data.map((t) => (
-              <TR key={`${t.source}-${t.name}`} href={p(slug, "templates", t.name)} label={`Open template ${t.name}`}>
+              <TR key={`${t.project.slug}-${t.source}-${t.name}`} href={linker(t.project.slug, view)("templates", t.name)} label={`Open template ${t.name}`}>
                 <TD className="truncate font-mono text-xs font-medium">{t.name}</TD>
+                {isAll ? <ProjectTD project={t.project} /> : null}
                 <TD>{t.source === "db" ? <Badge tone="violet">Editable</Badge> : <Badge>Built in</Badge>}</TD>
                 <TD className="truncate text-foreground-muted">{t.subject}</TD>
                 <TD className="hidden lg:table-cell">
