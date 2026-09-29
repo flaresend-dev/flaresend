@@ -1,10 +1,10 @@
 import { CircleAlert, TriangleAlert } from "lucide-react";
-import { p } from "@/lib/nav";
+import { link } from "@/lib/nav";
 import { Notice } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/button";
 
-/** The transactional-only warning, and the "broadcasts are off" notice when they are. */
-export function BroadcastNotices({ slug, enabled }: { slug: string; enabled: boolean }) {
+/** The transactional-only warning, and the "broadcasts are off" notice when they are. `view`: see SlugParams. */
+export function BroadcastNotices({ slug, view, enabled }: { slug: string; view?: string; enabled: boolean }) {
   return (
     <div className="mb-6 flex flex-col gap-3">
       {!enabled ? (
@@ -13,7 +13,7 @@ export function BroadcastNotices({ slug, enabled }: { slug: string; enabled: boo
           icon={<CircleAlert />}
           title="Broadcasts are turned off for this project"
           actions={
-            <LinkButton href={p(slug, "settings")} size="sm" variant="secondary">
+            <LinkButton href={link(view ?? slug, slug, "settings")} size="sm" variant="secondary">
               Enable in Settings
             </LinkButton>
           }

@@ -4,6 +4,7 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import { Time } from "@/components/ui/time";
 import { Tooltip } from "@/components/ui/tooltip";
+import { ProjectTD, ProjectTH } from "@/components/project-name";
 
 function Recipients({ e }: { e: EmailRecord }) {
   const all = [...e.to, ...e.cc, ...e.bcc];
@@ -32,7 +33,7 @@ export function EmailsTable({ slug, rows, projects }: { slug: string; rows: Emai
         <tr>
           <TH className="w-[34%] md:w-[30%]">To</TH>
           <TH className="w-[150px]">Status</TH>
-          {projects ? <TH className="hidden w-[160px] lg:table-cell">Project</TH> : null}
+          {projects ? <ProjectTH /> : null}
           <TH className="hidden md:table-cell">Subject</TH>
           <TH className="w-[110px] text-right">Sent</TH>
         </tr>
@@ -49,12 +50,7 @@ export function EmailsTable({ slug, rows, projects }: { slug: string; rows: Emai
               <TD>
                 <StatusBadge status={e.status} />
               </TD>
-              {projects ? (
-                <TD className="hidden truncate text-foreground-muted lg:table-cell">
-                  {project?.name ?? <span className="font-mono text-xs">{e.projectId}</span>}
-                  {project?.disabledAt ? <span className="text-foreground-subtle"> (paused)</span> : null}
-                </TD>
-              ) : null}
+              {projects ? <ProjectTD project={project ?? { name: e.projectId, disabledAt: null }} /> : null}
               <TD className="hidden truncate md:table-cell">
                 {e.subject ? e.subject : <span className="text-foreground-subtle">(no subject)</span>}
               </TD>

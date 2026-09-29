@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { eventSummary, reasonLabel, statusDisplay, statusLabel, titleCase } from "../src/lib/labels";
 import { parseEmailSearch } from "../src/lib/search";
-import { ALL, NAV_ITEMS, activeSection, allSection, isReservedSlug, legacyProjectHref, p, projectFromPath, slugError, slugify } from "../src/lib/nav";
+import { ALL, NAV_ITEMS, activeSection, isReservedSlug, link, legacyProjectHref, p, projectFromPath, slugError, slugify } from "../src/lib/nav";
 import { hasEmailFilters, toEmailQuery } from "../src/lib/email-query";
 import { nextTheme, parseTheme } from "../src/lib/theme";
 import { formatAbsolute, num } from "../src/lib/format";
@@ -124,9 +124,17 @@ describe("nav", () => {
     expect(projectFromPath("/all/emails")).toBe(ALL);
     expect(activeSection("/all/domains")).toBe("domains");
     expect(p(ALL, "emails", "email_1")).toBe("/all/emails/email_1");
-    expect(allSection("logs")).toBe("logs");
-    expect(allSection("webhooks")).toBe("emails");
-    expect(allSection(null)).toBe("emails");
+  });
+  it("keeps project links inside the view", () => {
+    expect(link("acme", "acme", "webhooks", "wh_1")).toBe("/acme/webhooks/wh_1");
+    expect(link("acme", "acme", "webhooks")).toBe("/acme/webhooks");
+    expect(link(ALL, "acme", "webhooks", "wh_1")).toBe("/all/webhooks/acme/wh_1");
+    expect(link(ALL, "acme", "webhooks")).toBe("/all/webhooks");
+    expect(link(ALL, "acme", "templates", "a b")).toBe("/all/templates/acme/a%20b");
+    expect(link(ALL, "acme", "contacts")).toBe("/all/contacts/acme");
+    expect(link(ALL, "acme", "settings")).toBe("/all/settings/acme");
+    expect(link(ALL, "acme", "emails", "email_1")).toBe("/all/emails/email_1");
+    expect(link(ALL, "acme", "logs")).toBe("/all/logs");
   });
   it("keeps the sidebar order", () => {
     expect(NAV_ITEMS.map((n) => n.label)).toEqual([

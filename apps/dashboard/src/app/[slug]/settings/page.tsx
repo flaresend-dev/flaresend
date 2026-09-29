@@ -48,7 +48,8 @@ function SettingsCard({ slug, fields, title, description, children }: {
   );
 }
 
-export default async function SettingsPage({ params }: SlugParams) {
+/** `picker`: the project picker of the "All projects" view, shown under the header. */
+export default async function SettingsPage({ params, picker }: SlugParams & { picker?: React.ReactNode }) {
   const { slug } = await params;
   const project = await getProjectOr404(slug);
   const paused = Boolean(project.disabledAt);
@@ -56,6 +57,7 @@ export default async function SettingsPage({ params }: SlugParams) {
   return (
     <>
       <PageHeader title="Settings" />
+      {picker}
       <div className="flex max-w-3xl flex-col gap-6">
         <SettingsCard slug={slug} fields={["name"]} title="General">
           <Field label="Name" htmlFor="name">

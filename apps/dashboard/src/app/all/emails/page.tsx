@@ -1,6 +1,6 @@
 import { Inbox } from "lucide-react";
 import { mailerCall } from "@/lib/mailer";
-import type { SearchParamsProp } from "@/lib/project";
+import { listProjects, type SearchParamsProp } from "@/lib/project";
 import { first, hasEmailFilters, toEmailQuery, withParams } from "@/lib/email-query";
 import { ALL, p } from "@/lib/nav";
 import { PageHeader } from "@/components/ui/page-header";
@@ -10,20 +10,38 @@ import { LinkButton } from "@/components/ui/button";
 import { PageError } from "@/components/page-error";
 import { EmailFilters } from "@/components/emails/email-filters";
 import { EmailsTable } from "@/components/emails/emails-table";
+import { SendTestEmailButton } from "@/components/emails/send-test-email";
 
 export const metadata = { title: "Emails" };
 
-/** Every project's emails, newest first. Sending a test email needs a project, so that button stays on project pages. */
+/** Every project's emails, newest first. "Send test email" asks for the project, then one of its domains. */
 export default async function AllEmailsPage({ searchParams }: SearchParamsProp) {
   const sp = await searchParams;
   const base = p(ALL, "emails");
-  const [emails, projects] = await Promise.all([
+  const [emails, projects, domains] = await Promise.all([
     mailerCall((m) => m.listEmails(toEmailQuery(sp))),
-    mailerCall((m) => m.listProjects()),
+    listProjects(),
+    mailerCall((m) => m.listAllDomains()),
   ]);
   const filtered = hasEmailFilters(sp);
   const cursor = first(sp.cursor);
-  const header = <PageHeader title="Emails" description="Emails from every project, newest first." />;
+  // Each project's domains, in the per-project shape the send dialog takes.
+  const senders = projects.ok && domains.ok
+    ? projects.data.map((pr) => ({
+        ...pr,
+        domains: domains.data.flatMap(({ projects: refs, ...d }) => {
+          const ref = refs.find((r) => r.slug === pr.slug);
+          return ref ? [{ ...d, defaultFrom: ref.defaultFrom }] : [];
+        }),
+      }))
+    : null;
+  const header = (
+    <PageHeader
+      title="Emails"
+      description="Emails from every project, newest first."
+      actions={senders?.length ? <SendTestEmailButton slug={ALL} domains={null} projects={senders} /> : null}
+    />
+  );
 
   if (!emails.ok) {
     return (

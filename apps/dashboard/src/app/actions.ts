@@ -10,7 +10,7 @@ import { mailerCall } from "@/lib/mailer";
 import { sendableDomains } from "@/lib/senders";
 import { formatUiError } from "@/lib/errors";
 import { localInputToIso, splitList } from "@/lib/format";
-import { isReservedSlug } from "@/lib/nav";
+import { ALL, isReservedSlug } from "@/lib/nav";
 import type { ActionState } from "@/lib/action-state";
 
 let seq = 0;
@@ -23,6 +23,8 @@ async function run<T>(
   seq++;
   if (!r.ok) return { ok: false, error: formatUiError(r.error), seq };
   for (const p of opts.paths ?? []) revalidatePath(p);
+  // The "All projects" view shows the same data under /all.
+  if (opts.paths?.length) revalidatePath(`/${ALL}`, "layout");
   return { ok: true, seq, ...(opts.ok ? opts.ok(r.data) : {}) };
 }
 
@@ -38,19 +40,22 @@ const int = (fd: FormData, k: string): number | undefined => {
   const n = Number(v);
   return Number.isFinite(n) ? Math.trunc(n) : undefined;
 };
+
+/** A create dialog in the "All projects" view is bound to ALL and sends the chosen project as the `project` field. */
+const target = (slug: string, fd: FormData) => (slug === ALL ? str(fd, "project") : slug);
+
 const bad = (message: string): ActionState => ({ ok: false, error: `validation_error: ${message}`, seq: ++seq });
 
 // Pages that show each kind of data (section 4.3).
 const at = {
-  projects: (slug: string) => [`/${slug}/settings`, `/${slug}/domains`, "/projects", `/${slug}`, "/all/domains"],
+  projects: (slug: string) => [`/${slug}/settings`, `/${slug}/domains`, "/projects", `/${slug}`],
   keys: (slug: string) => [`/${slug}/api-keys`],
   webhooks: (slug: string, id?: string) => [`/${slug}/webhooks`, ...(id ? [`/${slug}/webhooks/${id}`] : [])],
   templates: (slug: string, name?: string) => [`/${slug}/templates`, ...(name ? [`/${slug}/templates/${encodeURIComponent(name)}`] : [])],
   contacts: (slug: string) => [`/${slug}/contacts`],
   audiences: (slug: string, id?: string) => [`/${slug}/audiences`, ...(id ? [`/${slug}/audiences/${id}`] : [])],
   broadcasts: (slug: string, id?: string) => [`/${slug}/broadcasts`, ...(id ? [`/${slug}/broadcasts/${id}`] : [])],
-  emails: (slug: string | null, id?: string) =>
-    [...new Set([slug, "all"])].flatMap((s) => (s ? [`/${s}/emails`, ...(id ? [`/${s}/emails/${id}`] : [])] : [])),
+  emails: (slug: string | null, id?: string) => (slug ? [`/${slug}/emails`, ...(id ? [`/${slug}/emails/${id}`] : [])] : []),
   suppressions: (slug: string | null) => (slug ? [`/${slug}/suppressions`] : []),
 };
 
@@ -98,6 +103,8 @@ export async function updateSettingsAction(slug: string, _: ActionState, fd: For
 
 /** Sending section of Domains. Fields that are not in the form are left unchanged. */
 export async function updateDomainsAction(slug: string, _: ActionState, fd: FormData): Promise<ActionState> {
+  slug = target(slug, fd);
+  if (!slug) return bad("pick a project");
   const patch: UpdateProjectInput = {};
   if (fd.has("allowedDomains")) patch.allowedDomains = splitList(str(fd, "allowedDomains"));
   if (fd.has("defaultFrom")) patch.defaultFrom = str(fd, "defaultFrom") || null;
@@ -118,6 +125,8 @@ export interface DomainSetupView {
 
 /** Adds the domain to the project, then onboards it in Cloudflare. A failed onboarding keeps the domain added. */
 export async function addDomainAction(slug: string, _: ActionState, fd: FormData): Promise<ActionState> {
+  slug = target(slug, fd);
+  if (!slug) return bad("pick a project");
   const domain = str(fd, "domain").toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
   if (!domain) return bad("enter a domain");
   const added = await run(
@@ -170,6 +179,8 @@ export async function setProjectDisabledAction(slug: string, disabled: boolean, 
 // ---------- API keys ----------
 
 export async function createApiKeyAction(slug: string, _: ActionState, fd: FormData): Promise<ActionState> {
+  slug = target(slug, fd);
+  if (!slug) return bad("pick a project");
   const expires = localInputToIso(str(fd, "expiresAt"));
   return run(
     (m) => m.createApiKey(slug, { name: str(fd, "name"), mode: str(fd, "mode") === "test" ? "test" : "live", ...(expires ? { expiresAt: expires } : {}) }),
@@ -206,6 +217,8 @@ export async function rescheduleEmailAction(slug: string | null, id: string, _: 
 
 /** "Send test email" on the Emails page: plain text, from an address on one of the project's verified domains. */
 export async function sendTestEmailAction(slug: string, _: ActionState, fd: FormData): Promise<ActionState> {
+  slug = target(slug, fd);
+  if (!slug) return bad("pick a project");
   const from = str(fd, "from");
   const to = str(fd, "to");
   const subject = str(fd, "subject");
@@ -239,6 +252,8 @@ function webhookEvents(fd: FormData): string[] {
 }
 
 export async function createWebhookAction(slug: string, _: ActionState, fd: FormData): Promise<ActionState> {
+  slug = target(slug, fd);
+  if (!slug) return bad("pick a project");
   const events = webhookEvents(fd);
   if (!events.length) return bad("pick at least one event");
   return run((m) => m.createWebhook(slug, { url: str(fd, "url"), events: events as never, enabled: bool(fd, "enabled") }), {
@@ -387,6 +402,8 @@ export async function searchContactsAction(slug: string, q: string): Promise<Act
 // ---------- audiences ----------
 
 export async function createAudienceAction(slug: string, _: ActionState, fd: FormData): Promise<ActionState> {
+  slug = target(slug, fd);
+  if (!slug) return bad("pick a project");
   return run((m) => m.createAudience(slug, str(fd, "name")), { paths: at.audiences(slug), ok: (a) => ({ message: `Created ${a.name}.`, data: a.id }) });
 }
 

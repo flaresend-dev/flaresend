@@ -1,8 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { mailerCall } from "@/lib/mailer";
-import { getProjectOr404 } from "@/lib/project";
-import { p } from "@/lib/nav";
+import { getProjectOr404, linker } from "@/lib/project";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusBadge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,10 +16,11 @@ import { BroadcastNotices } from "@/components/broadcasts/notices";
 
 export const metadata = { title: "Broadcast" };
 
-export default async function BroadcastPage({ params }: { params: Promise<{ slug: string; id: string }> }) {
-  const { slug, id } = await params;
+export default async function BroadcastPage({ params }: { params: Promise<{ slug: string; id: string; view?: string }> }) {
+  const { slug, id, view } = await params;
+  const to = linker(slug, view);
   const project = await getProjectOr404(slug);
-  const back = { href: p(slug, "broadcasts"), label: "Broadcasts" };
+  const back = { href: to("broadcasts"), label: "Broadcasts" };
   const [r, audiences] = await Promise.all([mailerCall((m) => m.getBroadcast(slug, id)), mailerCall((m) => m.listAudiences(slug))]);
   if (!r.ok) {
     if (r.error.code.includes("not_found")) notFound();
@@ -47,7 +47,7 @@ export default async function BroadcastPage({ params }: { params: Promise<{ slug
           description={<StatusBadge status="draft" />}
           actions={<BroadcastActions slug={slug} id={b.id} cancelable={false} deletable />}
         />
-        {!project.broadcastsEnabled ? <BroadcastNotices slug={slug} enabled={false} /> : null}
+        {!project.broadcastsEnabled ? <BroadcastNotices slug={slug} view={view} enabled={false} /> : null}
         <BroadcastComposer key={b.updatedAt} slug={slug} broadcast={b} audiences={audienceList} defaultFrom={project.defaultFrom ?? ""} templates={editable} />
       </>
     );
@@ -80,7 +80,7 @@ export default async function BroadcastPage({ params }: { params: Promise<{ slug
                 [
                   "Audience",
                   audience ? (
-                    <Link key="a" href={p(slug, "audiences", audience.id)} className="underline-offset-2 hover:underline">
+                    <Link key="a" href={to("audiences", audience.id)} className="underline-offset-2 hover:underline">
                       {audience.name}
                     </Link>
                   ) : (

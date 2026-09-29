@@ -6,7 +6,7 @@ import { Braces, History, Plus, Send, Trash2, X } from "lucide-react";
 import type { RenderedTemplate, TemplateRecord, TemplateVariable, TemplateVersionRecord } from "@flaresend/types";
 import { renderMustache } from "@/lib/mustache";
 import { examplesFromVariables, exampleToText, parseExample } from "@/lib/template-vars";
-import { p } from "@/lib/nav";
+import { useLink } from "@/lib/use-link";
 import type { ActionState } from "@/lib/action-state";
 import {
   deleteTemplateAction, renderTemplateAction, restoreTemplateAction, saveTemplateAction, sendTestTemplateAction,
@@ -42,6 +42,7 @@ const STARTER_HTML = "<!doctype html>\n<html>\n  <body>\n    <p>Hello {{first_na
  */
 export function TemplateEditor({ slug, template, versions }: { slug: string; template: TemplateRecord | null; versions: TemplateVersionRecord[] }) {
   const router = useRouter();
+  const to = useLink(slug);
   const isNew = template === null;
   const [name, setName] = useState(template?.name ?? "");
   const [subject, setSubject] = useState(template?.subject ?? "");
@@ -106,7 +107,7 @@ export function TemplateEditor({ slug, template, versions }: { slug: string; tem
       () => saveTemplateAction(slug, isNew ? null : template.name, { name: name.trim(), subject, html, text, variables }),
       (r) => {
         const t = r.data as TemplateRecord;
-        if (isNew) router.push(p(slug, "templates", t.name));
+        if (isNew) router.push(to("templates", t.name));
         else router.refresh();
       },
     );
@@ -117,7 +118,7 @@ export function TemplateEditor({ slug, template, versions }: { slug: string; tem
   return (
     <>
       <PageHeader
-        back={{ href: p(slug, "templates"), label: "Templates" }}
+        back={{ href: to("templates"), label: "Templates" }}
         title={
           isNew ? (
             "New template"
@@ -329,7 +330,7 @@ export function TemplateEditor({ slug, template, versions }: { slug: string; tem
                     const r = await sendTestTemplateAction(slug, template.name, testTo, data);
                     if (!r.ok) return toastResult(r);
                     const id = String(r.data);
-                    toast.success(r.message ?? "Test email queued.", { action: { label: "View", onClick: () => router.push(p(slug, "emails", id)) } });
+                    toast.success(r.message ?? "Test email queued.", { action: { label: "View", onClick: () => router.push(to("emails", id)) } });
                     setPanel(null);
                   });
                 }}
@@ -361,7 +362,7 @@ export function TemplateEditor({ slug, template, versions }: { slug: string; tem
             tone="danger"
             typeToConfirm={template.name}
             onConfirm={() => deleteTemplateAction(slug, template.name)}
-            onSuccess={() => router.push(p(slug, "templates"))}
+            onSuccess={() => router.push(to("templates"))}
           />
         </>
       ) : null}

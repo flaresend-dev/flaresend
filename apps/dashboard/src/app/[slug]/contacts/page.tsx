@@ -1,8 +1,7 @@
 import { Contact, SearchX } from "lucide-react";
 import { mailerCall } from "@/lib/mailer";
-import type { SearchParamsProp, SlugParams } from "@/lib/project";
+import { linker, type SearchParamsProp, type SlugParams } from "@/lib/project";
 import { first } from "@/lib/email-query";
-import { p } from "@/lib/nav";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LinkButton } from "@/components/ui/button";
@@ -14,12 +13,14 @@ import { CSV_HEADER, ImportCsvButton } from "@/components/csv-import";
 
 export const metadata = { title: "Contacts" };
 
-export default async function ContactsPage({ params, searchParams }: SlugParams & SearchParamsProp) {
-  const [{ slug }, sp] = await Promise.all([params, searchParams]);
+/** `picker`: the project picker of the "All projects" view, shown under the header. */
+export default async function ContactsPage({ params, searchParams, picker }: SlugParams & SearchParamsProp & { picker?: React.ReactNode }) {
+  const [{ slug, view }, sp] = await Promise.all([params, searchParams]);
+  const to = linker(slug, view);
   const q = first(sp.q);
   const cursor = first(sp.cursor);
   const contacts = await mailerCall((m) => m.listContacts(slug, { limit: 50, ...(q ? { q } : {}), ...(cursor ? { cursor } : {}) }));
-  const base = p(slug, "contacts");
+  const base = to("contacts");
   const qs = (extra: Record<string, string>) => {
     const u = new URLSearchParams({ ...(q ? { q } : {}), ...extra });
     return u.toString() ? `${base}?${u}` : base;
@@ -35,6 +36,7 @@ export default async function ContactsPage({ params, searchParams }: SlugParams 
   return (
     <>
       <PageHeader title="Contacts" description="People who opted in to your broadcasts. Unsubscribed contacts are always skipped." actions={actions} />
+      {picker}
       {!contacts.ok ? (
         <PageError error={contacts.error} title="Could not load contacts" />
       ) : empty ? (
