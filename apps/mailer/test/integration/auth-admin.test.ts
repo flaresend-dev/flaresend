@@ -119,6 +119,23 @@ describe("admin projects and keys", () => {
     expect(removed.domainSenders).toEqual({ "acme.com": "Hi <hi@acme.com>" });
     expect((await json(patch({ domainSenders: { "acme.com": null } }))).domainSenders).toEqual({});
   });
+  it("lists every project's domains once, with the projects that use each", async () => {
+    const a = await setupProject({ allowedDomains: ["acme.com", "send.acme.com"] });
+    const b = await setupProject({ allowedDomains: ["acme.com"], defaultFrom: "B <b@acme.com>" });
+    await call("DELETE", `/v1/admin/projects/${b.slug}`, { key: ADMIN_KEY });
+    const r = await json(call("GET", "/v1/admin/domains", { key: ADMIN_KEY }));
+    const acme = r.data.find((d: { domain: string }) => d.domain === "acme.com");
+    expect(r.data.filter((d: { domain: string }) => d.domain === "acme.com")).toHaveLength(1);
+    expect(acme.projects).toEqual(
+      expect.arrayContaining([
+        { slug: a.slug, name: "Test project", paused: false, defaultFrom: "Acme <hello@acme.com>" },
+        { slug: b.slug, name: "Test project", paused: true, defaultFrom: "B <b@acme.com>" },
+      ]),
+    );
+    const send = r.data.find((d: { domain: string }) => d.domain === "send.acme.com");
+    expect(send.projects.some((x: { slug: string }) => x.slug === b.slug)).toBe(false);
+    expect((await call("GET", "/v1/admin/domains", { key: a.liveKey })).status).toBe(401);
+  });
   it("lists projects and stats", async () => {
     const p = await setupProject();
     const list = await json(call("GET", "/v1/admin/projects", { key: ADMIN_KEY }));

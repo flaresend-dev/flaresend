@@ -115,6 +115,21 @@ export interface DomainRecord {
   checkedAt?: string | null;
 }
 
+/** One project that lists a domain, as shown by listAllDomains. */
+export interface DomainProjectRef {
+  slug: string;
+  name: string;
+  /** true when the project is paused (disabledAt is set). */
+  paused: boolean;
+  /** The sender this project uses for the domain. */
+  defaultFrom: string | null;
+}
+
+/** A domain across every project that lists it. The same domain can be allowed in several projects. */
+export interface AllDomainRecord extends Omit<DomainRecord, "defaultFrom"> {
+  projects: DomainProjectRef[];
+}
+
 /** One step of onboarding a domain in Cloudflare. Existing DNS records are never changed. */
 export interface DomainSetupStep {
   /** "sending domain", "dns", "dmarc" or "delivery events". */

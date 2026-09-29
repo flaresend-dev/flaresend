@@ -1,6 +1,7 @@
 import { mailerCall } from "@/lib/mailer";
 import type { SearchParamsProp, SlugParams } from "@/lib/project";
 import { first } from "@/lib/email-query";
+import { ALL } from "@/lib/nav";
 import { PageHeader } from "@/components/ui/page-header";
 import { PageError } from "@/components/page-error";
 import { MetricsControls, MetricsView } from "@/components/metrics/metrics-view";
@@ -13,7 +14,7 @@ export default async function MetricsPage({ params, searchParams }: SlugParams &
   const [{ slug }, sp] = await Promise.all([params, searchParams]);
   const range = (RANGES as readonly string[]).includes(first(sp.range)) ? (first(sp.range) as (typeof RANGES)[number]) : "7d";
   const interval = first(sp.interval) === "hour" ? "hour" : "day";
-  const a = await mailerCall((m) => m.analytics({ range, interval, project: slug }));
+  const a = await mailerCall((m) => m.analytics({ range, interval, ...(slug === ALL ? {} : { project: slug }) }));
 
   return (
     <>

@@ -8,7 +8,7 @@ import { EMAIL_EVENT_TYPES, type EventRecord, type ListResponse } from "@flarese
 import { formatUiError, type UiError } from "@/lib/errors";
 import { age } from "@/lib/format";
 import { eventSummary, statusLabel } from "@/lib/labels";
-import { p } from "@/lib/nav";
+import { ALL, p } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
@@ -27,7 +27,7 @@ const INTERVAL_MS = 10_000;
 type Page = { error?: UiError } & Partial<ListResponse<EventRecord>>;
 
 /**
- * Email events for one project, newest first. Polls /api/events every 10 s while Live is on and the tab is visible;
+ * Email events for one project (or every project when `slug` is ALL), newest first. Polls /api/events every 10 s while Live is on and the tab is visible;
  * rows that arrive from a poll flash briefly. "Load older" follows the cursor.
  */
 export function LogStream({ slug, initial, type, emailId }: { slug: string; initial: ListResponse<EventRecord>; type: string; emailId: string }) {
@@ -46,7 +46,7 @@ export function LogStream({ slug, initial, type, emailId }: { slug: string; init
 
   const qs = useCallback(
     (extra: Record<string, string> = {}) => {
-      const u = new URLSearchParams({ project: slug });
+      const u = new URLSearchParams(slug === ALL ? {} : { project: slug });
       if (type) u.set("type", type);
       if (emailId) u.set("emailId", emailId);
       for (const [k, v] of Object.entries(extra)) u.set(k, v);

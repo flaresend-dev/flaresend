@@ -1,9 +1,10 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CalendarClock, CircleAlert } from "lucide-react";
 import { mailerCall } from "@/lib/mailer";
 import { getProjectOr404 } from "@/lib/project";
 import { bytes, ms } from "@/lib/format";
-import { p } from "@/lib/nav";
+import { ALL, p } from "@/lib/nav";
 import { titleCase } from "@/lib/labels";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,11 +23,17 @@ export const metadata = { title: "Email" };
 
 const KIND = { to: "To", cc: "Cc", bcc: "Bcc" } as const;
 
+/** Also rendered at `/all/emails/{id}` (slug = ALL), where any project's email opens and the Project row says whose it is. */
 export default async function EmailPage({ params }: { params: Promise<{ slug: string; id: string }> }) {
   const { slug, id } = await params;
-  const project = await getProjectOr404(slug);
+  const isAll = slug === ALL;
+  const project = isAll ? null : await getProjectOr404(slug);
   const back = { href: p(slug, "emails"), label: "Emails" };
-  const [email, content] = await Promise.all([mailerCall((m) => m.getEmail(id)), mailerCall((m) => m.getContent(id))]);
+  const [email, content, projects] = await Promise.all([
+    mailerCall((m) => m.getEmail(id)),
+    mailerCall((m) => m.getContent(id)),
+    isAll ? mailerCall((m) => m.listProjects()) : null,
+  ]);
 
   if (!email.ok) {
     return (
@@ -38,7 +45,8 @@ export default async function EmailPage({ params }: { params: Promise<{ slug: st
   }
   const e = email.data;
   // An id from another project: let the global redirector find the right one.
-  if (e.projectId !== project.id) redirect(`/emails/${encodeURIComponent(id)}`);
+  if (project && e.projectId !== project.id) redirect(`/emails/${encodeURIComponent(id)}`);
+  const owner = projects?.ok ? projects.data.find((x) => x.id === e.projectId) : undefined;
 
   const from = e.fromName ? `${e.fromName} <${e.from}>` : e.from;
   const recipientCount = e.recipients.length;
@@ -95,6 +103,19 @@ export default async function EmailPage({ params }: { params: Promise<{ slug: st
             <CardContent className="pt-5">
               <DetailList
                 items={[
+                  isAll
+                    ? [
+                        "Project",
+                        owner ? (
+                          <Link key="p" href={p(owner.slug, "emails", e.id)} className="underline-offset-2 hover:underline">
+                            {owner.name}
+                            {owner.disabledAt ? <span className="text-foreground-subtle"> (paused)</span> : null}
+                          </Link>
+                        ) : (
+                          <span key="p" className="font-mono text-xs">{e.projectId}</span>
+                        ),
+                      ]
+                    : null,
                   ["From", <span key="f" className="break-all">{from}</span>],
                   ["To", list(e.to)],
                   e.cc.length > 0 && ["Cc", list(e.cc)],

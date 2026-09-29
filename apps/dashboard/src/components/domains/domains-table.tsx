@@ -31,7 +31,7 @@ export function VerifyButton({ size = "sm" }: { size?: "sm" | "md" }) {
   );
 }
 
-function statusBadge(d: DomainRecord) {
+export function statusBadge(d: Pick<DomainRecord, "verification" | "details">) {
   const badge = <StatusBadge status={d.verification} />;
   if (d.verification !== "unknown") return badge;
   // The mailer stores Cloudflare API failures as { error } in details; no details at all means no token.

@@ -4,7 +4,7 @@ import type {
   AnalyticsQuery, AnalyticsResult,
 } from "./analytics";
 import type {
-  ApiKeyRecord, CreateApiKeyInput, CreateProjectInput, CreatedApiKey, DomainRecord, DomainSetupResult, MailerInfo, ProjectRecord, StatsRecord,
+  AllDomainRecord, ApiKeyRecord, CreateApiKeyInput, CreateProjectInput, CreatedApiKey, DomainRecord, DomainSetupResult, MailerInfo, ProjectRecord, StatsRecord,
   SuppressionRecord, UpdateProjectInput,
 } from "./admin";
 import type {
@@ -34,6 +34,8 @@ export interface AdminRpcApi {
   updateProject(slug: string, patch: UpdateProjectInput): Promise<ProjectRecord>;
   disableProject(slug: string): Promise<ProjectRecord>;
   listDomains(slug: string, opts?: { refresh?: boolean }): Promise<DomainRecord[]>;
+  /** Every domain of every project (paused ones too), each checked once, sorted by domain. */
+  listAllDomains(opts?: { refresh?: boolean }): Promise<AllDomainRecord[]>;
   /** Onboards one of the project's domains in Cloudflare Email Sending: sending domain, DNS, DMARC, delivery events. */
   setupDomain(slug: string, domain: string): Promise<DomainSetupResult>;
 

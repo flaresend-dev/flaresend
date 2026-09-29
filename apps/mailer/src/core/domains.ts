@@ -10,8 +10,8 @@
 //   GET/POST /accounts/{account_id}/event_subscriptions/subscriptions -> delivery events -> queue (Queues Edit)
 // Creating the sending domain does not add DNS records by itself (wrangler's `enable` only makes the POST),
 // so setupDomain adds whatever the /dns endpoint lists and is missing from the zone.
-import { senderForDomain, type DomainRecord, type DomainSetupResult, type DomainSetupStep } from "@flaresend/types";
-import { allowedDomains, domainSenders, type ProjectRow } from "../db/projects";
+import { senderForDomain, type AllDomainRecord, type DomainRecord, type DomainSetupResult, type DomainSetupStep } from "@flaresend/types";
+import { allowedDomains, domainSenders, listProjects, type ProjectRow } from "../db/projects";
 import { one } from "../db/client";
 import { ApiError } from "../http/errors";
 import { nowIso } from "./ids";
@@ -114,6 +114,22 @@ export async function listDomainRecords(env: Env, project: ProjectRow, opts: { r
   const statuses = await Promise.all(domains.map((d) => domainStatus(env, d, opts)));
   const senders = { defaultFrom: project.default_from, domainSenders: domainSenders(project) };
   return statuses.map((s) => ({ ...s, defaultFrom: senderForDomain(senders, s.domain) }));
+}
+
+/** Every project's domains merged: one row per domain, checked once, with the projects that list it. */
+export async function listAllDomainRecords(env: Env, opts: { refresh?: boolean } = {}): Promise<AllDomainRecord[]> {
+  const byDomain = new Map<string, AllDomainRecord["projects"]>();
+  for (const project of await listProjects(env.DB)) {
+    const senders = { defaultFrom: project.default_from, domainSenders: domainSenders(project) };
+    for (const domain of allowedDomains(project)) {
+      const refs = byDomain.get(domain) ?? [];
+      refs.push({ slug: project.slug, name: project.name, paused: Boolean(project.disabled_at), defaultFrom: senderForDomain(senders, domain) });
+      byDomain.set(domain, refs);
+    }
+  }
+  const domains = [...byDomain.keys()].sort();
+  const statuses = await Promise.all(domains.map((d) => domainStatus(env, d, opts)));
+  return statuses.map((s) => ({ ...s, projects: byDomain.get(s.domain) ?? [] }));
 }
 
 // ---------- onboarding ----------
