@@ -2,7 +2,7 @@
 
 import { useRouter, usePathname } from "next/navigation";
 import { ChevronsUpDown, Layers, LayoutGrid, Plus } from "lucide-react";
-import { ALL, activeSection, allSection, p } from "@/lib/nav";
+import { ALL, activeSection, p } from "@/lib/nav";
 import {
   DropdownMenu, DropdownMenuCheckItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -32,10 +32,7 @@ export function ProjectAvatar({ name, all, className }: { name: string; all?: bo
   );
 }
 
-/**
- * Top of the sidebar: current project name + slug, dropdown to switch. Keeps the current section when switching;
- * "All projects" falls back to Emails for sections that only exist per project.
- */
+/** Top of the sidebar: current project name + slug, dropdown to switch. Keeps the current section when switching. */
 export function ProjectSwitcher({ current, projects }: { current: ShellProject; projects: ShellProject[] }) {
   const router = useRouter();
   const section = activeSection(usePathname() ?? "") ?? "emails";
@@ -61,7 +58,7 @@ export function ProjectSwitcher({ current, projects }: { current: ShellProject; 
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-60">
-        <DropdownMenuCheckItem checked={isAll} onSelect={() => router.push(p(ALL, allSection(section)))} className="h-auto py-1.5">
+        <DropdownMenuCheckItem checked={isAll} onSelect={() => router.push(p(ALL, section))} className="h-auto py-1.5">
           <ProjectAvatar name={ALL_PROJECTS.name} all className="size-5 shadow-none" />
           <span className="flex min-w-0 flex-col leading-tight">
             <span className="truncate">All projects</span>

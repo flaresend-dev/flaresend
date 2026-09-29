@@ -1,10 +1,9 @@
 import { notFound } from "next/navigation";
 import { Users } from "lucide-react";
 import { mailerCall } from "@/lib/mailer";
-import type { SearchParamsProp } from "@/lib/project";
+import { linker, type SearchParamsProp } from "@/lib/project";
 import { first } from "@/lib/email-query";
 import { num } from "@/lib/format";
-import { p } from "@/lib/nav";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CursorPagination } from "@/components/ui/pagination";
@@ -14,8 +13,9 @@ import { AddMembersButton, MembersTable } from "@/components/audiences/members";
 
 export const metadata = { title: "Audience" };
 
-export default async function AudiencePage({ params, searchParams }: { params: Promise<{ slug: string; id: string }> } & SearchParamsProp) {
-  const [{ slug, id }, sp] = await Promise.all([params, searchParams]);
+export default async function AudiencePage({ params, searchParams }: { params: Promise<{ slug: string; id: string; view?: string }> } & SearchParamsProp) {
+  const [{ slug, id, view }, sp] = await Promise.all([params, searchParams]);
+  const to = linker(slug, view);
   const cursor = first(sp.cursor);
   const [audience, members] = await Promise.all([
     mailerCall((m) => m.getAudience(slug, id)),
@@ -26,13 +26,13 @@ export default async function AudiencePage({ params, searchParams }: { params: P
     return <PageError error={audience.error} title="Could not load this audience" />;
   }
   const a = audience.data;
-  const base = p(slug, "audiences", id);
+  const base = to("audiences", id);
   const memberIds = members.ok ? members.data.data.map((c) => c.id) : [];
 
   return (
     <>
       <PageHeader
-        back={{ href: p(slug, "audiences"), label: "Audiences" }}
+        back={{ href: to("audiences"), label: "Audiences" }}
         title={a.name}
         description={`${num(a.contactCount)} ${a.contactCount === 1 ? "contact" : "contacts"}`}
         actions={

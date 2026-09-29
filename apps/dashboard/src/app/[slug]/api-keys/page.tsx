@@ -1,7 +1,8 @@
 import { KeyRound } from "lucide-react";
 import type { ApiKeyRecord } from "@flaresend/types";
 import { mailerCall } from "@/lib/mailer";
-import type { SlugParams } from "@/lib/project";
+import { listAcross, projectsFor, type SlugParams } from "@/lib/project";
+import { ALL } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/page-header";
 import { Table, TBody, TD, TH, THead } from "@/components/ui/table";
@@ -12,6 +13,7 @@ import { PageError } from "@/components/page-error";
 import { MailerUrl } from "@/components/mailer-url";
 import { CreateApiKeyButton } from "@/components/api-keys/create-api-key";
 import { KeyActions } from "@/components/api-keys/key-actions";
+import { ProjectTD, ProjectTH } from "@/components/project-name";
 
 export const metadata = { title: "API Keys" };
 
@@ -37,14 +39,22 @@ function LastUsed({ k, now }: { k: ApiKeyRecord; now: number }) {
   );
 }
 
+/** One project's keys, or every project's when `slug` is ALL (the "All projects" view). */
 export default async function ApiKeysPage({ params }: SlugParams) {
   const { slug } = await params;
-  const keys = await mailerCall((m) => m.listApiKeys(slug));
+  const isAll = slug === ALL;
+  const projects = await projectsFor(slug);
+  const keys = projects.ok ? await listAcross(projects.data, (s) => mailerCall((m) => m.listApiKeys(s))) : projects;
+  const picker = isAll && projects.ok ? projects.data : undefined;
   const now = Date.now();
 
   return (
     <>
-      <PageHeader title="API Keys" description="Keys let your servers send email for this project." actions={<CreateApiKeyButton slug={slug} />} />
+      <PageHeader
+        title="API Keys"
+        description={isAll ? "Keys let your servers send email. Each key belongs to one project." : "Keys let your servers send email for this project."}
+        actions={<CreateApiKeyButton slug={slug} projects={picker} />}
+      />
       <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-border px-4 py-3">
         <span className="text-xs font-medium">Mailer URL</span>
         <MailerUrl />
@@ -56,7 +66,7 @@ export default async function ApiKeysPage({ params }: SlugParams) {
       {!keys.ok ? (
         <PageError error={keys.error} title="Could not load API keys" />
       ) : keys.data.length === 0 ? (
-        <EmptyState icon={<KeyRound />} title="Create an API key to start sending" action={<CreateApiKeyButton slug={slug} autoOpen={false} />}>
+        <EmptyState icon={<KeyRound />} title="Create an API key to start sending" action={<CreateApiKeyButton slug={slug} projects={picker} autoOpen={false} />}>
           The key is shown once. Store it in your server&apos;s environment as <code className="font-mono text-xs">FLARESEND_API_KEY</code>.
         </EmptyState>
       ) : (
@@ -64,6 +74,7 @@ export default async function ApiKeysPage({ params }: SlugParams) {
           <THead>
             <tr>
               <TH className="w-[24%]">Name</TH>
+              {isAll ? <ProjectTH /> : null}
               <TH className="w-[18%]">Token</TH>
               <TH className="w-[80px]">Mode</TH>
               <TH>Last used</TH>
@@ -80,6 +91,7 @@ export default async function ApiKeysPage({ params }: SlugParams) {
               return (
                 <tr key={k.id} className={cn("transition-colors hover:bg-background-hover", revoked && "text-foreground-muted")}>
                   <TD className={cn("truncate font-medium", revoked && "font-normal line-through decoration-foreground-subtle")}>{k.name}</TD>
+                  {isAll ? <ProjectTD project={k.project} /> : null}
                   <TD className="truncate font-mono text-xs">{k.prefix}…</TD>
                   <TD>
                     <Badge tone={k.mode === "live" ? "success" : "muted"}>{k.mode === "live" ? "Live" : "Test"}</Badge>
@@ -94,7 +106,7 @@ export default async function ApiKeysPage({ params }: SlugParams) {
                     {revoked ? "—" : k.expiresAt ? <Time iso={k.expiresAt} format="date" /> : "Never"}
                   </TD>
                   <TD className="text-right">
-                    <KeyActions slug={slug} id={k.id} name={k.name} revoked={revoked} />
+                    <KeyActions slug={k.project.slug} id={k.id} name={k.name} revoked={revoked} />
                   </TD>
                 </tr>
               );

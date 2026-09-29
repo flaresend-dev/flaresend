@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import { Info } from "lucide-react";
 import { mailerCall } from "@/lib/mailer";
+import { linker } from "@/lib/project";
 import { examplesFromVariables } from "@/lib/template-vars";
-import { p } from "@/lib/nav";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge, Notice } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,8 +15,9 @@ export async function generateMetadata({ params }: { params: Promise<{ name: str
   return { title: decodeURIComponent((await params).name) };
 }
 
-export default async function TemplatePage({ params }: { params: Promise<{ slug: string; name: string }> }) {
-  const { slug, name: raw } = await params;
+export default async function TemplatePage({ params }: { params: Promise<{ slug: string; name: string; view?: string }> }) {
+  const { slug, name: raw, view } = await params;
+  const to = linker(slug, view);
   const name = decodeURIComponent(raw);
   const list = await mailerCall((m) => m.listTemplates(slug));
   if (!list.ok) return <PageError error={list.error} title="Could not load templates" />;
@@ -35,7 +36,7 @@ export default async function TemplatePage({ params }: { params: Promise<{ slug:
   return (
     <>
       <PageHeader
-        back={{ href: p(slug, "templates"), label: "Templates" }}
+        back={{ href: to("templates"), label: "Templates" }}
         title={
           <span className="flex items-center gap-2.5">
             <span className="font-mono">{t.name}</span>

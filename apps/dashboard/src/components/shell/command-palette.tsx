@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Command } from "cmdk";
 import { ArrowRight, KeyRound, Mail, Plus, Radio, Search, Send, UserPlus, Webhook } from "lucide-react";
-import { ALL, ALL_SECTIONS, NAV_ITEMS, p } from "@/lib/nav";
+import { ALL, NAV_ITEMS, p } from "@/lib/nav";
 import { EMAIL_ID_RE } from "@/lib/search";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Kbd } from "@/components/ui/kbd";
@@ -69,11 +69,9 @@ export function CommandPalette({ project, projects }: { project: ShellProject; p
 
   const q = search.trim();
   const slug = project.slug;
-  const isAll = slug === ALL;
-  const pages = isAll ? NAV_ITEMS.filter((n) => ALL_SECTIONS.includes(n.id)) : NAV_ITEMS;
-  // Every action creates something in one project, so the "All projects" view has none.
-  const actions = isAll ? [] : [
-    { label: "New broadcast", icon: Radio, href: p(slug, "broadcasts", "new") },
+  // In the "All projects" view these open the same dialogs, which then ask for the project.
+  const actions = [
+    { label: "New broadcast", icon: Radio, href: slug === ALL ? `${p(ALL, "broadcasts")}?new=1` : p(slug, "broadcasts", "new") },
     { label: "Create API key", icon: KeyRound, href: `${p(slug, "api-keys")}?new=1` },
     { label: "Add webhook", icon: Webhook, href: `${p(slug, "webhooks")}?new=1` },
     { label: "Add contact", icon: UserPlus, href: `${p(slug, "contacts")}?new=1` },
@@ -120,7 +118,7 @@ export function CommandPalette({ project, projects }: { project: ShellProject; p
             ) : null}
 
             <Command.Group heading="Pages" className={groupClass}>
-              {pages.map((n) => {
+              {NAV_ITEMS.map((n) => {
                 const Icon = NAV_ICONS[n.id];
                 return (
                   <Command.Item key={n.id} value={`page ${n.label}`} className={itemClass} onSelect={() => go(p(slug, n.id))}>
@@ -144,15 +142,13 @@ export function CommandPalette({ project, projects }: { project: ShellProject; p
               </Command.Item>
             </Command.Group>
 
-            {actions.length ? (
-              <Command.Group heading="Actions" className={groupClass}>
-                {actions.map((a) => (
-                  <Command.Item key={a.label} value={`action ${a.label}`} className={itemClass} onSelect={() => go(a.href)}>
-                    <a.icon /> {a.label}
-                  </Command.Item>
-                ))}
-              </Command.Group>
-            ) : null}
+            <Command.Group heading="Actions" className={groupClass}>
+              {actions.map((a) => (
+                <Command.Item key={a.label} value={`action ${a.label}`} className={itemClass} onSelect={() => go(a.href)}>
+                  <a.icon /> {a.label}
+                </Command.Item>
+              ))}
+            </Command.Group>
           </Command.List>
         </Command>
       </DialogContent>

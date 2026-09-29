@@ -9,6 +9,7 @@ import { FormDialog } from "@/components/ui/form";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { ProjectField, type PickerProject } from "@/components/project-field";
 
 type Expiry = "never" | "30" | "90" | "custom";
 
@@ -18,8 +19,16 @@ function expiresAt(expiry: Expiry, custom: string): string {
   return new Date(Date.now() + Number(expiry) * 86_400_000).toISOString();
 }
 
-/** "Create API key" dialog; on success the one-time key opens in the reveal dialog. `?new=1` opens it. */
-export function CreateApiKeyButton({ slug, label = "Create API key", autoOpen = true }: { slug: string; label?: string; autoOpen?: boolean }) {
+/**
+ * "Create API key" dialog; on success the one-time key opens in the reveal dialog. `?new=1` opens it. With
+ * `projects` (the "All projects" view, `slug` = ALL) it asks which project the key is for.
+ */
+export function CreateApiKeyButton({ slug, projects, label = "Create API key", autoOpen = true }: {
+  slug: string;
+  projects?: PickerProject[];
+  label?: string;
+  autoOpen?: boolean;
+}) {
   const [open, setOpen] = useAutoOpen("new", autoOpen);
   const [expiry, setExpiry] = useState<Expiry>("never");
   const [custom, setCustom] = useState("");
@@ -44,6 +53,7 @@ export function CreateApiKeyButton({ slug, label = "Create API key", autoOpen = 
       secretTitle="Copy your API key"
       submitDisabled={expiry === "custom" && !custom}
     >
+      {projects ? <ProjectField projects={projects} /> : null}
       <Field label="Name" htmlFor="k-name" description="Something you will recognise later, like the server that uses it.">
         <Input id="k-name" name="name" required autoFocus placeholder="production server" />
       </Field>

@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Send } from "lucide-react";
 import type { DomainRecord } from "@flaresend/types";
 import { sendTestEmailAction } from "@/app/actions";
-import { p } from "@/lib/nav";
 import { sendableDomains } from "@/lib/senders";
 import { useAutoOpen } from "@/lib/use-auto-open";
 import { Button } from "@/components/ui/button";
@@ -15,15 +14,25 @@ import { Input, Textarea } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Notice } from "@/components/ui/badge";
 import { toastSuccess } from "@/components/ui/toast";
+import { useLink } from "@/lib/use-link";
+import { ProjectField, type PickerProject } from "@/components/project-field";
 
 /**
  * Header action on Emails. Plain-text email from any verified domain of the project, starting from that domain's
- * default sender. `?send=1` opens it. `domains` is null when they could not be loaded.
+ * default sender. `?send=1` opens it. `domains` is null when they could not be loaded. In the "All projects" view
+ * (`slug` = ALL) `projects` carries each project's domains and the dialog asks for the project first.
  */
-export function SendTestEmailButton({ slug, domains }: { slug: string; domains: DomainRecord[] | null }) {
+export function SendTestEmailButton({ slug, domains, projects }: {
+  slug: string;
+  domains: DomainRecord[] | null;
+  projects?: Array<PickerProject & { domains: DomainRecord[] }>;
+}) {
   const router = useRouter();
+  const to = useLink(slug);
   const [open, setOpen] = useAutoOpen("send");
-  const { domains: senders, unchecked } = sendableDomains(domains ?? []);
+  const [picked, setPicked] = useState(projects?.find((pr) => !pr.disabledAt)?.slug ?? projects?.[0]?.slug ?? "");
+  const shown = projects ? (projects.find((pr) => pr.slug === picked)?.domains ?? []) : domains;
+  const { domains: senders, unchecked } = sendableDomains(shown ?? []);
   const [domain, setDomain] = useState(senders.find((d) => d.defaultFrom)?.domain ?? senders[0]?.domain ?? "");
   const current = senders.find((d) => d.domain === domain) ?? senders[0];
   const disabled = !current;
@@ -44,11 +53,12 @@ export function SendTestEmailButton({ slug, domains }: { slug: string; domains: 
       toast={false}
       onSuccess={(s) => {
         const id = String(s.data);
-        toastSuccess(s.message ?? "Test email queued.", { action: { label: "View", onClick: () => router.push(p(slug, "emails", id)) } });
+        toastSuccess(s.message ?? "Test email queued.", { action: { label: "View", onClick: () => router.push(to("emails", id)) } });
         router.refresh();
       }}
     >
-      {domains === null ? (
+      {projects ? <ProjectField projects={projects} value={picked} onValueChange={setPicked} /> : null}
+      {shown === null ? (
         <Notice tone="danger" title="Could not load this project's domains">
           Reload the page to try again.
         </Notice>

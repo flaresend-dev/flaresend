@@ -1,10 +1,10 @@
-import { mailerCall } from "@/lib/mailer";
+import { listProjects } from "@/lib/project";
 import { AppShell } from "@/components/shell/app-shell";
 import { PageError } from "@/components/page-error";
 
-/** The "All projects" view: the same shell as a project, with only the sections that work across projects. */
+/** The "All projects" view: the same shell and sections as a project, across every project. */
 export default async function AllProjectsLayout({ children }: { children: React.ReactNode }) {
-  const projects = await mailerCall((m) => m.listProjects());
+  const projects = await listProjects();
   if (!projects.ok) {
     return (
       <div className="mx-auto max-w-xl px-4 py-16">
