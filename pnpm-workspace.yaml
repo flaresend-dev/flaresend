@@ -9,3 +9,4 @@ overrides:
   postcss: ">=8.5.28 <9"
   esbuild@0.27.7: "^0.28.2"
   sharp@0.35.2: "^0.35.4"
+  undici@7.29.0: "^7.29.1"
