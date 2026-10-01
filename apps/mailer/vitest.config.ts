@@ -8,6 +8,9 @@ export default defineConfig(async () => {
     plugins: [
       cloudflareTest({
         wrangler: { configPath: "./wrangler.jsonc" },
+        // The Workers AI binding is remote-only. Tests replace aiProvider.run, so never open a remote session
+        // (CI has no Cloudflare credentials).
+        remoteBindings: false,
         miniflare: {
           // The workerd bundled with @cloudflare/vitest-pool-workers 0.22 supports dates up to 2026-08-22;
           // wrangler.jsonc uses 2026-09-01. Nothing between the two dates changes behaviour we test.
