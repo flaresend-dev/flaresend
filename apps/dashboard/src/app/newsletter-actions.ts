@@ -50,11 +50,14 @@ export async function newsletterAction<K extends keyof NewsletterApi>(
   ]);
   if (!allowed.has(method)) throw new Error("Unknown newsletter operation.");
   const result = await mailerCall(async (m) => {
-    const fn = m[method] as (
-      slug: string,
-      ...args: unknown[]
-    ) => ReturnType<NewsletterApi[K]>;
-    return await fn.call(m, slug, ...args);
+    // Call it as a method on `m`. With the service binding, `m` is an RPC stub: every property on it
+    // (including a function's `.call`) is treated as a remote method name, so `m[method].call(...)`
+    // would ask the mailer for a method named "call".
+    const api = m as unknown as Record<
+      string,
+      (slug: string, ...args: unknown[]) => ReturnType<NewsletterApi[K]>
+    >;
+    return await api[method]!(slug, ...args);
   });
   const mutations: ReadonlySet<keyof NewsletterApi> = new Set([
     "createPublication",
