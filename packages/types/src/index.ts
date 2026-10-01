@@ -9,3 +9,5 @@ export * from "./templates";
 export * from "./contacts";
 export * from "./analytics";
 export * from "./admin-rpc";
+export * from "./newsletters";
+export * from "./newsletter-transport";

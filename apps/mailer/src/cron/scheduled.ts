@@ -1,5 +1,6 @@
 // Cron */5 * * * *: enqueue scheduled sends, advance broadcasts, daily rollup.
 import { all } from "../db/client";
+import { runNewsletterJobs } from "./newsletters";
 import type { BroadcastRow } from "../db/contacts";
 import { rollupDay } from "../core/analytics";
 import { processBroadcastChunk } from "../core/broadcasts";
@@ -57,6 +58,7 @@ export async function maybeRollup(env: Env, now = new Date()): Promise<boolean> 
 
 export async function runScheduled(env: Env, scheduledTime = Date.now()): Promise<void> {
   const results = await Promise.allSettled([
+    runNewsletterJobs(env, scheduledTime),
     enqueueDueScheduled(env, scheduledTime),
     advanceBroadcasts(env, scheduledTime),
     maybeRollup(env, new Date(scheduledTime)),

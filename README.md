@@ -27,17 +27,21 @@
 
 Flaresend is an email API you deploy to Cloudflare. Your apps send over REST from anywhere, or over RPC from other Workers, and Flaresend handles the rest: logging, retries, templates, bounces, suppressions and webhooks. It is built on Workers, D1, R2, Queues and Cloudflare Email Service, so there are no servers to run and no other company between your code and Cloudflare.
 
-> [!IMPORTANT]
-> **Transactional email only.** Cloudflare Email Service does not allow marketing or bulk campaigns. Broadcasts exist for small, opted-in lists: they are off per project by default and capped at 500 recipients unless you raise the limit.
+> [!NOTE]
+> Cloudflare's [Email Service FAQ](https://developers.cloudflare.com/email-service/reference/faq/) describes the service as intended for transactional email. Flaresend does not enforce that: broadcasts and newsletters have no built-in cap or on/off switch. Read Cloudflare's terms and decide for your own account.
 
 ## Quickstart
+
+The **Newsletters** dashboard has a block editor with Workers AI writing help, email and web previews, subscriber consent, imports, tags, and per-post delivery reports.
+Each post can go to the public website (archive, RSS feed, sign-up form), to subscribers by email, or both, now or on a schedule.
+Read [the newsletter operation guide](docs/newsletters/operations.md) for the migration, queue, secrets, AI binding, and SDK examples.
 
 ### Before you start
 
 - **A Cloudflare account on the Workers Paid plan** ($5 a month). Cloudflare Email Service only sends to any address on the paid plan. On the free plan it can only send to addresses verified in your own account.
 - **A domain whose DNS is on Cloudflare**, in that account. This is the domain you send from, like `acme.com`. Cloudflare Email Service [requires Cloudflare DNS](https://developers.cloudflare.com/email-service/get-started/send-emails/), so a domain on Route 53 or Namecheap DNS won't work. It can stay registered there; just point its nameservers at Cloudflare.
 - **Node.js 22 and pnpm 10.** If you have Node but not pnpm, run `corepack enable`.
-- **macOS, Linux or WSL.** On Windows, run everything below inside WSL (`wsl --install`, then open Ubuntu). The dashboard does not build on plain Windows.
+- **macOS, Linux or WSL for deployment.** The OpenNext Worker bundle requires one of these environments. The Next.js build also works on Windows.
 
 ### Deploy
 

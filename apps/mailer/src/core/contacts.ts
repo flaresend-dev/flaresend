@@ -9,6 +9,7 @@ import { toAudienceRecord, toContactRecord, type AudienceRow, type ContactRow } 
 import { ApiError } from "../http/errors";
 import { hmacSha256, timingSafeEqual, toBase64Url } from "./keys";
 import { newId, nowIso } from "./ids";
+import { addressHash } from "./newsletters/subscriptions";
 
 function parse<S extends z.ZodTypeAny>(schema: S, raw: unknown): z.output<S> {
   const r = schema.safeParse(raw);
@@ -87,8 +88,12 @@ export async function patchContact(env: Env, projectId: string, id: string, raw:
 }
 
 export async function removeContact(env: Env, projectId: string, id: string): Promise<{ id: string; deleted: true }> {
-  await requireContact(env, projectId, id);
+  const contact=await requireContact(env, projectId, id);
+  const subscriptions=await all<{publication_id:string}>(env.DB.prepare("SELECT publication_id FROM newsletter_subscriptions WHERE contact_id=? AND project_id=?").bind(id,projectId));
+  const hash=subscriptions.length?await addressHash(env,contact.email):null;
   await env.DB.batch([
+    ...subscriptions.map(s=>env.DB.prepare("INSERT OR IGNORE INTO newsletter_address_blocks(project_id,publication_id,address_hmac,reason,created_at) VALUES(?,?,?,'deletion',?)").bind(projectId,s.publication_id,hash,nowIso())),
+    env.DB.prepare("UPDATE newsletter_run_recipients SET address_snapshot=NULL,personalization_json='{}',subscription_id=NULL,contact_id=NULL,status=CASE WHEN status IN ('pending','queued','retry_wait') THEN 'canceled' ELSE status END WHERE contact_id=? AND project_id=?").bind(id,projectId),
     env.DB.prepare("DELETE FROM audience_contacts WHERE contact_id = ?").bind(id),
     env.DB.prepare("DELETE FROM contacts WHERE id = ?").bind(id),
   ]);

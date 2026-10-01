@@ -1,5 +1,5 @@
-// Broadcasts. Cloudflare Email Service is for transactional email; bulk marketing is not permitted.
-// Broadcasts exist for small, opted-in lists: capped at BROADCAST_MAX_RECIPIENTS and off unless the project enables them.
+// Broadcasts: one email to every subscribed contact in an audience, sent in chunks by the cron.
+// Flaresend does not limit how a person sends. BROADCAST_MAX_RECIPIENTS is an optional operator cap (0 = none).
 import {
   CreateBroadcastInput, formatDisplayAddress, SendBroadcastInput, UpdateBroadcastInput,
   type BroadcastRecord,
@@ -23,15 +23,6 @@ function parse<S extends z.ZodTypeAny>(schema: S, raw: unknown): z.output<S> {
   const r = schema.safeParse(raw);
   if (!r.success) throw ApiError.fromZod(r.error);
   return r.data;
-}
-
-function requireEnabled(project: ProjectRow): void {
-  if (project.broadcasts_enabled !== 1) {
-    throw ApiError.permission(
-      "broadcasts_disabled",
-      "broadcasts are disabled for this project. Cloudflare Email Service is for transactional email; enable broadcasts only for small, opted-in lists.",
-    );
-  }
 }
 
 async function requireBroadcast(env: Env, projectId: string, id: string): Promise<BroadcastRow> {
@@ -58,7 +49,6 @@ export async function getBroadcast(env: Env, projectId: string, id: string): Pro
 }
 
 export async function createBroadcast(env: Env, project: ProjectRow, raw: unknown): Promise<BroadcastRecord> {
-  requireEnabled(project);
   const input = parse(CreateBroadcastInput, raw);
   await requireAudience(env, project.id, input.audienceId);
   const sender = resolveSender(input.from, project);
@@ -112,7 +102,6 @@ export async function countEligible(env: Env, audienceId: string): Promise<numbe
 }
 
 export async function startBroadcast(env: Env, project: ProjectRow, id: string, raw: unknown): Promise<BroadcastRecord> {
-  requireEnabled(project);
   const b = await requireBroadcast(env, project.id, id);
   if (b.status !== "draft") throw ApiError.conflict("broadcast_not_draft", `broadcast is ${b.status}, not draft`, "id");
   const { scheduledAt } = parse(SendBroadcastInput, raw ?? {});
@@ -120,7 +109,7 @@ export async function startBroadcast(env: Env, project: ProjectRow, id: string, 
   const total = await countEligible(env, b.audience_id);
   if (total === 0) throw ApiError.validation("invalid_body", "the audience has no subscribed contacts");
   const max = broadcastMaxRecipients(env);
-  if (total > max) {
+  if (max > 0 && total > max) {
     throw ApiError.validation("too_many_recipients", `broadcasts are capped at ${max} recipients; this audience has ${total}`);
   }
   const now = nowIso();
@@ -142,7 +131,7 @@ export async function cancelBroadcast(env: Env, projectId: string, id: string): 
 /** One cron tick for one broadcast: send up to BROADCAST_CHUNK emails after `cursor`. */
 export async function processBroadcastChunk(env: Env, b: BroadcastRow): Promise<{ sent: number; done: boolean }> {
   const project = await getProjectById(env.DB, b.project_id);
-  if (!project || project.disabled_at || project.broadcasts_enabled !== 1) {
+  if (!project || project.disabled_at) {
     await env.DB.prepare("UPDATE broadcasts SET status = 'canceled', updated_at = ? WHERE id = ?").bind(nowIso(), b.id).run();
     return { sent: 0, done: true };
   }

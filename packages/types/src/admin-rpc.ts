@@ -1,5 +1,6 @@
 // The AdminRpc service-binding surface. The dashboard calls these over `env.MAILER_ADMIN`.
 // Every method throws an Error whose message carries an encoded FlaresendError (see decodeRpcError).
+import type { NewsletterAiInput, NewsletterApi } from "./newsletters";
 import type {
   AnalyticsQuery, AnalyticsResult,
 } from "./analytics";
@@ -23,7 +24,10 @@ export interface PageQuery {
   cursor?: string;
 }
 
-export interface AdminRpcApi {
+export interface AdminRpcApi extends NewsletterApi {
+  /** Dashboard only: draft, continue and rewrite as a plain UTF-8 text stream. */
+  newsletterAiStream(slug: string, publicationId: string, input: NewsletterAiInput): Promise<ReadableStream<Uint8Array>>;
+
   // the mailer itself
   info(): Promise<MailerInfo>;
 

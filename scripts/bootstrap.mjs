@@ -28,7 +28,7 @@ const DASHBOARD = "flaresend-dashboard";
 const DATABASE = "flaresend";
 const BUCKET = "flaresend-payloads";
 const LIFECYCLE_RULE = "expire-payloads-30-days";
-const QUEUES = ["flaresend-send", "flaresend-events", "flaresend-webhooks", "flaresend-dlq"];
+const QUEUES = ["flaresend-send", "flaresend-events", "flaresend-webhooks", "flaresend-newsletters", "flaresend-dlq"];
 const CF_API = "https://api.cloudflare.com/client/v4";
 
 // [label, why, key for the pre-filled token link (https://developers.cloudflare.com/fundamentals/api/how-to/account-owned-token-template/)]
@@ -490,6 +490,8 @@ async function main() {
   if (publicUrl()) secrets.PUBLIC_BASE_URL = publicUrl();
   if (cfToken) secrets.CF_API_TOKEN = cfToken;
   if (!mailerSecrets.has("TRACKING_SECRET")) secrets.TRACKING_SECRET = newSecret();
+  if (!mailerSecrets.has("NEWSLETTER_TOKEN_SECRET")) secrets.NEWSLETTER_TOKEN_SECRET = newSecret();
+  if (!mailerSecrets.has("NEWSLETTER_ADDRESS_SECRET")) secrets.NEWSLETTER_ADDRESS_SECRET = newSecret();
   if (!mailerSecrets.has("ADMIN_API_KEY")) {
     state.adminKey = newSecret();
     secrets.ADMIN_API_KEY = state.adminKey;

@@ -12,7 +12,6 @@ import { HtmlFrame } from "@/components/content-viewer";
 import { BroadcastComposer } from "@/components/broadcast-composer";
 import { BroadcastLive } from "@/components/broadcasts/broadcast-live";
 import { BroadcastActions } from "@/components/broadcasts/broadcast-actions";
-import { BroadcastNotices } from "@/components/broadcasts/notices";
 
 export const metadata = { title: "Broadcast" };
 
@@ -47,7 +46,6 @@ export default async function BroadcastPage({ params }: { params: Promise<{ slug
           description={<StatusBadge status="draft" />}
           actions={<BroadcastActions slug={slug} id={b.id} cancelable={false} deletable />}
         />
-        {!project.broadcastsEnabled ? <BroadcastNotices slug={slug} view={view} enabled={false} /> : null}
         <BroadcastComposer key={b.updatedAt} slug={slug} broadcast={b} audiences={audienceList} defaultFrom={project.defaultFrom ?? ""} templates={editable} />
       </>
     );

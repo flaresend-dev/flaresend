@@ -17,7 +17,6 @@ export function projectDetails(p: ProjectRecord): string {
     ["Daily limit", p.dailyLimit ? p.dailyLimit : "none"],
     ["Track opens", p.trackOpens ? "yes" : "no"],
     ["Track clicks", p.trackClicks ? "yes" : "no"],
-    ["Broadcasts", p.broadcastsEnabled ? "yes" : "no"],
     ["Created", p.createdAt],
     ["Updated", p.updatedAt],
   ]);

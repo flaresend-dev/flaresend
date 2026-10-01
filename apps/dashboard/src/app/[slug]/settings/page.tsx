@@ -125,15 +125,6 @@ export default async function SettingsPage({ params, picker }: SlugParams & { pi
           />
         </SettingsCard>
 
-        <SettingsCard slug={slug} fields={["broadcastsEnabled"]} title="Broadcasts">
-          <SwitchField
-            name="broadcastsEnabled"
-            defaultChecked={project.broadcastsEnabled}
-            label="Enable broadcasts"
-            description="Cloudflare Email Service is for transactional email. Use broadcasts only for small, opted-in lists (at most 500 recipients each)."
-          />
-        </SettingsCard>
-
         <Card className={cn("border-danger-border")}>
           <CardHeader>
             <CardTitle>{paused ? "Sending is paused" : "Danger zone"}</CardTitle>

@@ -4,6 +4,10 @@ import type { RecipientRow } from "./recipients";
 import type { EventRow } from "./events";
 
 export interface EmailRow {
+  purpose?: "transactional" | "subscription_confirmation" | "newsletter";
+  newsletter_run_id?: string | null;
+  newsletter_recipient_id?: string | null;
+  newsletter_token_hash?: string | null;
   id: string;
   project_id: string;
   api_key_id: string | null;
@@ -111,8 +115,9 @@ const EMAIL_COLUMNS = [
 ] as const;
 
 export function insertEmailStmt(db: D1Database, e: NewEmailRow): D1PreparedStatement {
-  const sql = `INSERT INTO emails (${EMAIL_COLUMNS.join(", ")}) VALUES (${EMAIL_COLUMNS.map(() => "?").join(", ")})`;
-  return db.prepare(sql).bind(...EMAIL_COLUMNS.map((c) => (e as unknown as Record<string, unknown>)[c] ?? null));
+  const columns = [...EMAIL_COLUMNS, "purpose", "newsletter_token_hash", "newsletter_run_id", "newsletter_recipient_id"];
+  const sql = `INSERT INTO emails (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")})`;
+  return db.prepare(sql).bind(...columns.map((c) => (e as unknown as Record<string, unknown>)[c] ?? (c === "purpose" ? "transactional" : null)));
 }
 
 export function getEmailById(db: D1Database, id: string, projectId?: string | null) {

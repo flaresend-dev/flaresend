@@ -16,6 +16,7 @@ export interface WebhookQueueMessage {
 }
 
 export const QUEUE_NAMES = {
+  newsletters: "flaresend-newsletters",
   send: "flaresend-send",
   events: "flaresend-events",
   webhooks: "flaresend-webhooks",
@@ -29,9 +30,10 @@ export function isProduction(env: Env): boolean {
   return (env.ENVIRONMENT as string) === "production";
 }
 
+/** The operator's own cap on one broadcast's recipients. 0 or unset means no cap. */
 export function broadcastMaxRecipients(env: Env): number {
   const n = Number(env.BROADCAST_MAX_RECIPIENTS);
-  return Number.isFinite(n) && n > 0 ? n : 500;
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
 }
 
 export function publicBaseUrl(env: Env): string {

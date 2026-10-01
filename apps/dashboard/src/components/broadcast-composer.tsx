@@ -10,6 +10,7 @@ import { num } from "@/lib/format";
 import { useLink } from "@/lib/use-link";
 import { saveBroadcastAction, sendBroadcastAction } from "@/app/actions";
 import { Button } from "@/components/ui/button";
+import { EmailServiceNote } from "@/components/email-service-note";
 import { ConfirmDialog } from "@/components/ui/dialog";
 import { Field, Label } from "@/components/ui/field";
 import { ActionStatus } from "@/components/ui/form";
@@ -144,6 +145,7 @@ export function BroadcastComposer({ slug, broadcast, audiences, defaultFrom, tem
       <div className="sticky bottom-0 z-20 -mx-4 border-t border-border bg-background/90 px-4 py-3 backdrop-blur md:-mx-10 md:px-10">
         <ActionStatus state={status} className="mb-2" />
         <div className="flex flex-wrap items-center justify-end gap-2">
+          <EmailServiceNote className="mr-auto" />
           <Button
             variant="secondary"
             disabled={pending}

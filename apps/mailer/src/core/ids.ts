@@ -1,6 +1,6 @@
 import { ulid } from "ulid";
 
-export type IdPrefix = "email" | "proj" | "key" | "evt" | "rcpt" | "tmpl" | "wh" | "whd" | "ct" | "bc" | "aud";
+export type IdPrefix = "email" | "proj" | "key" | "evt" | "rcpt" | "tmpl" | "wh" | "whd" | "ct" | "bc" | "aud" | "pub" | "post" | "rev" | "asset" | "nf" | "imp" | "lease" | "sub" | "nse" | "tag" | "guard" | "job" | "run" | "nr";
 
 export function newId(prefix: IdPrefix): string {
   return `${prefix}_${ulid()}`;

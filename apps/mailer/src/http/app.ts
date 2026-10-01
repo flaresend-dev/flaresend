@@ -1,4 +1,6 @@
 import { Hono } from "hono";
+import { newsletterRoutes } from "./routes/newsletters";
+import { newsletterPublicRoutes } from "./routes/newsletter-public";
 import { adminProject, requireAdmin, requireProject } from "./auth";
 import type { AppEnv } from "./context";
 import { errorBody, toApiError } from "./errors";
@@ -17,6 +19,7 @@ import { webhookRoutes } from "./routes/webhooks";
 /** Routes that act on one project. Served at /v1/* (API key) and /v1/admin/projects/:slug/* (admin key). */
 function projectRouter() {
   return new Hono<AppEnv>()
+    .route("/", newsletterRoutes)
     .route("/", emailRoutes)
     .route("/", eventRoutes)
     .route("/", domainRoutes)
@@ -55,6 +58,7 @@ export function createApp() {
   });
 
   app.route("/", trackingRoutes);
+  app.route("/", newsletterPublicRoutes);
 
   // Admin
   app.use("/v1/admin/*", requireAdmin);

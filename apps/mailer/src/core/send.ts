@@ -32,6 +32,11 @@ export interface SendContext {
 }
 
 export interface SendOptions {
+  /** Internal only. Transport schemas never expose these fields. */
+  purpose?: "transactional" | "subscription_confirmation" | "newsletter";
+  newsletterTokenHash?: string;
+  newsletterRunId?: string;
+  newsletterRecipientId?: string;
   /** Overrides input.idempotencyKey (HTTP Idempotency-Key header). */
   idempotencyKey?: string;
   /** Tags merged over the input tags (e.g. resent_from, broadcast_id). */
@@ -202,6 +207,10 @@ export async function sendEmailInternal(env: Env, ctx: SendContext, raw: unknown
   const status = isTest ? "test" : isScheduled ? "scheduled" : "queued";
 
   const row: NewEmailRow = {
+    purpose: opts.purpose ?? "transactional",
+    newsletter_token_hash: opts.newsletterTokenHash ?? null,
+    newsletter_run_id: opts.newsletterRunId ?? null,
+    newsletter_recipient_id: opts.newsletterRecipientId ?? null,
     id,
     project_id: project.id,
     api_key_id: ctx.apiKeyId,

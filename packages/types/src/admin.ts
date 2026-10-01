@@ -17,6 +17,7 @@ export const CreateProjectInput = z.object({
   dailyLimit: z.number().int().min(0).optional(),
   trackOpens: z.boolean().optional(),
   trackClicks: z.boolean().optional(),
+  /** @deprecated Ignored. Broadcasts are always available. Kept so older callers do not fail validation. */
   broadcastsEnabled: z.boolean().optional(),
 });
 export type CreateProjectInput = z.input<typeof CreateProjectInput>;
@@ -32,6 +33,7 @@ export const UpdateProjectInput = z.object({
   dailyLimit: z.number().int().min(0).optional(),
   trackOpens: z.boolean().optional(),
   trackClicks: z.boolean().optional(),
+  /** @deprecated Ignored. Broadcasts are always available. Kept so older callers do not fail validation. */
   broadcastsEnabled: z.boolean().optional(),
   disabled: z.boolean().optional(),
 });
@@ -50,6 +52,7 @@ export interface ProjectRecord {
   dailyLimit: number;
   trackOpens: boolean;
   trackClicks: boolean;
+  /** @deprecated Always reflects the stored value, which no longer gates anything. */
   broadcastsEnabled: boolean;
   createdAt: string;
   updatedAt: string;

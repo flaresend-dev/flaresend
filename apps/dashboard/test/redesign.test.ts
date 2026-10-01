@@ -36,6 +36,10 @@ describe("labels: status display names and tones (section 2.4)", () => {
     ["draft", "Draft", "muted"],
     ["subscribed", "Subscribed", "success"],
     ["unsubscribed", "Unsubscribed", "muted"],
+    ["published", "Published", "success"],
+    ["unpublished", "Unpublished", "muted"],
+    ["archived", "Archived", "muted"],
+    ["skipped", "Skipped", "muted"],
   ];
   it.each(table)("%s -> %s (%s)", (code, label, tone) => {
     expect(statusDisplay(code)).toEqual({ label, tone });
@@ -138,7 +142,7 @@ describe("nav", () => {
   });
   it("keeps the sidebar order", () => {
     expect(NAV_ITEMS.map((n) => n.label)).toEqual([
-      "Emails", "Broadcasts", "Audiences", "Contacts", "Templates", "Metrics", "Logs",
+      "Emails", "Broadcasts", "Newsletters", "Audiences", "Contacts", "Templates", "Metrics", "Logs",
       "Domains", "API Keys", "Webhooks", "Suppressions", "Settings",
     ]);
   });

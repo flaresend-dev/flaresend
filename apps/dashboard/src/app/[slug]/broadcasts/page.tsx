@@ -10,7 +10,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Time } from "@/components/ui/time";
 import { PageError } from "@/components/page-error";
-import { BroadcastNotices } from "@/components/broadcasts/notices";
 import { Progress } from "@/components/broadcasts/progress";
 import { ProjectTD, ProjectTH } from "@/components/project-name";
 import { ProjectMenuButton } from "@/components/project-menu-button";
@@ -40,7 +39,6 @@ export default async function BroadcastsPage({ params }: SlugParams) {
   return (
     <>
       <PageHeader title="Broadcasts" actions={newButton} />
-      <BroadcastNotices slug={slug} view={view} enabled={isAll || (scope[0]?.broadcastsEnabled ?? true)} />
       {!list.ok ? (
         <PageError error={list.error} title="Could not load broadcasts" />
       ) : list.data.length === 0 ? (

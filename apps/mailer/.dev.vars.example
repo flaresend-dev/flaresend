@@ -5,3 +5,10 @@ CF_API_TOKEN=
 CF_ACCOUNT_ID=
 # wrangler.dev.jsonc already sets this; listed here so `wrangler types` types it as a string.
 PUBLIC_BASE_URL=http://localhost:8787
+# Optional newsletter secrets. Use separate random values in production.
+# A public subscription form requires an HTTPS PUBLIC_BASE_URL and a verified sender.
+NEWSLETTER_TOKEN_SECRET=dev-newsletter-token-secret
+NEWSLETTER_ADDRESS_SECRET=dev-newsletter-address-secret
+NEWSLETTER_TOKEN_KEY_ID=v1
+# Retain old signing keys while existing unsubscribe links remain valid.
+NEWSLETTER_PREVIOUS_TOKEN_KEYS={}

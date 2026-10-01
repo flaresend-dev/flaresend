@@ -173,11 +173,18 @@ describe("contacts, audiences, broadcasts (7.5)", () => {
     expect(await json(call("DELETE", `/v1/contacts/${c.id}`, { key: p.liveKey }))).toEqual({ id: c.id, deleted: true });
   });
 
-  it("broadcasts are off unless the project enables them", async () => {
+  it("broadcasts work without any project switch", async () => {
     const aud = await json(call("POST", "/v1/audiences", { key: p.liveKey, body: { name: "x" } }));
     const r = await call("POST", "/v1/broadcasts", { key: p.liveKey, body: { audienceId: aud.id, from: "hello@acme.com", subject: "s", html: "h" } });
-    expect(r.status).toBe(403);
-    expect((await json(r)).error.code).toBe("broadcasts_disabled");
+    expect(r.status).toBe(201);
+  });
+
+  it("has no recipient cap unless the operator sets one", async () => {
+    const { aud } = await setupAudience(3);
+    const bc = await json(call("POST", "/v1/broadcasts", { key: p.liveKey, body: { audienceId: aud.id, from: "hello@acme.com", subject: "s", html: "h" } }));
+    const { startBroadcast } = await import("../../src/core/broadcasts");
+    const uncapped = { ...env, BROADCAST_MAX_RECIPIENTS: "0" } as unknown as Env;
+    expect(await startBroadcast(uncapped, p.project, bc.id, {})).toMatchObject({ status: "sending", total: 3 });
   });
 
   it("a 20-contact broadcast: 20 tagged emails, honours unsubscribes and suppressions, one-click unsubscribe works", async () => {
@@ -236,7 +243,6 @@ describe("contacts, audiences, broadcasts (7.5)", () => {
     const bc = await json(call("POST", "/v1/broadcasts", { key: p.liveKey, body: { audienceId: aud.id, from: "hello@acme.com", subject: "s", html: "h" } }));
     const { startBroadcast } = await import("../../src/core/broadcasts");
     const small = { ...env, BROADCAST_MAX_RECIPIENTS: "2" } as unknown as Env;
-    p.project.broadcasts_enabled = 1;
     await expect(startBroadcast(small, p.project, bc.id, {})).rejects.toMatchObject({ code: "too_many_recipients" });
   });
 

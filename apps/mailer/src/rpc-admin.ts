@@ -1,5 +1,7 @@
 // AdminRpc: the dashboard's service-binding entrypoint. Same core functions as /v1/admin/*.
 import { WorkerEntrypoint } from "cloudflare:workers";
+import { newsletterAdminHandlers } from "./core/newsletters/admin-handlers";
+import { aiStream } from "./core/newsletters/ai";
 import type { AdminRpcApi } from "@flaresend/types";
 import * as admin from "./core/admin";
 import { getAnalytics } from "./core/analytics";
@@ -23,6 +25,8 @@ const project = (env: Env, slug: string) => admin.requireProjectBySlug(env, slug
 const optionalPid = async (env: Env, slug?: string | null) => (slug ? pid(env, slug) : null);
 
 export const adminHandlers: Handlers = {
+  ...newsletterAdminHandlers,
+  newsletterAiStream: async (env, _ctx, slug, id, input) => aiStream(env, await project(env, slug), id, input),
   // projects
   listProjects: async (env) => admin.listProjectRecords(env),
   getProject: async (env, _ctx, slug) => admin.getProjectRecord(env, slug),
