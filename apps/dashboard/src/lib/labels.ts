@@ -47,6 +47,11 @@ const STATUS: Record<string, Display> = {
   unsubscribed: { label: "Unsubscribed", tone: "muted" },
   // projects
   paused: { label: "Sending paused", tone: "danger" },
+  // newsletter posts and email recipients
+  published: { label: "Published", tone: "success" },
+  unpublished: { label: "Unpublished", tone: "muted" },
+  archived: { label: "Archived", tone: "muted" },
+  skipped: { label: "Skipped", tone: "muted" },
 };
 
 /** "email.delivered" -> "delivered" */

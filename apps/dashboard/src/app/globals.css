@@ -44,6 +44,11 @@
   --muted-fg: #525252;
   --muted-border: #e5e5e5;
 
+  /* AI suggestions use the brand hue, not a separate colour. */
+  --ai-fg: #c2410c;
+  --ai-bg: rgb(249 115 22 / 0.09);
+  --ai-border: rgb(249 115 22 / 0.32);
+
   /* Chart series: the validated categorical palette, applied in fixed order. */
   --series-1: #2a78d6;
   --series-2: #eb6834;
@@ -96,6 +101,10 @@
   --muted-fg: #a3a3a3;
   --muted-border: #2a2a2a;
 
+  --ai-fg: #fb923c;
+  --ai-bg: rgb(251 146 60 / 0.12);
+  --ai-border: rgb(251 146 60 / 0.38);
+
   --series-1: #3987e5;
   --series-2: #d95926;
   --series-3: #199e70;
@@ -145,6 +154,9 @@
   --color-muted-bg: var(--muted-bg);
   --color-muted-fg: var(--muted-fg);
   --color-muted-border: var(--muted-border);
+  --color-ai-fg: var(--ai-fg);
+  --color-ai-bg: var(--ai-bg);
+  --color-ai-border: var(--ai-border);
 
   --color-series-1: var(--series-1);
   --color-series-2: var(--series-2);
@@ -318,4 +330,72 @@ body {
 .recharts-surface:focus,
 .recharts-wrapper:focus {
   outline: none;
+}
+
+/* Pages that need the whole width (the newsletter editor) set data-fullbleed; the shell drops its padding. */
+main:has([data-fullbleed]) > .fs-shell-content {
+  max-width: none;
+  padding: 0;
+}
+
+/* BlockNote (newsletter editor) follows the dashboard tokens in both themes. */
+.fs-editor .bn-container[data-color-scheme],
+.bn-container[data-color-scheme].bn-mantine {
+  --bn-colors-editor-text: var(--foreground);
+  --bn-colors-editor-background: transparent;
+  --bn-colors-menu-text: var(--foreground);
+  --bn-colors-menu-background: var(--background-elevated);
+  --bn-colors-tooltip-text: var(--primary-foreground);
+  --bn-colors-tooltip-background: var(--primary);
+  --bn-colors-hovered-text: var(--foreground);
+  --bn-colors-hovered-background: var(--background-hover);
+  --bn-colors-selected-text: var(--foreground);
+  --bn-colors-selected-background: var(--background-hover);
+  --bn-colors-disabled-text: var(--foreground-subtle);
+  --bn-colors-disabled-background: var(--background-subtle);
+  --bn-colors-shadow: rgb(0 0 0 / 0.12);
+  --bn-colors-border: var(--border);
+  --bn-colors-side-menu: var(--foreground-subtle);
+  --bn-font-family: var(--font-sans);
+  --bn-border-radius: 8px;
+}
+.fs-editor .bn-editor {
+  padding-inline: 0;
+  font-size: inherit;
+  line-height: inherit;
+  font-family: inherit;
+  background: transparent;
+}
+.fs-editor .bn-block-content {
+  padding-block: 4px;
+}
+.fs-editor .bn-block-content[data-content-type="heading"][data-level="2"] h2,
+.fs-editor .bn-block-content[data-content-type="heading"] {
+  letter-spacing: -0.015em;
+}
+.fs-editor [data-content-type="heading"][data-level="2"] {
+  --level: 1.41em;
+  margin-top: 0.9em;
+}
+.fs-editor [data-content-type="heading"][data-level="3"] {
+  --level: 1.18em;
+  margin-top: 0.6em;
+}
+.fs-editor [data-content-type="quote"] blockquote {
+  color: var(--foreground-muted);
+  border-left-color: var(--border-strong);
+}
+.fs-editor a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.fs-editor .bn-inline-content:has(> .ProseMirror-trailingBreak:only-child)::before {
+  color: var(--foreground-subtle);
+}
+/* The editor sits on the page, not in a box; keep the side menu in the gutter on wide screens only. */
+@media (max-width: 860px) {
+  .fs-editor .bn-side-menu {
+    display: none;
+  }
 }

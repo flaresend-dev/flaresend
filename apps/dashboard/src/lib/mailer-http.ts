@@ -2,6 +2,7 @@
 // Production uses the MAILER_ADMIN service binding instead (see mailer.ts).
 import {
   ApiErrorShape, FlaresendError, encodeRpcError,
+  newsletterHttpApi,
   type AdminRpcApi, type ProjectRecord,
 } from "@flaresend/types";
 
@@ -83,6 +84,21 @@ export function createHttpAdminClient(baseUrl: string, adminKey: string, fetchIm
   }
 
   return {
+    ...newsletterHttpApi((method, path, opts) => call(method, path, { ...opts, query: q(opts?.query) }), p),
+    newsletterAiStream: async (slug, publicationId, input) => {
+      const res = await fetchImpl(buildUrl(baseUrl, `${p(slug)}/publications/${seg(publicationId)}/ai/stream`), {
+        method: "POST",
+        headers: { authorization: `Bearer ${adminKey}`, "content-type": "application/json" },
+        body: JSON.stringify(input),
+        cache: "no-store",
+      });
+      if (!res.ok || !res.body) {
+        const json = (await res.json().catch(() => null)) as { error?: unknown } | null;
+        const parsed = ApiErrorShape.safeParse(json?.error);
+        throw new Error(encodeRpcError(parsed.success ? parsed.data : { type: "internal_error", code: `http_${res.status}`, message: res.statusText }));
+      }
+      return res.body;
+    },
     // projects
     listProjects: () => data(call("GET", "/projects")),
     getProject: (slug) => call("GET", p(slug)),

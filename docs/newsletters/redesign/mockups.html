@@ -1,0 +1,944 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Flaresend newsletters: redesign mockups</title>
+<style>
+/* Tokens copied from apps/dashboard/src/app/globals.css. The real screens must use the Tailwind token classes, not these names. */
+@font-face{font-family:"Inter";src:url("../../../apps/dashboard/src/app/fonts/inter-latin-var.woff2") format("woff2");font-weight:100 900;font-display:swap}
+@font-face{font-family:"JetBrains Mono";src:url("../../../apps/dashboard/src/app/fonts/jetbrains-mono-latin-var.woff2") format("woff2");font-weight:100 800;font-display:swap}
+:root{color-scheme:light;
+--background:#fff;--background-subtle:#fafafa;--background-elevated:#fff;--background-hover:#f5f5f5;--border:#e5e5e5;--border-strong:#d4d4d4;
+--foreground:#0a0a0a;--foreground-muted:#737373;--foreground-subtle:#a3a3a3;--primary:#0a0a0a;--primary-foreground:#fff;--brand:#f97316;--ring:rgb(249 115 22 / .4);
+--success-bg:#ecfdf5;--success-fg:#047857;--success-border:#a7f3d0;--warning-bg:#fffbeb;--warning-fg:#b45309;--warning-border:#fde68a;
+--danger-bg:#fef2f2;--danger-fg:#b91c1c;--danger-border:#fecaca;--info-bg:#eff6ff;--info-fg:#1d4ed8;--info-border:#bfdbfe;
+--violet-bg:#f5f3ff;--violet-fg:#6d28d9;--violet-border:#ddd6fe;--teal-bg:#f0fdfa;--teal-fg:#0f766e;--teal-border:#99f6e4;
+--muted-bg:#f5f5f5;--muted-fg:#525252;--muted-border:#e5e5e5;--series-1:#2a78d6;--overlay:rgb(0 0 0 / .4);
+--card-shadow:0 1px 2px rgb(0 0 0 / .04);--pop-shadow:0 8px 24px rgb(0 0 0 / .12);
+/* New tokens this redesign adds (see redesign-plan.md section 7.3). AI marks use the brand hue, not a new colour. */
+--ai-fg:#c2410c;--ai-bg:rgb(249 115 22 / .09);--ai-border:rgb(249 115 22 / .32)}
+.dark{color-scheme:dark;
+--background:#0a0a0a;--background-subtle:#0f0f0f;--background-elevated:#141414;--background-hover:#1a1a1a;--border:#262626;--border-strong:#333;
+--foreground:#ededed;--foreground-muted:#a3a3a3;--foreground-subtle:#6b6b6b;--primary:#ededed;--primary-foreground:#0a0a0a;--brand:#fb923c;--ring:rgb(251 146 60 / .4);
+--success-bg:#052e16;--success-fg:#4ade80;--success-border:#166534;--warning-bg:#2a1d05;--warning-fg:#fbbf24;--warning-border:#78350f;
+--danger-bg:#2a0a0a;--danger-fg:#f87171;--danger-border:#7f1d1d;--info-bg:#0b1a33;--info-fg:#60a5fa;--info-border:#1e3a8a;
+--violet-bg:#1e1533;--violet-fg:#a78bfa;--violet-border:#4c1d95;--teal-bg:#042f2e;--teal-fg:#2dd4bf;--teal-border:#115e59;
+--muted-bg:#1a1a1a;--muted-fg:#a3a3a3;--muted-border:#2a2a2a;--series-1:#3987e5;--overlay:rgb(0 0 0 / .6);
+--card-shadow:none;--pop-shadow:0 8px 24px rgb(0 0 0 / .5);
+--ai-fg:#fb923c;--ai-bg:rgb(251 146 60 / .12);--ai-border:rgb(251 146 60 / .38)}
+
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--background);color:var(--foreground)}
+body{font:13px/1.5 "Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4,p,ul,ol,figure,blockquote{margin:0;padding:0}
+ul,ol{list-style:none}
+button,input,textarea,select{font:inherit;color:inherit}
+a{color:inherit;text-decoration:none}
+.mono{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace}
+.muted{color:var(--foreground-muted)}.subtle{color:var(--foreground-subtle)}
+.xs{font-size:12px}.xxs{font-size:11px}.fw5{font-weight:500}.fw6{font-weight:600}.tnum{font-variant-numeric:tabular-nums}
+.row{display:flex;align-items:center}.col{display:flex;flex-direction:column}.wrap{flex-wrap:wrap}.between{justify-content:space-between}
+.g1{gap:4px}.g2{gap:8px}.g3{gap:12px}.g4{gap:16px}.g5{gap:20px}.g6{gap:24px}.grow{flex:1;min-width:0}.trunc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.i{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.i.s{width:14px;height:14px}.i.l{width:20px;height:20px}
+
+/* ---- Mockup chrome (not part of the product) ---- */
+.mockbar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 16px;background:var(--foreground);color:var(--background)}
+.mockbar b{font-weight:600;margin-right:8px}
+.mockbar button{height:26px;padding:0 10px;border-radius:6px;border:1px solid transparent;background:transparent;color:inherit;opacity:.72;cursor:pointer;font-size:12px;font-weight:500}
+.mockbar button:hover{opacity:1}
+.mockbar button[aria-pressed=true]{opacity:1;background:var(--background);color:var(--foreground)}
+.mockbar .sep{width:1px;height:16px;background:currentColor;opacity:.25;margin:0 4px}
+.mockbar .right{margin-left:auto;display:flex;gap:8px;align-items:center}
+[hidden]{display:none!important}
+
+/* ---- Shell ---- */
+.shell{display:flex;min-height:calc(100dvh - 42px)}
+.sidebar{position:sticky;top:42px;height:calc(100dvh - 42px);width:240px;flex:none;border-right:1px solid var(--border);background:var(--background-subtle);display:flex;flex-direction:column}
+.switcher{display:flex;align-items:center;gap:10px;margin:12px;padding:6px;border-radius:8px}
+.avatar{width:28px;height:28px;border-radius:8px;border:1px solid var(--border-strong);background:var(--background-elevated);display:grid;place-items:center;font-size:12px;font-weight:600;box-shadow:var(--card-shadow)}
+.nav{padding:0 12px;display:flex;flex-direction:column;gap:2px}
+.nav+.nav{margin-top:16px;padding-top:16px;border-top:1px solid var(--border)}
+.nav a{display:flex;align-items:center;gap:10px;height:32px;padding:0 8px;border-radius:8px;color:var(--foreground-muted)}
+.nav a .i{color:var(--foreground-subtle)}
+.nav a.on{background:var(--background-hover);color:var(--foreground);font-weight:500}
+.nav a.on .i{color:var(--foreground)}
+.nav a.on::after{content:"";margin-left:auto;width:6px;height:6px;border-radius:50%;background:var(--brand)}
+.main{flex:1;min-width:0}
+.content{max-width:1120px;padding:32px 40px}
+
+/* ---- Kit (mirrors components/ui) ---- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--border-strong);background:var(--background-elevated);font-weight:500;white-space:nowrap;box-shadow:var(--card-shadow);cursor:pointer}
+.btn:hover{background:var(--background-hover)}
+.btn.primary{background:var(--primary);color:var(--primary-foreground);border-color:transparent;box-shadow:none}
+.btn.primary:hover{opacity:.85}
+.btn.ghost{border-color:transparent;background:transparent;box-shadow:none;color:var(--foreground-muted)}
+.btn.ghost:hover{background:var(--background-hover);color:var(--foreground)}
+.btn.sm{height:28px;padding:0 10px;font-size:12px}.btn.lg{height:36px;padding:0 16px}
+.btn.icon{width:32px;padding:0}.btn.icon.sm{width:28px}
+.btn:focus-visible,.input:focus-visible,.tab:focus-visible{outline:none;box-shadow:0 0 0 2px var(--ring)}
+.input,.select{display:flex;align-items:center;width:100%;height:32px;padding:0 10px;border-radius:8px;border:1px solid var(--border-strong);background:var(--background-elevated)}
+.select{justify-content:space-between;gap:8px;cursor:pointer}
+textarea.input{height:auto;padding:8px 10px;line-height:1.6;resize:vertical}
+.input::placeholder{color:var(--foreground-subtle)}
+.field{display:flex;flex-direction:column;gap:6px}
+.field>label,.label{font-size:12px;font-weight:500}
+.hint{font-size:12px;color:var(--foreground-muted)}
+.badge{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 6px;border-radius:6px;border:1px solid var(--muted-border);background:var(--muted-bg);color:var(--muted-fg);font-size:12px;font-weight:500;white-space:nowrap}
+.status{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:999px;border:1px solid;font-size:12px;font-weight:500;white-space:nowrap}
+.status::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.t-success{border-color:var(--success-border);background:var(--success-bg);color:var(--success-fg)}
+.t-info{border-color:var(--info-border);background:var(--info-bg);color:var(--info-fg)}
+.t-violet{border-color:var(--violet-border);background:var(--violet-bg);color:var(--violet-fg)}
+.t-warning{border-color:var(--warning-border);background:var(--warning-bg);color:var(--warning-fg)}
+.t-danger{border-color:var(--danger-border);background:var(--danger-bg);color:var(--danger-fg)}
+.t-muted{border-color:var(--muted-border);background:var(--muted-bg);color:var(--muted-fg)}
+.t-teal{border-color:var(--teal-border);background:var(--teal-bg);color:var(--teal-fg)}
+.card{border:1px solid var(--border);border-radius:12px;background:var(--background-elevated);box-shadow:var(--card-shadow)}
+.card-h{padding:16px 20px 12px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.card-b{padding:0 20px 20px}
+.card-f{padding:12px 20px;border-top:1px solid var(--border);background:var(--background-subtle);border-radius:0 0 12px 12px;display:flex;justify-content:flex-end;gap:12px}
+.h-title{font-size:20px;line-height:1.3;font-weight:600;letter-spacing:-.01em}
+.h-section{font-size:15px;line-height:1.4;font-weight:600}
+.tabs{display:flex;gap:16px;border-bottom:1px solid var(--border);overflow-x:auto}
+.tab{margin-bottom:-1px;height:36px;display:inline-flex;align-items:center;padding:0 2px;border:0;border-bottom:2px solid transparent;background:none;color:var(--foreground-muted);font-weight:500;cursor:pointer;white-space:nowrap}
+.tab:hover{color:var(--foreground)}.tab[aria-selected=true]{border-color:var(--foreground);color:var(--foreground)}
+.seg{display:inline-flex;height:32px;gap:2px;padding:2px;border:1px solid var(--border);border-radius:8px;background:var(--background-subtle)}
+.seg span{display:flex;align-items:center;gap:6px;padding:0 10px;border-radius:5px;font-size:12px;font-weight:500;color:var(--foreground-muted);cursor:pointer}
+.seg span.on{background:var(--background-elevated);color:var(--foreground);box-shadow:var(--card-shadow),0 0 0 1px var(--border)}
+.table{width:100%;border-collapse:collapse}
+.tablewrap{border:1px solid var(--border);border-radius:12px;background:var(--background-elevated);box-shadow:var(--card-shadow);overflow-x:auto}
+.table th{height:36px;padding:0 16px;text-align:left;font-size:12px;font-weight:500;color:var(--foreground-muted);background:var(--background-subtle);border-bottom:1px solid var(--border);white-space:nowrap}
+.table th:first-child{border-top-left-radius:12px}.table th:last-child{border-top-right-radius:12px}
+.table td{height:44px;padding:8px 16px;border-bottom:1px solid var(--border);vertical-align:middle}
+.table tr:last-child td{border-bottom:0}
+.table tbody tr:hover{background:var(--background-hover)}
+.switch{width:32px;height:18px;border-radius:999px;background:var(--border-strong);position:relative;flex:none}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgb(0 0 0 / .2)}
+.switch.on{background:var(--primary)}.switch.on::after{left:16px;background:var(--primary-foreground)}
+.check{width:16px;height:16px;border-radius:4px;border:1px solid var(--border-strong);background:var(--background-elevated);display:grid;place-items:center;flex:none}
+.check.on{background:var(--primary);border-color:var(--primary);color:var(--primary-foreground)}
+.kbd{display:inline-flex;align-items:center;height:18px;padding:0 5px;border-radius:4px;border:1px solid var(--border);background:var(--background-subtle);font-size:11px;color:var(--foreground-muted)}
+.stat{display:flex;flex-direction:column;gap:4px;padding:12px 16px;border:1px solid var(--border);border-radius:12px;background:var(--background-elevated);box-shadow:var(--card-shadow);min-width:0}
+.stat b{font-size:28px;line-height:1.2;font-weight:600;font-variant-numeric:tabular-nums}
+.pop{border:1px solid var(--border);border-radius:12px;background:var(--background-elevated);box-shadow:var(--pop-shadow)}
+.menu{padding:4px;min-width:220px}
+.menu .mi{display:flex;align-items:center;gap:10px;height:32px;padding:0 8px;border-radius:6px;cursor:pointer}
+.menu .mi.on,.menu .mi:hover{background:var(--background-hover)}
+.menu .ml{padding:8px 8px 4px;font-size:11px;font-weight:500;color:var(--foreground-subtle)}
+.menu{display:block}.menu .ml{display:block}.menu .msep{display:block;border-top:1px solid var(--border);margin:4px -4px}
+.ai{color:var(--ai-fg)}
+.hr{border:0;border-top:1px solid var(--border);margin:0}
+.pagehead{display:flex;flex-direction:column;gap:4px;margin-bottom:20px}
+.back{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:500;color:var(--foreground-muted);width:fit-content;margin-bottom:4px}
+
+/* ---- Editor ---- */
+.ed-bar{position:sticky;top:42px;z-index:20;display:flex;align-items:center;gap:8px;height:52px;padding:0 20px;border-bottom:1px solid var(--border);background:var(--background)}
+.ed-wrap{display:flex;align-items:flex-start}
+.ed-canvas{flex:1;min-width:0;padding:56px 40px 160px}
+.ed-doc{max-width:680px;margin:0 auto;position:relative}
+.ed-title{font-size:32px;line-height:1.2;font-weight:650;letter-spacing:-.02em;text-wrap:balance}
+.ed-sub{margin-top:10px;font-size:19px;line-height:1.45;color:var(--foreground-muted)}
+.ph{color:var(--foreground-subtle)}
+.ed-meta{display:flex;align-items:center;gap:8px;margin:20px 0 28px;padding-bottom:20px;border-bottom:1px solid var(--border);font-size:12px;color:var(--foreground-muted)}
+.prose{font-size:17px;line-height:1.7}
+.prose>*{position:relative;margin:0 0 18px}
+.prose h2{font-size:24px;line-height:1.3;font-weight:650;letter-spacing:-.015em;margin-top:34px;margin-bottom:12px}
+.prose ul{list-style:disc;padding-left:24px}.prose li{margin-bottom:6px}
+.prose blockquote{padding-left:16px;border-left:3px solid var(--border-strong);color:var(--foreground-muted)}
+.prose a{text-decoration:underline;text-underline-offset:3px}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:0 7px;height:24px;border-radius:6px;border:1px solid var(--border);background:var(--background-subtle);font-size:14px;font-weight:500;vertical-align:baseline}
+.sel{background:rgb(42 120 214 / .22);border-radius:2px}
+.gutter{position:absolute;left:-52px;top:3px;display:flex;gap:2px;color:var(--foreground-subtle)}
+.gutter span{width:22px;height:24px;display:grid;place-items:center;border-radius:5px}
+.gutter span:hover{background:var(--background-hover);color:var(--foreground)}
+.cta{display:inline-flex;align-items:center;height:44px;padding:0 20px;border-radius:6px;background:#c2410c;color:#fff;font-size:16px;font-weight:650}
+.imgblock{border-radius:8px;overflow:hidden;border:1px solid var(--border)}
+.imgph{height:220px;background:linear-gradient(180deg,var(--background-hover),var(--background-subtle));display:flex;align-items:flex-end;gap:10px;padding:28px 36px 0}
+.imgph i{flex:1;border-radius:4px 4px 0 0;background:var(--border-strong)}
+.imgph i.hl{background:var(--series-1)}
+.imgcap{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 12px;font-size:13px;line-height:1.5;color:var(--foreground-muted);border-top:1px solid var(--border);background:var(--background-elevated)}
+.toolbar{position:absolute;display:flex;align-items:center;gap:2px;padding:4px;z-index:5}
+.toolbar .tb{height:28px;min-width:28px;padding:0 7px;display:inline-flex;align-items:center;gap:6px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer}
+.toolbar .tb:hover,.toolbar .tb.on{background:var(--background-hover)}
+.toolbar .tsep{width:1px;height:18px;background:var(--border);margin:0 3px}
+.aigen{background:var(--ai-bg);box-shadow:0 0 0 6px var(--ai-bg);border-radius:3px}
+.caret{display:inline-block;width:2px;height:1.1em;margin-left:2px;vertical-align:-3px;background:var(--ai-fg);animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+.aibar{position:sticky;bottom:24px;margin:28px auto 0;width:fit-content;display:flex;align-items:center;gap:6px;padding:6px 6px 6px 12px;z-index:6}
+.composer{border:1px solid var(--ai-border);border-radius:12px;background:var(--background-elevated);box-shadow:0 0 0 4px var(--ai-bg)}
+.composer textarea{display:block;width:100%;min-height:92px;padding:14px 16px 6px;border:0;outline:0;background:transparent;resize:none;font-size:15px;line-height:1.6}
+.composer textarea::placeholder{color:var(--foreground-subtle)}
+.composer .cf{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px 10px}
+.pill{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:999px;border:1px solid var(--border);background:var(--background-elevated);font-size:12px;font-weight:500;color:var(--foreground-muted);cursor:pointer}
+.pill:hover{color:var(--foreground);border-color:var(--border-strong)}
+.ed-panel{position:sticky;top:94px;width:312px;flex:none;height:calc(100dvh - 94px);overflow-y:auto;border-left:1px solid var(--border);background:var(--background-subtle);padding:20px}
+.inbox{border:1px solid var(--border);border-radius:8px;background:var(--background-elevated);padding:10px 12px;display:flex;gap:10px}
+.inbox .dot{width:28px;height:28px;border-radius:50%;background:#c2410c;color:#fff;display:grid;place-items:center;font-size:12px;font-weight:600;flex:none}
+.sugg{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer}
+.sugg:hover,.sugg.on{background:var(--background-hover)}
+
+/* ---- Review ---- */
+.rv{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:40px;align-items:start}
+.rv-sec{padding:20px 0;border-top:1px solid var(--border)}
+.rv-sec:first-of-type{border-top:0;padding-top:4px}
+.rv-row{display:flex;align-items:flex-start;gap:12px;padding:10px 0}
+.policy{display:flex;align-items:center;gap:8px;margin:2px 0 0 44px;font-size:12px;color:var(--foreground-muted)}
+.policy a{color:var(--foreground);text-decoration:underline;text-underline-offset:2px}
+.device{border:1px solid var(--border);border-radius:12px;background:var(--background-subtle);overflow:hidden}
+.device-h{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;border-bottom:1px solid var(--border);background:var(--background-elevated)}
+.paper{margin:16px;background:#fff;color:#171717;border-radius:4px;box-shadow:0 1px 3px rgb(0 0 0 / .08);padding:28px 24px;font-size:14px;line-height:1.65}
+.paper h1{font-size:23px;line-height:1.2;margin:0 0 8px;font-weight:700;letter-spacing:-.01em}
+.paper p{margin:0 0 14px}
+.checkrow{display:flex;align-items:center;gap:10px;padding:6px 0}
+
+/* ---- Misc layout ---- */
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:40px;align-items:start}
+.progress{height:6px;border-radius:999px;background:var(--background-hover);overflow:hidden}
+.progress i{display:block;height:100%;border-radius:999px;background:var(--foreground)}
+.todo{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--border)}
+.todo:first-child{border-top:0}
+.ring{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--border-strong);flex:none;display:grid;place-items:center}
+.ring.done{border-color:var(--success-fg);background:var(--success-fg);color:var(--background-elevated)}
+.sheet{position:fixed;top:42px;right:0;bottom:0;width:460px;max-width:100vw;z-index:40;background:var(--background-elevated);border-left:1px solid var(--border);box-shadow:var(--pop-shadow);display:flex;flex-direction:column}
+.scrim{position:fixed;inset:42px 0 0 0;background:var(--overlay);z-index:39}
+.steps{display:flex;gap:6px}
+.steps span{flex:1;height:3px;border-radius:2px;background:var(--border)}
+.steps span.on{background:var(--foreground)}
+.drop{border:1px dashed var(--border-strong);border-radius:12px;background:var(--background-subtle);padding:28px;text-align:center}
+.layoutopt{flex:1;border:1px solid var(--border);border-radius:12px;padding:10px;cursor:pointer;background:var(--background-elevated)}
+.layoutopt.on{border-color:var(--foreground);box-shadow:0 0 0 1px var(--foreground)}
+.thumb{height:84px;border-radius:6px;background:var(--background-subtle);border:1px solid var(--border);padding:10px;display:flex;flex-direction:column;gap:5px}
+.thumb i{height:4px;border-radius:2px;background:var(--border-strong);display:block}
+.swatch{width:24px;height:24px;border-radius:50%;border:2px solid var(--background-elevated);box-shadow:0 0 0 1px var(--border-strong);cursor:pointer}
+.swatch.on{box-shadow:0 0 0 2px var(--foreground)}
+.code{border:1px solid var(--border);border-radius:8px;background:var(--background-subtle);padding:10px 12px;font-size:12px;line-height:1.6;overflow-x:auto;white-space:pre}
+.note{margin-top:28px;padding:12px 14px;border-radius:8px;border:1px dashed var(--border-strong);font-size:12px;color:var(--foreground-muted);max-width:760px}
+.note b{color:var(--foreground);font-weight:600}
+
+@media (max-width:1240px){.ed-panel{display:none}.rv{grid-template-columns:1fr}.two{grid-template-columns:1fr}}
+@media (max-width:860px){.sidebar{display:none}.content{padding:24px 16px}.ed-canvas{padding:32px 20px 120px}.gutter{display:none}}
+@media (prefers-reduced-motion:reduce){.caret{animation:none}}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<symbol id="sparkles" viewBox="0 0 24 24"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4M22 5h-4M4 17v2M5 18H3"/></symbol>
+<symbol id="check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+<symbol id="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="chevr" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+<symbol id="updown" viewBox="0 0 24 24"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></symbol>
+<symbol id="left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></symbol>
+<symbol id="right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></symbol>
+<symbol id="plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+<symbol id="x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+<symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+<symbol id="mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></symbol>
+<symbol id="globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20"/></symbol>
+<symbol id="users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+<symbol id="user" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+<symbol id="eye" viewBox="0 0 24 24"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="send" viewBox="0 0 24 24"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11zM21.854 2.147l-10.94 10.939"/></symbol>
+<symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+<symbol id="image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></symbol>
+<symbol id="link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+<symbol id="bold" viewBox="0 0 24 24"><path d="M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8"/></symbol>
+<symbol id="italic" viewBox="0 0 24 24"><path d="M19 4h-9M14 20H5M15 4 9 20"/></symbol>
+<symbol id="grip" viewBox="0 0 24 24"><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></symbol>
+<symbol id="more" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></symbol>
+<symbol id="ext" viewBox="0 0 24 24"><path d="M7 7h10v10M7 17 17 7"/></symbol>
+<symbol id="info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+<symbol id="upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></symbol>
+<symbol id="download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
+<symbol id="monitor" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
+<symbol id="phone" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></symbol>
+<symbol id="heading" viewBox="0 0 24 24"><path d="M6 12h12M6 20V4M18 20V4"/></symbol>
+<symbol id="list" viewBox="0 0 24 24"><path d="M3 12h.01M3 18h.01M3 6h.01M8 12h13M8 18h13M8 6h13"/></symbol>
+<symbol id="quote" viewBox="0 0 24 24"><path d="M17 6H3M21 12H8M21 18H8M3 12v6"/></symbol>
+<symbol id="minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+<symbol id="text" viewBox="0 0 24 24"><path d="M4 7V5h16v2M9 19h6M12 5v14"/></symbol>
+<symbol id="button" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" rx="3"/><path d="M8 12h8"/></symbol>
+<symbol id="panel" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M15 3v18"/></symbol>
+<symbol id="copy" viewBox="0 0 24 24"><rect x="8" y="8" width="14" height="14" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+<symbol id="news" viewBox="0 0 24 24"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2M18 14h-8M15 18h-5M10 6h8v4h-8z"/></symbol>
+<symbol id="pen" viewBox="0 0 24 24"><path d="M12 20h9M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/></symbol>
+<symbol id="redo" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5"/></symbol>
+<symbol id="cal" viewBox="0 0 24 24"><path d="M8 2v4M16 2v4M3 10h18"/><rect x="3" y="4" width="18" height="18" rx="2"/></symbol>
+<symbol id="okc" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></symbol>
+<symbol id="warn" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3M12 9v4M12 17h.01"/></symbol>
+<symbol id="file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4M10 9H8M16 13H8M16 17H8"/></symbol>
+<symbol id="chart" viewBox="0 0 24 24"><path d="M3 3v16a2 2 0 0 0 2 2h16M18 17V9M13 17V5M8 17v-3"/></symbol>
+<symbol id="key" viewBox="0 0 24 24"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4M21 2l-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></symbol>
+<symbol id="ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></symbol>
+<symbol id="sliders" viewBox="0 0 24 24"><path d="M20 7h-9M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></symbol>
+<symbol id="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+</defs>
+</svg>
+
+<!-- Mockup switcher: not part of the product -->
+<div class="mockbar" role="toolbar" aria-label="Mockup screens">
+  <b>Newsletter redesign</b>
+  <button data-screen="editor">Editor</button>
+  <button data-screen="review">Review and send</button>
+  <button data-screen="report">Post report</button>
+  <button data-screen="pub">Newsletter pages</button>
+  <button data-screen="setup">New newsletter</button>
+  <span class="sep" data-for="editor"></span>
+  <span data-for="editor" class="row g1">
+    <button data-estate="a">Writing</button>
+    <button data-estate="b">Empty post</button>
+    <button data-estate="c">AI draft</button>
+    <button data-estate="d">Slash menu</button>
+  </span>
+  <span class="right"><button id="theme"><span>Dark theme</span></button></span>
+</div>
+
+<div class="shell">
+  <aside class="sidebar" aria-label="Sidebar (existing, unchanged)">
+    <div class="switcher"><span class="avatar">A</span><span class="col grow" style="line-height:1.25"><span class="fw6 trunc">Acme</span><span class="xxs subtle mono">acme</span></span><svg class="i subtle"><use href="#updown"/></svg></div>
+    <ul class="nav">
+      <li><a><svg class="i"><use href="#mail"/></svg>Emails</a></li>
+      <li><a><svg class="i"><use href="#send"/></svg>Broadcasts</a></li>
+      <li><a class="on"><svg class="i"><use href="#news"/></svg>Newsletters</a></li>
+      <li><a><svg class="i"><use href="#users"/></svg>Audiences</a></li>
+      <li><a><svg class="i"><use href="#user"/></svg>Contacts</a></li>
+      <li><a><svg class="i"><use href="#file"/></svg>Templates</a></li>
+      <li><a><svg class="i"><use href="#chart"/></svg>Metrics</a></li>
+      <li><a><svg class="i"><use href="#list"/></svg>Logs</a></li>
+    </ul>
+    <ul class="nav">
+      <li><a><svg class="i"><use href="#globe"/></svg>Domains</a></li>
+      <li><a><svg class="i"><use href="#key"/></svg>API Keys</a></li>
+      <li><a><svg class="i"><use href="#link"/></svg>Webhooks</a></li>
+      <li><a><svg class="i"><use href="#ban"/></svg>Suppressions</a></li>
+      <li><a><svg class="i"><use href="#sliders"/></svg>Settings</a></li>
+    </ul>
+  </aside>
+
+  <main class="main">
+
+  <!-- ============================== EDITOR ============================== -->
+  <section data-view="editor">
+    <div class="ed-bar">
+      <a class="btn ghost sm"><svg class="i s"><use href="#left"/></svg>Posts</a>
+      <span class="subtle">/</span>
+      <span class="muted trunc">Field Notes</span>
+      <span class="status t-muted" style="margin-left:4px">Draft</span>
+      <span class="grow"></span>
+      <span class="row g1 xs muted" data-s="a c d"><svg class="i s" style="color:var(--success-fg)"><use href="#check"/></svg>Saved 10:42</span>
+      <span class="xs muted" data-s="b">Not saved yet</span>
+      <button class="btn ghost icon" aria-label="Post actions"><svg class="i"><use href="#more"/></svg></button>
+      <button class="btn ghost icon" aria-label="Toggle details panel"><svg class="i"><use href="#panel"/></svg></button>
+      <button class="btn"><svg class="i"><use href="#eye"/></svg>Preview</button>
+      <button class="btn primary">Review and send<svg class="i"><use href="#right"/></svg></button>
+    </div>
+
+    <div class="ed-wrap">
+      <div class="ed-canvas">
+        <div class="ed-doc">
+
+          <h1 class="ed-title" data-s="a c d">A better release process</h1>
+          <h1 class="ed-title ph" data-s="b">Post title</h1>
+          <p class="ed-sub" data-s="a c d">Three changes that cut our deploy time in half</p>
+          <p class="ed-sub ph" data-s="b">Add a subtitle</p>
+          <div class="ed-meta"><span>Field Notes</span><span class="subtle">·</span><span>By Zachary</span><span class="subtle">·</span><span data-s="a d">4 min read · 612 words</span><span data-s="b">Empty</span><span data-s="c">Writing…</span></div>
+
+          <!-- State A: writing, text selected, toolbar with AI menu open -->
+          <div class="prose" data-s="a">
+            <p>Hi <span class="chip"><svg class="i s subtle"><use href="#user"/></svg>First name</span>, last month we rebuilt how we ship. Here is what changed, what broke, and what we would do again.</p>
+            <h2>Ship smaller, ship daily</h2>
+            <p style="position:relative">
+              <span class="gutter"><span><svg class="i s"><use href="#plus"/></svg></span><span><svg class="i s"><use href="#grip"/></svg></span></span>
+              We used to batch two weeks of work into one release. <span class="sel">Every release was a small crisis, and nobody wanted to be the person who pressed the button on a Friday afternoon.</span> Now every merged change goes out the same day behind a flag.
+              <span class="toolbar pop" style="left:150px;top:-46px">
+                <span class="tb on ai"><svg class="i s"><use href="#sparkles"/></svg>Ask AI<svg class="i s"><use href="#chev"/></svg></span>
+                <span class="tsep"></span>
+                <span class="tb">Text<svg class="i s subtle"><use href="#chev"/></svg></span>
+                <span class="tsep"></span>
+                <span class="tb"><svg class="i s"><use href="#bold"/></svg></span>
+                <span class="tb"><svg class="i s"><use href="#italic"/></svg></span>
+                <span class="tb"><svg class="i s"><use href="#link"/></svg></span>
+              </span>
+              <span class="pop menu" style="position:absolute;left:150px;top:-4px;z-index:7;font-size:13px;line-height:1.5;width:264px">
+                <span class="row g2" style="padding:6px 6px 8px"><svg class="i s ai"><use href="#sparkles"/></svg><span class="subtle">Tell AI what to change…</span></span>
+                <span class="msep"></span>
+                <span class="mi on"><svg class="i s subtle"><use href="#pen"/></svg>Improve writing</span>
+                <span class="mi"><svg class="i s subtle"><use href="#check"/></svg>Fix spelling and grammar</span>
+                <span class="mi"><svg class="i s subtle"><use href="#minus"/></svg>Make shorter</span>
+                <span class="mi"><svg class="i s subtle"><use href="#plus"/></svg>Make longer</span>
+                <span class="mi between"><span class="row g3" style="gap:10px"><svg class="i s subtle"><use href="#sliders"/></svg>Change tone</span><svg class="i s subtle"><use href="#chevr"/></svg></span>
+                <span class="mi between"><span class="row" style="gap:10px"><svg class="i s subtle"><use href="#globe"/></svg>Translate</span><svg class="i s subtle"><use href="#chevr"/></svg></span>
+              </span>
+            </p>
+            <ul style="margin-top:150px">
+              <li>Median time from merge to production went from 9 days to 4 hours.</li>
+              <li>Rollbacks dropped from six a quarter to one.</li>
+              <li>The release checklist is now eleven lines, down from fifty-two.</li>
+            </ul>
+            <figure class="imgblock">
+              <div class="imgph"><i style="height:92%"></i><i style="height:78%"></i><i style="height:81%"></i><i style="height:55%"></i><i style="height:34%"></i><i class="hl" style="height:16%"></i></div>
+              <figcaption class="imgcap"><span>Days from merge to production, by month</span><span class="badge"><svg class="i s" style="color:var(--success-fg)"><use href="#check"/></svg>Alt text</span></figcaption>
+            </figure>
+            <blockquote>“The best release is the one nobody notices.”</blockquote>
+            <p><span class="cta">Read the full write-up</span></p>
+          </div>
+
+          <!-- State B: empty post, AI composer -->
+          <div data-s="b">
+            <div class="composer">
+              <textarea aria-label="Describe the post" placeholder="What is this issue about? Paste notes, links, or bullet points and AI writes a first draft."></textarea>
+              <div class="cf">
+                <span class="pill">Tone: Friendly<svg class="i s"><use href="#chev"/></svg></span>
+                <span class="pill">Length: Medium<svg class="i s"><use href="#chev"/></svg></span>
+                <span class="grow"></span>
+                <span class="xs subtle">Uses Workers AI</span>
+                <button class="btn primary sm"><svg class="i s"><use href="#sparkles"/></svg>Draft post</button>
+              </div>
+            </div>
+            <div class="row g2 wrap" style="margin-top:12px">
+              <span class="xs muted">Start from:</span>
+              <span class="pill">Product update</span><span class="pill">Weekly roundup</span><span class="pill">Event announcement</span><span class="pill">Lessons learned</span>
+            </div>
+            <p class="prose ph" style="margin-top:36px">Or start writing. Press <span class="kbd">/</span> for blocks and <span class="kbd">@</span> for a subscriber's name.</p>
+          </div>
+
+          <!-- State C: AI draft arriving, kept as a pending suggestion -->
+          <div class="prose" data-s="c">
+            <p><span class="aigen">Hi <span class="chip">First name</span>, last month we rebuilt how we ship. Here is what changed, what broke, and what we would do again.</span></p>
+            <h2><span class="aigen">Ship smaller, ship daily</span></h2>
+            <p><span class="aigen">We used to batch two weeks of work into one release, and every release was a small crisis. Now every merged change goes out the same day behind a flag. Median time from merge to production went from 9 days to 4 hours.</span></p>
+            <h2><span class="aigen">Make rollback boring</span></h2>
+            <p><span class="aigen">A rollback used to mean a meeting. Today it is one command, and anyone on the team can run<span class="caret"></span></span></p>
+            <div class="aibar pop">
+              <svg class="i s ai"><use href="#sparkles"/></svg><span class="xs muted" style="margin-right:6px">Writing your draft</span>
+              <button class="btn sm">Stop</button>
+              <span class="tsep" style="width:1px;height:18px;background:var(--border)"></span>
+              <button class="btn sm primary" disabled style="opacity:.45">Keep<span class="kbd" style="background:transparent;border-color:rgb(255 255 255 / .3);color:inherit">⏎</span></button>
+              <button class="btn sm ghost" disabled style="opacity:.45"><svg class="i s"><use href="#redo"/></svg>Try again</button>
+              <button class="btn sm ghost">Discard</button>
+            </div>
+          </div>
+
+          <!-- State D: slash menu -->
+          <div class="prose" data-s="d">
+            <p>Hi <span class="chip"><svg class="i s subtle"><use href="#user"/></svg>First name</span>, last month we rebuilt how we ship. Here is what changed, what broke, and what we would do again.</p>
+            <p style="position:relative">
+              <span class="gutter"><span><svg class="i s"><use href="#plus"/></svg></span><span><svg class="i s"><use href="#grip"/></svg></span></span>
+              /<span class="caret" style="background:var(--foreground)"></span>
+              <span class="pop menu" style="position:absolute;left:0;top:34px;z-index:7;font-size:13px;line-height:1.5;width:280px">
+                <span class="ml">AI</span>
+                <span class="mi on"><svg class="i s ai"><use href="#sparkles"/></svg><span class="grow">Continue writing</span></span>
+                <span class="mi"><svg class="i s ai"><use href="#sparkles"/></svg><span class="grow">Ask AI to write…</span></span>
+                <span class="ml">Text</span>
+                <span class="mi"><svg class="i s subtle"><use href="#text"/></svg><span class="grow">Paragraph</span></span>
+                <span class="mi"><svg class="i s subtle"><use href="#heading"/></svg><span class="grow">Heading</span><span class="kbd">##</span></span>
+                <span class="mi"><svg class="i s subtle"><use href="#heading"/></svg><span class="grow">Subheading</span><span class="kbd">###</span></span>
+                <span class="mi"><svg class="i s subtle"><use href="#list"/></svg><span class="grow">Bulleted list</span><span class="kbd">-</span></span>
+                <span class="mi"><svg class="i s subtle"><use href="#list"/></svg><span class="grow">Numbered list</span><span class="kbd">1.</span></span>
+                <span class="mi"><svg class="i s subtle"><use href="#quote"/></svg><span class="grow">Quote</span><span class="kbd">&gt;</span></span>
+                <span class="ml">Insert</span>
+                <span class="mi"><svg class="i s subtle"><use href="#image"/></svg><span class="grow">Image</span></span>
+                <span class="mi"><svg class="i s subtle"><use href="#button"/></svg><span class="grow">Button</span></span>
+                <span class="mi"><svg class="i s subtle"><use href="#minus"/></svg><span class="grow">Divider</span></span>
+                <span class="mi"><svg class="i s subtle"><use href="#user"/></svg><span class="grow">Subscriber's first name</span><span class="kbd">@</span></span>
+              </span>
+            </p>
+            <div style="height:440px"></div>
+          </div>
+
+        </div>
+      </div>
+
+      <aside class="ed-panel" aria-label="Post details">
+        <div class="col g5">
+          <div class="col g3">
+            <h3 class="fw6">Email</h3>
+            <div class="field">
+              <div class="row between"><label>Subject</label><span class="xxs subtle tnum" data-s="a c d">24 / 60</span></div>
+              <div class="row g1"><div class="input grow trunc"><span data-s="a c d">A better release process</span><span data-s="b" class="subtle">Same as the title</span></div><button class="btn icon ai" aria-label="Suggest subject lines"><svg class="i"><use href="#sparkles"/></svg></button></div>
+            </div>
+            <div class="pop" style="padding:4px" data-s="a">
+              <div class="row between" style="padding:6px 10px 4px"><span class="xxs fw5 subtle">Suggested subjects</span><span class="xxs subtle row g1"><svg class="i s"><use href="#redo"/></svg>More</span></div>
+              <div class="sugg on"><span>We cut deploy time from 9 days to 4 hours</span><span class="xxs subtle tnum">41</span></div>
+              <div class="sugg"><span>The release checklist that shrank by 80%</span><span class="xxs subtle tnum">40</span></div>
+              <div class="sugg"><span>Why we stopped shipping on Fridays</span><span class="xxs subtle tnum">34</span></div>
+            </div>
+            <div class="field">
+              <div class="row between"><label>Preview text</label><span class="xxs subtle tnum" data-s="a c d">52 / 110</span></div>
+              <textarea class="input" rows="2" data-s="a c d">Three changes that cut our deploy time in half.</textarea>
+              <textarea class="input" rows="2" data-s="b" placeholder="The line shown after the subject in the inbox"></textarea>
+            </div>
+            <div class="col g1" data-s="a c d">
+              <span class="xxs subtle fw5">In the inbox</span>
+              <div class="inbox"><span class="dot">F</span><div class="col grow" style="line-height:1.4"><span class="row between"><span class="fw6 trunc">Field Notes</span><span class="xxs subtle">10:42</span></span><span class="fw5 trunc">A better release process</span><span class="muted trunc">Three changes that cut our deploy time in half.</span></div></div>
+            </div>
+          </div>
+          <hr class="hr">
+          <div class="col g3">
+            <h3 class="fw6">Website</h3>
+            <div class="field"><label>Address</label><div class="input"><span class="subtle trunc">…/field-notes/p/</span><span class="trunc">a-better-release-process</span></div></div>
+            <div class="field"><label>Author</label><div class="input">Zachary</div></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============================== REVIEW AND SEND ============================== -->
+  <section data-view="review" hidden>
+    <div class="content">
+      <div class="pagehead">
+        <a class="back"><svg class="i s"><use href="#left"/></svg>Back to editing</a>
+        <h1 class="h-title">Review and send</h1>
+        <p class="muted">A better release process</p>
+      </div>
+      <div class="rv">
+        <div>
+          <div class="rv-sec">
+            <h2 class="h-section" style="margin-bottom:6px">Where it goes</h2>
+            <div class="rv-row">
+              <span class="switch on" style="margin-top:2px"></span>
+              <div class="grow"><div class="fw5 row g2"><svg class="i s muted"><use href="#globe"/></svg>Publish on the website</div><div class="muted xs mono trunc" style="margin-top:2px">mail.acme.dev/n/acme/field-notes/p/a-better-release-process</div></div>
+            </div>
+            <div class="rv-row">
+              <span class="switch on" style="margin-top:2px"></span>
+              <div class="grow"><div class="fw5 row g2"><svg class="i s muted"><use href="#mail"/></svg>Send by email</div><div class="muted xs" style="margin-top:2px">From Field Notes &lt;notes@acme.dev&gt;</div></div>
+              <button class="btn sm">Send a test</button>
+            </div>
+            <!-- The only place the Cloudflare note appears. One line, a link, dismissible, blocks nothing. -->
+            <p class="policy"><svg class="i s"><use href="#info"/></svg><span>Cloudflare Email Service is for transactional email. <a style="white-space:nowrap">Cloudflare docs<svg class="i s" style="vertical-align:-2px"><use href="#ext"/></svg></a></span><button class="btn ghost icon sm" aria-label="Dismiss" style="width:22px;height:22px"><svg class="i s"><use href="#x"/></svg></button></p>
+          </div>
+
+          <div class="rv-sec">
+            <div class="row between" style="margin-bottom:10px"><h2 class="h-section">Who gets the email</h2><span class="fw6 tnum">1,284 subscribers</span></div>
+            <div class="row g2 wrap">
+              <div class="select" style="width:220px"><span>All subscribers</span><svg class="i s subtle"><use href="#chev"/></svg></div>
+              <span class="pill"><svg class="i s"><use href="#plus"/></svg>Filter by tag</span>
+            </div>
+            <p class="xs muted" style="margin-top:8px">Not included: 12 waiting to confirm, 31 unsubscribed, 4 suppressed.</p>
+          </div>
+
+          <div class="rv-sec">
+            <h2 class="h-section" style="margin-bottom:10px">When</h2>
+            <div class="row g3 wrap">
+              <div class="seg"><span>Now</span><span class="on">Schedule</span></div>
+              <div class="select" style="width:170px"><span class="row g2"><svg class="i s subtle"><use href="#cal"/></svg>Thu, Oct 8, 2026</span></div>
+              <div class="select" style="width:96px"><span>09:00</span><svg class="i s subtle"><use href="#chev"/></svg></div>
+            </div>
+            <p class="xs muted" style="margin-top:8px">Africa/Johannesburg time, which is 07:00 UTC. <a style="color:var(--foreground);text-decoration:underline;text-underline-offset:2px">Change timezone</a>. The website and the email go out together.</p>
+          </div>
+
+          <div class="rv-sec">
+            <h2 class="h-section" style="margin-bottom:6px">Checks</h2>
+            <div class="checkrow"><svg class="i" style="color:var(--success-fg)"><use href="#okc"/></svg><span class="grow">Title and content</span></div>
+            <div class="checkrow"><svg class="i" style="color:var(--success-fg)"><use href="#okc"/></svg><span class="grow">Sender domain verified <span class="muted">· acme.dev</span></span></div>
+            <div class="checkrow"><svg class="i" style="color:var(--success-fg)"><use href="#okc"/></svg><span class="grow">Website is live</span></div>
+            <div class="checkrow"><svg class="i" style="color:var(--warning-fg)"><use href="#warn"/></svg><span class="grow">Postal address is empty <span class="muted">· many inboxes expect one in the footer</span></span><a class="btn sm">Add address</a></div>
+          </div>
+
+          <div class="row between g3 wrap" style="padding-top:20px;border-top:1px solid var(--border)">
+            <span class="xs muted">You can cancel a scheduled send until it starts.</span>
+            <button class="btn primary lg"><svg class="i"><use href="#clock"/></svg>Schedule for Oct 8, 09:00</button>
+          </div>
+        </div>
+
+        <div class="device" style="position:sticky;top:66px">
+          <div class="device-h">
+            <div class="seg"><span class="on">Email</span><span>Website</span><span>Plain text</span></div>
+            <div class="seg"><span><svg class="i s"><use href="#monitor"/></svg></span><span class="on"><svg class="i s"><use href="#phone"/></svg></span></div>
+          </div>
+          <div style="padding:10px 16px 0" class="xs"><span class="muted">Subject</span> <span class="fw5">A better release process</span></div>
+          <div class="paper">
+            <p style="font-size:12px;font-weight:700;color:#c2410c;margin-bottom:12px">Field Notes</p>
+            <h1>A better release process</h1>
+            <p style="color:#525252;font-size:15px">Three changes that cut our deploy time in half</p>
+            <p>Hi Ada, last month we rebuilt how we ship. Here is what changed, what broke, and what we would do again.</p>
+            <p style="font-weight:700;font-size:17px;margin-bottom:8px">Ship smaller, ship daily</p>
+            <p>We used to batch two weeks of work into one release. Every release was a small crisis.</p>
+            <p><span class="cta" style="height:38px;font-size:14px;padding:0 16px">Read the full write-up</span></p>
+            <p style="margin:18px 0 0;padding-top:12px;border-top:1px solid #e5e5e5;color:#737373;font-size:12px">Field Notes · <u>Unsubscribe</u></p>
+          </div>
+          <div class="row between xs muted" style="padding:0 16px 12px"><span>Previewing as Ada Lovelace</span><a style="text-decoration:underline">Change</a></div>
+        </div>
+      </div>
+      <p class="note"><b>Mockup note.</b> With "Now" selected the button reads "Publish and send to 1,284 subscribers" and opens one confirm dialog, because an email cannot be unsent. With email off it reads "Publish on the website". Nothing here is disabled by policy: the only blockers are technical (no verified sender, no recipients, empty post).</p>
+    </div>
+  </section>
+
+  <!-- ============================== POST REPORT ============================== -->
+  <section data-view="report" hidden>
+    <div class="content">
+      <div class="pagehead">
+        <a class="back"><svg class="i s"><use href="#left"/></svg>Posts</a>
+        <div class="row between wrap g3">
+          <div class="row g3 wrap"><h1 class="h-title">A better release process</h1><span class="status t-success">Published</span><span class="status t-info">Sending</span></div>
+          <div class="row g2"><a class="btn"><svg class="i"><use href="#ext"/></svg>View on website</a><a class="btn"><svg class="i"><use href="#pen"/></svg>Edit post</a></div>
+        </div>
+      </div>
+
+      <div class="card" style="padding:16px 20px;margin-bottom:20px">
+        <div class="row between g3 wrap" style="margin-bottom:10px">
+          <div><span class="fw6">Sending to 1,284 subscribers</span> <span class="muted">· started 10:42, about 3 minutes left</span></div>
+          <div class="row g3"><span class="tnum muted">812 of 1,284</span><button class="btn sm">Stop sending</button></div>
+        </div>
+        <div class="progress"><i style="width:63%"></i></div>
+      </div>
+
+      <div class="grid3" style="margin-bottom:24px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+        <div class="stat"><span class="xs fw5 muted">Delivered</span><b>798</b><span class="xs muted tnum">98.3% of 812 sent</span></div>
+        <div class="stat"><span class="xs fw5 muted">Opened</span><b>214</b><span class="xs muted tnum">26.8% · estimate</span></div>
+        <div class="stat"><span class="xs fw5 muted">Clicked</span><b>61</b><span class="xs muted tnum">7.6% of delivered</span></div>
+        <div class="stat"><span class="xs fw5 muted">Bounced or failed</span><b>9</b><span class="xs muted tnum">5 bounced · 4 failed</span></div>
+        <div class="stat"><span class="xs fw5 muted">Unsubscribed</span><b>2</b><span class="xs muted tnum">from this email</span></div>
+      </div>
+
+      <div class="two" style="gap:24px">
+        <div>
+          <div class="row between" style="margin-bottom:10px"><h2 class="h-section">Recipients</h2><div class="row g2"><div class="input" style="width:200px"><svg class="i s subtle" style="margin-right:8px"><use href="#search"/></svg><span class="subtle">Find an address</span></div><div class="select" style="width:130px"><span>All statuses</span><svg class="i s subtle"><use href="#chev"/></svg></div></div></div>
+          <div class="tablewrap"><table class="table">
+            <thead><tr><th>Subscriber</th><th style="width:130px">Status</th><th style="width:90px">Opened</th></tr></thead>
+            <tbody>
+              <tr><td><span class="fw5">ada@analytical.example</span></td><td><span class="status t-teal">Clicked</span></td><td class="muted">10:44</td></tr>
+              <tr><td><span class="fw5">grace@navy.example</span></td><td><span class="status t-success">Delivered</span></td><td class="muted">10:43</td></tr>
+              <tr><td><span class="fw5">linus@kernel.example</span></td><td><span class="status t-success">Delivered</span></td><td class="subtle">—</td></tr>
+              <tr><td><span class="fw5">old.address@gone.example</span></td><td><span class="status t-danger">Bounced</span></td><td class="subtle">—</td></tr>
+              <tr><td><span class="fw5">margaret@apollo.example</span></td><td><span class="status t-info">Queued</span></td><td class="subtle">—</td></tr>
+            </tbody>
+          </table></div>
+        </div>
+        <div>
+          <h2 class="h-section" style="margin-bottom:10px">Links clicked</h2>
+          <div class="tablewrap"><table class="table">
+            <thead><tr><th>Link</th><th style="width:80px;text-align:right">Clicks</th></tr></thead>
+            <tbody>
+              <tr><td class="trunc mono xs">acme.dev/blog/release-process</td><td class="tnum" style="text-align:right">48</td></tr>
+              <tr><td class="trunc mono xs">acme.dev/changelog</td><td class="tnum" style="text-align:right">11</td></tr>
+              <tr><td class="trunc mono xs">github.com/acme/deploy-kit</td><td class="tnum" style="text-align:right">2</td></tr>
+            </tbody>
+          </table></div>
+          <p class="xs muted" style="margin-top:10px">Opens are an estimate. Mail apps that block or pre-load images change the count.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== NEWSLETTER PAGES (tabs) ============================== -->
+  <section data-view="pub" hidden>
+    <div class="content">
+      <div class="pagehead" style="margin-bottom:16px">
+        <a class="back"><svg class="i s"><use href="#left"/></svg>Newsletters</a>
+        <div class="row between wrap g3">
+          <div><h1 class="h-title">Field Notes</h1><p class="muted">How the Acme team builds and ships. Every second Thursday.</p></div>
+          <div class="row g2"><a class="btn"><svg class="i"><use href="#ext"/></svg>View site</a><a class="btn primary"><svg class="i"><use href="#plus"/></svg>New post</a></div>
+        </div>
+      </div>
+      <div class="tabs" role="tablist" style="margin-bottom:24px">
+        <button class="tab" role="tab" data-tab="overview">Overview</button>
+        <button class="tab" role="tab" data-tab="posts">Posts</button>
+        <button class="tab" role="tab" data-tab="subs">Subscribers</button>
+        <button class="tab" role="tab" data-tab="analytics">Analytics</button>
+        <button class="tab" role="tab" data-tab="website">Website</button>
+        <button class="tab" role="tab" data-tab="settings">Settings</button>
+      </div>
+
+      <!-- Overview -->
+      <div data-panel="overview" class="col g6">
+        <div class="card">
+          <div class="card-h"><div><h2 class="h-section">Finish setting up</h2><p class="muted">4 of 5 done</p></div><div class="progress" style="width:160px;margin-top:8px"><i style="width:80%"></i></div></div>
+          <div class="card-b">
+            <div class="todo"><span class="ring done"><svg class="i s" style="width:11px;height:11px;stroke-width:3"><use href="#check"/></svg></span><span class="grow muted">Name and look</span></div>
+            <div class="todo"><span class="ring done"><svg class="i s" style="width:11px;height:11px;stroke-width:3"><use href="#check"/></svg></span><span class="grow muted">Verify a sender address</span></div>
+            <div class="todo"><span class="ring done"><svg class="i s" style="width:11px;height:11px;stroke-width:3"><use href="#check"/></svg></span><span class="grow muted">Turn on the website and sign-up form</span></div>
+            <div class="todo"><span class="ring done"><svg class="i s" style="width:11px;height:11px;stroke-width:3"><use href="#check"/></svg></span><span class="grow muted">Get your first subscribers</span></div>
+            <div class="todo"><span class="ring"></span><span class="grow"><span class="fw5">Add a postal address</span> <span class="muted">· shown in the footer of every email</span></span><a class="btn sm">Add address</a></div>
+          </div>
+        </div>
+
+        <div class="grid3">
+          <div class="stat"><span class="xs fw5 muted">Subscribers</span><b>1,284</b><span class="xs muted tnum">+38 in the last 30 days</span></div>
+          <div class="stat"><span class="xs fw5 muted">Last email opened by</span><b>51%</b><span class="xs muted tnum">648 of 1,271 delivered · estimate</span></div>
+          <div class="stat"><span class="xs fw5 muted">Posts published</span><b>12</b><span class="xs muted tnum">latest Sep 24</span></div>
+        </div>
+
+        <div class="card row g4" style="padding:14px 20px">
+          <svg class="i l muted"><use href="#pen"/></svg>
+          <div class="grow"><div class="xs muted">Continue writing</div><div class="fw6 trunc">A better release process</div></div>
+          <span class="xs muted">Edited 12 minutes ago</span>
+          <a class="btn">Open draft</a>
+        </div>
+
+        <div>
+          <div class="row between" style="margin-bottom:10px"><h2 class="h-section">Recent posts</h2><a class="btn ghost sm">All posts<svg class="i s"><use href="#right"/></svg></a></div>
+          <div class="tablewrap"><table class="table">
+            <thead><tr><th>Post</th><th style="width:130px">Website</th><th style="width:230px">Email</th><th style="width:110px">Updated</th></tr></thead>
+            <tbody>
+              <tr><td><span class="fw5">A better release process</span></td><td><span class="status t-muted">Draft</span></td><td class="muted">Not sent</td><td class="muted">12 min ago</td></tr>
+              <tr><td><span class="fw5">What we learned from 1,000 support tickets</span></td><td><span class="status t-success">Published</span></td><td><span class="tnum">1,271 delivered</span> <span class="muted">· 51% opened</span></td><td class="muted">Sep 24</td></tr>
+              <tr><td><span class="fw5">Pricing, explained</span></td><td><span class="status t-success">Published</span></td><td><span class="tnum">1,240 delivered</span> <span class="muted">· 47% opened</span></td><td class="muted">Sep 10</td></tr>
+            </tbody>
+          </table></div>
+        </div>
+      </div>
+
+      <!-- Posts -->
+      <div data-panel="posts" hidden>
+        <div class="row between g3 wrap" style="margin-bottom:14px">
+          <div class="seg"><span class="on">All</span><span>Drafts</span><span>Scheduled</span><span>Published</span><span>Archived</span></div>
+        </div>
+        <div class="tablewrap"><table class="table">
+          <thead><tr><th>Post</th><th style="width:140px">Website</th><th style="width:250px">Email</th><th style="width:120px">Updated</th><th style="width:52px"></th></tr></thead>
+          <tbody>
+            <tr><td><div class="fw5">A better release process</div><div class="xs muted trunc">Three changes that cut our deploy time in half</div></td><td><span class="status t-muted">Draft</span></td><td class="muted">Not sent</td><td class="muted">12 min ago</td><td><span class="btn ghost icon sm"><svg class="i"><use href="#more"/></svg></span></td></tr>
+            <tr><td><div class="fw5">October product update</div><div class="xs muted trunc">Faster search, a new export, and two fixes</div></td><td><span class="status t-violet">Scheduled</span><div class="xs muted" style="margin-top:2px">Oct 8, 09:00 SAST</div></td><td><span class="status t-violet">Scheduled</span> <span class="muted tnum">· 1,284</span></td><td class="muted">Yesterday</td><td><span class="btn ghost icon sm"><svg class="i"><use href="#more"/></svg></span></td></tr>
+            <tr><td><div class="fw5">What we learned from 1,000 support tickets</div><div class="xs muted trunc">The patterns behind the questions</div></td><td><span class="status t-success">Published</span></td><td><span class="tnum">1,271 delivered</span> <span class="muted">· 51% opened · 15% clicked</span></td><td class="muted">Sep 24</td><td><span class="btn ghost icon sm"><svg class="i"><use href="#more"/></svg></span></td></tr>
+            <tr><td><div class="fw5">Pricing, explained</div><div class="xs muted trunc">Why we changed it and what it means for you</div></td><td><span class="status t-success">Published</span></td><td><span class="tnum">1,240 delivered</span> <span class="muted">· 47% opened · 9% clicked</span></td><td class="muted">Sep 10</td><td><span class="btn ghost icon sm"><svg class="i"><use href="#more"/></svg></span></td></tr>
+            <tr><td><div class="fw5">Welcome to Field Notes</div><div class="xs muted trunc">What to expect, and how often</div></td><td><span class="status t-success">Published</span></td><td class="muted">Website only</td><td class="muted">Aug 27</td><td><span class="btn ghost icon sm"><svg class="i"><use href="#more"/></svg></span></td></tr>
+          </tbody>
+        </table></div>
+      </div>
+
+      <!-- Subscribers -->
+      <div data-panel="subs" hidden>
+        <div class="row between g3 wrap" style="margin-bottom:14px">
+          <div class="row g2 wrap">
+            <div class="input" style="width:230px"><svg class="i s subtle" style="margin-right:8px"><use href="#search"/></svg><span class="subtle">Find an email or name</span></div>
+            <div class="select" style="width:140px"><span>Subscribed</span><svg class="i s subtle"><use href="#chev"/></svg></div>
+            <div class="select" style="width:120px"><span>Any tag</span><svg class="i s subtle"><use href="#chev"/></svg></div>
+            <div class="select" style="width:130px"><span>Any source</span><svg class="i s subtle"><use href="#chev"/></svg></div>
+          </div>
+          <div class="row g2"><button class="btn"><svg class="i"><use href="#download"/></svg>Export</button><button class="btn primary" id="open-import"><svg class="i"><use href="#upload"/></svg>Import</button></div>
+        </div>
+        <p class="xs muted" style="margin-bottom:10px"><span class="fw6 tnum" style="color:var(--foreground)">1,284</span> subscribed · 12 waiting to confirm · 31 unsubscribed</p>
+        <div class="tablewrap"><table class="table">
+          <thead><tr><th>Subscriber</th><th style="width:170px">Status</th><th style="width:200px">Tags</th><th style="width:170px">Source</th><th style="width:120px">Joined</th></tr></thead>
+          <tbody>
+            <tr><td><div class="fw5">ada@analytical.example</div><div class="xs muted">Ada Lovelace</div></td><td><span class="status t-success">Subscribed</span></td><td><span class="row g1"><span class="badge">customer</span><span class="badge">beta</span></span></td><td class="muted">Website form</td><td class="muted">Sep 28</td></tr>
+            <tr><td><div class="fw5">grace@navy.example</div><div class="xs muted">Grace Hopper</div></td><td><span class="status t-success">Subscribed</span></td><td><span class="badge">customer</span></td><td class="muted">CSV import</td><td class="muted">Sep 21</td></tr>
+            <tr><td><div class="fw5">margaret@apollo.example</div><div class="xs muted">Margaret Hamilton</div></td><td><span class="status t-warning">Waiting to confirm</span></td><td class="subtle">—</td><td class="muted">Website form</td><td class="muted">Today</td></tr>
+            <tr><td><div class="fw5">linus@kernel.example</div></td><td><span class="status t-muted">Unsubscribed</span></td><td><span class="badge">beta</span></td><td class="muted">Audience: Beta users</td><td class="muted">Aug 30</td></tr>
+          </tbody>
+        </table></div>
+
+        <!-- Import sheet -->
+        <div id="import" hidden>
+          <div class="scrim"></div>
+          <div class="sheet" role="dialog" aria-label="Import subscribers">
+            <div style="padding:16px 20px;border-bottom:1px solid var(--border)">
+              <div class="row between"><h2 class="h-section">Import subscribers</h2><button class="btn ghost icon sm" id="close-import" aria-label="Close"><svg class="i"><use href="#x"/></svg></button></div>
+              <div class="steps" style="margin-top:12px"><span class="on"></span><span class="on"></span><span></span></div>
+              <p class="xs muted" style="margin-top:8px">Step 2 of 3 · Match columns</p>
+            </div>
+            <div class="col g5" style="padding:20px;overflow-y:auto;flex:1">
+              <div class="row g3" style="padding:10px 12px;border:1px solid var(--border);border-radius:8px"><svg class="i muted"><use href="#file"/></svg><div class="grow"><div class="fw5">customers-sept.csv</div><div class="xs muted">842 rows · 4 columns</div></div><a class="btn ghost sm">Replace</a></div>
+              <div class="col g3">
+                <div class="row g3"><span class="label" style="width:96px">Email</span><div class="select grow"><span>email_address</span><svg class="i s subtle"><use href="#chev"/></svg></div></div>
+                <div class="row g3"><span class="label" style="width:96px">First name</span><div class="select grow"><span>first</span><svg class="i s subtle"><use href="#chev"/></svg></div></div>
+                <div class="row g3"><span class="label" style="width:96px">Last name</span><div class="select grow"><span>last</span><svg class="i s subtle"><use href="#chev"/></svg></div></div>
+                <div class="row g3"><span class="label" style="width:96px">Tags</span><div class="select grow"><span class="subtle">Skip</span><svg class="i s subtle"><use href="#chev"/></svg></div></div>
+              </div>
+              <div class="row g2 wrap xs"><span class="status t-success">812 new</span><span class="status t-muted">19 already here</span><span class="status t-warning">7 invalid</span><span class="status t-muted">4 opted out, kept out</span></div>
+              <div class="tablewrap"><table class="table xs">
+                <thead><tr><th>email_address</th><th>first</th><th>last</th></tr></thead>
+                <tbody><tr><td>ada@analytical.example</td><td>Ada</td><td>Lovelace</td></tr><tr><td>grace@navy.example</td><td>Grace</td><td>Hopper</td></tr><tr><td>alan@bletchley.example</td><td>Alan</td><td>Turing</td></tr></tbody>
+              </table></div>
+            </div>
+            <div class="card-f" style="border-radius:0;justify-content:space-between"><button class="btn">Back</button><button class="btn primary">Continue</button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Analytics -->
+      <div data-panel="analytics" hidden class="col g6">
+        <div class="row between g3 wrap"><div class="seg"><span>7 days</span><span class="on">30 days</span><span>90 days</span></div><span class="xs muted">Days use the newsletter's timezone, Africa/Johannesburg.</span></div>
+        <div class="card">
+          <div class="card-h"><div><h2 class="h-section">Subscribers</h2><p class="muted">1,284 now · +51 joined · 13 left</p></div></div>
+          <div class="card-b">
+            <svg viewBox="0 0 800 180" width="100%" height="180" role="img" aria-label="Subscribers over the last 30 days, rising from 1,246 to 1,284" preserveAspectRatio="none">
+              <g stroke="var(--border)" stroke-width="1"><path d="M0 30h800M0 80h800M0 130h800"/></g>
+              <path d="M0 150 L60 146 L120 143 L180 139 L240 131 L300 128 L360 118 L420 112 L480 96 L540 88 L600 71 L660 60 L720 46 L800 34 L800 180 L0 180Z" fill="var(--series-1)" opacity=".1"/>
+              <path d="M0 150 L60 146 L120 143 L180 139 L240 131 L300 128 L360 118 L420 112 L480 96 L540 88 L600 71 L660 60 L720 46 L800 34" fill="none" stroke="var(--series-1)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+            </svg>
+            <div class="row between xs subtle" style="margin-top:6px"><span>Sep 1</span><span>Sep 10</span><span>Sep 20</span><span>Oct 1</span></div>
+          </div>
+        </div>
+        <div class="two" style="gap:24px">
+          <div>
+            <h2 class="h-section" style="margin-bottom:10px">Emails sent</h2>
+            <div class="tablewrap"><table class="table">
+              <thead><tr><th>Post</th><th style="width:90px;text-align:right">Delivered</th><th style="width:80px;text-align:right">Opened</th><th style="width:80px;text-align:right">Clicked</th></tr></thead>
+              <tbody>
+                <tr><td class="fw5 trunc">What we learned from 1,000 support tickets</td><td class="tnum" style="text-align:right">1,271</td><td class="tnum" style="text-align:right">51%</td><td class="tnum" style="text-align:right">15%</td></tr>
+                <tr><td class="fw5 trunc">Pricing, explained</td><td class="tnum" style="text-align:right">1,240</td><td class="tnum" style="text-align:right">47%</td><td class="tnum" style="text-align:right">9%</td></tr>
+              </tbody>
+            </table></div>
+          </div>
+          <div>
+            <h2 class="h-section" style="margin-bottom:10px">Where subscribers came from</h2>
+            <div class="tablewrap"><table class="table">
+              <tbody>
+                <tr><td>Website form</td><td class="tnum" style="text-align:right;width:80px">731</td></tr>
+                <tr><td>CSV import</td><td class="tnum" style="text-align:right">402</td></tr>
+                <tr><td>Audience: Beta users</td><td class="tnum" style="text-align:right">151</td></tr>
+              </tbody>
+            </table></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Website -->
+      <div data-panel="website" hidden>
+        <div class="two">
+          <div class="col g5">
+            <div class="card">
+              <div class="card-b" style="padding-top:20px" >
+                <div class="row g3" style="padding-bottom:14px"><div class="grow"><div class="fw5">Public website</div><div class="muted">An archive of published posts with an RSS feed.</div></div><span class="switch on"></span></div>
+                <hr class="hr">
+                <div class="row g3" style="padding-top:14px"><div class="grow"><div class="fw5">Sign-up form</div><div class="muted">New subscribers confirm by email before they are added.</div></div><span class="switch on"></span></div>
+              </div>
+            </div>
+            <div class="field"><label>Address</label><div class="row g1"><div class="input grow mono xs trunc">https://mail.acme.dev/n/acme/field-notes</div><button class="btn icon" aria-label="Copy"><svg class="i"><use href="#copy"/></svg></button><button class="btn icon" aria-label="Open"><svg class="i"><use href="#ext"/></svg></button></div></div>
+            <div class="field"><div class="row between"><label>Embed the form on your own site</label><a class="btn ghost sm"><svg class="i s"><use href="#copy"/></svg>Copy</a></div><div class="code mono">&lt;iframe src="https://mail.acme.dev/n/acme/field-notes/embed"
+  title="Subscribe to Field Notes"
+  width="100%" height="320" style="border:0"&gt;&lt;/iframe&gt;</div></div>
+          </div>
+          <div class="device">
+            <div class="device-h"><span class="xs muted" style="padding-left:6px">Live preview</span><div class="seg"><span class="on"><svg class="i s"><use href="#monitor"/></svg></span><span><svg class="i s"><use href="#phone"/></svg></span></div></div>
+            <div class="paper">
+              <p style="font-size:12px;font-weight:700;color:#c2410c;margin-bottom:10px">Field Notes</p>
+              <h1 style="font-size:20px">How the Acme team builds and ships.</h1>
+              <div class="row g2" style="margin:14px 0 20px"><span style="flex:1;height:36px;border:1px solid #d4d4d4;border-radius:6px;display:flex;align-items:center;padding:0 10px;color:#a3a3a3">you@example.com</span><span class="cta" style="height:36px;font-size:13px;padding:0 14px">Subscribe</span></div>
+              <p style="font-weight:700;margin-bottom:2px">What we learned from 1,000 support tickets</p><p style="color:#737373;font-size:12px">Sep 24, 2026</p>
+              <p style="font-weight:700;margin-bottom:2px">Pricing, explained</p><p style="color:#737373;font-size:12px;margin:0">Sep 10, 2026</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings -->
+      <div data-panel="settings" hidden class="col g5" style="max-width:720px">
+        <div class="card">
+          <div class="card-h"><div><h2 class="h-section">Identity</h2><p class="muted">Shown on the website and at the top of every email.</p></div></div>
+          <div class="card-b col g4">
+            <div class="field"><label>Name</label><div class="input">Field Notes</div></div>
+            <div class="field"><label>Description</label><textarea class="input" rows="2">How the Acme team builds and ships. Every second Thursday.</textarea></div>
+            <div class="row g4 wrap">
+              <div class="field grow"><label>Timezone</label><div class="select"><span>Africa/Johannesburg <span class="muted">(UTC+2)</span></span><svg class="i s subtle"><use href="#chev"/></svg></div></div>
+              <div class="field"><label>Logo</label><div class="row g2"><span class="avatar" style="width:32px;height:32px;background:#c2410c;color:#fff;border:0">F</span><button class="btn">Replace</button><button class="btn ghost">Remove</button></div></div>
+            </div>
+          </div>
+          <div class="card-f"><button class="btn primary">Save</button></div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><div><h2 class="h-section">Sender</h2><p class="muted">Emails and confirmation links come from this address.</p></div><span class="status t-success">Verified</span></div>
+          <div class="card-b col g4">
+            <div class="row g4 wrap"><div class="field grow"><label>From name</label><div class="input">Field Notes</div></div><div class="field grow"><label>From address</label><div class="input">notes@acme.dev</div></div></div>
+            <div class="row g4 wrap"><div class="field grow"><label>Reply-to <span class="muted" style="font-weight:400">optional</span></label><div class="input"><span class="subtle">team@acme.dev</span></div></div><div class="field grow"><label>Postal address <span class="muted" style="font-weight:400">shown in the email footer</span></label><div class="input"><span class="subtle">12 Long Street, Cape Town</span></div></div></div>
+          </div>
+          <div class="card-f"><button class="btn primary">Save</button></div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><div><h2 class="h-section row g2"><svg class="i ai"><use href="#sparkles"/></svg>AI writing help</h2><p class="muted">Drafts, rewrites and subject lines run on Workers AI in your own Cloudflare account.</p></div><span class="status t-success">Connected</span></div>
+          <div class="card-b col g4">
+            <div class="field"><label>Voice and style notes</label><textarea class="input" rows="3">Plain and direct. Short sentences. We write as "we". No exclamation marks, no hype words. British spelling.</textarea><span class="hint">AI reads these notes before every draft or rewrite for this newsletter.</span></div>
+          </div>
+          <div class="card-f"><button class="btn primary">Save</button></div>
+        </div>
+
+        <div class="card" style="border-color:var(--danger-border)">
+          <div class="card-b row g4 wrap" style="padding-top:16px;padding-bottom:16px"><div class="grow"><div class="fw5">Archive this newsletter</div><div class="muted">Stops new sign-ups and sends. Published posts stay online.</div></div><button class="btn" style="color:var(--danger-fg)">Archive</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== NEW NEWSLETTER ============================== -->
+  <section data-view="setup" hidden>
+    <div class="content">
+      <div class="pagehead"><a class="back"><svg class="i s"><use href="#left"/></svg>Newsletters</a><h1 class="h-title">New newsletter</h1><p class="muted">One page. You can change all of it later.</p></div>
+      <div class="two">
+        <div class="col g5">
+          <div class="field"><label>Name</label><div class="input">Field Notes</div></div>
+          <div class="field"><label>Description <span class="muted" style="font-weight:400">optional</span></label><textarea class="input" rows="2">How the Acme team builds and ships. Every second Thursday.</textarea></div>
+          <div class="field"><label>Web address</label><div class="input"><span class="subtle">mail.acme.dev/n/acme/</span>field-notes</div><span class="hint row g1"><svg class="i s" style="color:var(--success-fg)"><use href="#check"/></svg>Available</span></div>
+          <div class="field"><label>Timezone</label><div class="select"><span>Africa/Johannesburg <span class="muted">(UTC+2)</span></span><svg class="i s subtle"><use href="#chev"/></svg></div><span class="hint">Used for schedules and daily reports. Type to search.</span></div>
+          <hr class="hr">
+          <div class="field"><label>Layout</label>
+            <div class="row g3">
+              <div class="layoutopt on"><div class="thumb"><i style="width:30%;background:#c2410c"></i><i style="width:80%;height:7px"></i><i style="width:100%"></i><i style="width:100%"></i><i style="width:70%"></i></div><div class="fw5" style="margin-top:8px">Letter</div><div class="xs muted">One focused article</div></div>
+              <div class="layoutopt"><div class="thumb"><i style="width:30%;background:#c2410c"></i><i style="width:60%;height:7px"></i><i style="width:100%;height:2px;background:#c2410c"></i><i style="width:90%"></i><i style="width:100%;height:1px"></i><i style="width:80%"></i></div><div class="fw5" style="margin-top:8px">Digest</div><div class="xs muted">Short sections and links</div></div>
+              <div class="layoutopt"><div class="thumb" style="align-items:center"><i style="width:30%;background:#c2410c"></i><i style="width:76%;height:9px"></i><i style="width:60%"></i><i style="width:34%;height:10px;border-radius:3px;background:#c2410c;margin-top:4px"></i></div><div class="fw5" style="margin-top:8px">Announcement</div><div class="xs muted">Big title, one action</div></div>
+            </div>
+          </div>
+          <div class="row g6 wrap">
+            <div class="field"><label>Accent colour</label><div class="row g2"><span class="swatch on" style="background:#c2410c"></span><span class="swatch" style="background:#1d4ed8"></span><span class="swatch" style="background:#047857"></span><span class="swatch" style="background:#6d28d9"></span><span class="swatch" style="background:#171717"></span><span class="pill" style="height:24px">Custom</span></div></div>
+            <div class="field"><label>Typeface</label><div class="seg"><span class="on">Sans</span><span style="font-family:Georgia,serif">Serif</span></div></div>
+          </div>
+          <div class="row g2" style="justify-content:flex-end;padding-top:8px"><button class="btn">Cancel</button><button class="btn primary">Create newsletter</button></div>
+        </div>
+        <div class="device" style="position:sticky;top:66px">
+          <div class="device-h"><span class="xs muted" style="padding-left:6px">This is how a post will look</span><div class="seg"><span class="on">Email</span><span>Website</span></div></div>
+          <div class="paper">
+            <p style="font-size:12px;font-weight:700;color:#c2410c;margin-bottom:12px">Field Notes</p>
+            <h1>A note worth sharing</h1>
+            <p style="color:#525252;font-size:15px">A sample subtitle sits here</p>
+            <p>This is where your writing goes. Headings, lists, images, quotes and buttons all follow the layout and colour you pick on the left.</p>
+            <p><span class="cta" style="height:38px;font-size:14px;padding:0 16px">A button</span></p>
+            <p style="margin:18px 0 0;padding-top:12px;border-top:1px solid #e5e5e5;color:#737373;font-size:12px">Field Notes · <u>Unsubscribe</u></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  </main>
+</div>
+
+<script>
+(function () {
+  var $ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  function screen(name) {
+    $("[data-view]").forEach(function (v) { v.hidden = v.dataset.view !== name; });
+    $("[data-screen]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.screen === name)); });
+    $("[data-for]").forEach(function (e) { e.hidden = e.dataset.for !== name; });
+    window.scrollTo(0, 0);
+  }
+  function estate(s) {
+    $("[data-s]").forEach(function (e) { e.hidden = e.dataset.s.split(" ").indexOf(s) < 0; });
+    $("[data-estate]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.estate === s)); });
+  }
+  function tab(t) {
+    $("[data-panel]").forEach(function (p) { p.hidden = p.dataset.panel !== t; });
+    $("[data-tab]").forEach(function (b) { b.setAttribute("aria-selected", String(b.dataset.tab === t)); });
+  }
+  function route() {
+    var h = (location.hash || "#editor").slice(1).split("-");
+    var screens = ["editor", "review", "report", "pub", "setup"];
+    screen(screens.indexOf(h[0]) >= 0 ? h[0] : "editor");
+    if (h[0] === "editor") estate(h[1] || "a");
+    if (h[0] === "pub") tab(h[1] || "overview");
+  }
+  $("[data-screen]").forEach(function (b) { b.onclick = function () { location.hash = b.dataset.screen; }; });
+  $("[data-estate]").forEach(function (b) { b.onclick = function () { location.hash = "editor-" + b.dataset.estate; }; });
+  $("[data-tab]").forEach(function (b) { b.onclick = function () { location.hash = "pub-" + b.dataset.tab; }; });
+  var imp = document.getElementById("import");
+  document.getElementById("open-import").onclick = function () { imp.hidden = false; };
+  document.getElementById("close-import").onclick = function () { imp.hidden = true; };
+  var th = document.getElementById("theme");
+  th.onclick = function () {
+    var dark = document.documentElement.classList.toggle("dark");
+    th.firstElementChild.textContent = dark ? "Light theme" : "Dark theme";
+  };
+  if (/[?&]theme=dark/.test(location.search)) th.onclick();
+  if (/[?&]import=1/.test(location.search)) imp.hidden = false;
+  window.addEventListener("hashchange", route);
+  estate("a"); tab("overview"); route();
+})();
+</script>
+</body>
+</html>

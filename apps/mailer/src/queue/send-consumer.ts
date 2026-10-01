@@ -10,6 +10,7 @@ import { getPayload } from "../storage/payloads";
 import { enqueueWebhooksSafe } from "../webhooks/deliver";
 import { MAX_QUEUE_DELAY_SECONDS } from "./producer";
 import { replayOrphans } from "./events-consumer";
+import { confirmationEligible } from "../core/newsletters/subscriptions";
 
 const RETRYABLE = new Set(["E_RATE_LIMIT_EXCEEDED", "E_INTERNAL_SERVER_ERROR", "E_DELIVERY_FAILED"]);
 
@@ -74,6 +75,11 @@ export async function processSendMessage(msg: Message<SendQueueMessage>, env: En
     msg.ack();
     return;
   }
+  if (email.purpose === "subscription_confirmation" && !await confirmationEligible(env, email.newsletter_token_hash ?? "")) {
+    await failEmail(env, email, "rejected", "confirmation_expired", "This confirmation request is no longer active.");
+    msg.ack();
+    return;
+  }
 
   // 2. Scheduled for later (rescheduled, or delivered early): wait.
   if (email.scheduled_at) {
@@ -109,6 +115,10 @@ export async function processSendMessage(msg: Message<SendQueueMessage>, env: En
     const html = await applyTracking(env, email, payload.html);
 
     // 6. Send.
+    if (email.purpose === "subscription_confirmation" && !await confirmationEligible(env, email.newsletter_token_hash ?? "")) {
+      await failEmail(env,email,"rejected","confirmation_expired","This confirmation request is no longer active.");
+      msg.ack();return;
+    }
     const { messageId } = await sendViaCloudflare(env, payload, emailId, html);
 
     // 7. Success.

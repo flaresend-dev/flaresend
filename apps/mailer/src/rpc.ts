@@ -1,18 +1,51 @@
 // MailerRpc: the service-binding entrypoint other Workers call. A thin adapter over core/.
 import { WorkerEntrypoint } from "cloudflare:workers";
-import type { BatchDryRunResult, BatchResult, EmailRecord, ListEmailsQuery, ListResponse, SendEmailInput, SendEmailResult } from "@flaresend/types";
+import type { NewsletterApi } from "@flaresend/types";
+import { newsletterAdminHandlers } from "./core/newsletters/admin-handlers";
+import type {
+  BatchDryRunResult,
+  BatchResult,
+  EmailRecord,
+  ListEmailsQuery,
+  ListResponse,
+  SendEmailInput,
+  SendEmailResult,
+} from "@flaresend/types";
 import { sendBatch } from "./core/batch";
-import { cancelEmail, getEmailRecord, listEmailRecords, parseListEmailsQuery } from "./core/emails";
+import {
+  cancelEmail,
+  getEmailRecord,
+  listEmailRecords,
+  parseListEmailsQuery,
+} from "./core/emails";
 import { sendEmail, type SendContext } from "./core/send";
 import { getProjectBySlug, type ProjectRow } from "./db/projects";
 import { ApiError, toRpcError } from "./http/errors";
 
-export async function resolveRpcProject(env: Env, slug: string): Promise<ProjectRow> {
-  if (typeof slug !== "string" || !slug) throw ApiError.validation("invalid_body", "project slug is required", "project");
+export async function resolveRpcProject(
+  env: Env,
+  slug: string,
+): Promise<ProjectRow> {
+  if (typeof slug !== "string" || !slug)
+    throw ApiError.validation(
+      "invalid_body",
+      "project slug is required",
+      "project",
+    );
   const project = await getProjectBySlug(env.DB, slug);
-  if (!project) throw ApiError.notFound("project_not_found", `project "${slug}" not found`, "project");
-  if (project.disabled_at) throw ApiError.permission("project_disabled", "this project is disabled");
-  if (project.rpc_enabled !== 1) throw ApiError.permission("rpc_disabled", "this project may not be used over the service binding");
+  if (!project)
+    throw ApiError.notFound(
+      "project_not_found",
+      `project "${slug}" not found`,
+      "project",
+    );
+  if (project.disabled_at)
+    throw ApiError.permission("project_disabled", "this project is disabled");
+  if (project.rpc_enabled !== 1)
+    throw ApiError.permission(
+      "rpc_disabled",
+      "this project may not be used over the service binding",
+    );
   return project;
 }
 
@@ -25,7 +58,10 @@ export class MailerRpc extends WorkerEntrypoint<Env> {
     }
   }
 
-  private async ctxFor(project: string, source: SendContext["source"] = "rpc"): Promise<SendContext> {
+  private async ctxFor(
+    project: string,
+    source: SendContext["source"] = "rpc",
+  ): Promise<SendContext> {
     return {
       project: await resolveRpcProject(this.env, project),
       mode: "live",
@@ -36,12 +72,25 @@ export class MailerRpc extends WorkerEntrypoint<Env> {
   }
 
   async send(project: string, input: SendEmailInput): Promise<SendEmailResult> {
-    return this.run(async () => sendEmail(this.env, await this.ctxFor(project), input));
+    return this.run(async () =>
+      sendEmail(this.env, await this.ctxFor(project), input),
+    );
   }
 
   /** Max 100. `opts` supports the same whole-batch idempotency key and dry run as the HTTP route. */
-  async sendBatch(project: string, inputs: SendEmailInput[], opts?: { idempotencyKey?: string; dryRun?: boolean }): Promise<BatchResult | BatchDryRunResult> {
-    return this.run(async () => sendBatch(this.env, await this.ctxFor(project, "batch"), inputs, opts ?? {}));
+  async sendBatch(
+    project: string,
+    inputs: SendEmailInput[],
+    opts?: { idempotencyKey?: string; dryRun?: boolean },
+  ): Promise<BatchResult | BatchDryRunResult> {
+    return this.run(async () =>
+      sendBatch(
+        this.env,
+        await this.ctxFor(project, "batch"),
+        inputs,
+        opts ?? {},
+      ),
+    );
   }
 
   async get(project: string, emailId: string): Promise<EmailRecord | null> {
@@ -50,23 +99,53 @@ export class MailerRpc extends WorkerEntrypoint<Env> {
       try {
         return await getEmailRecord(this.env, emailId, p.id);
       } catch (err) {
-        if (err instanceof ApiError && err.code === "email_not_found") return null;
+        if (err instanceof ApiError && err.code === "email_not_found")
+          return null;
         throw err;
       }
     });
   }
 
-  async list(project: string, query: ListEmailsQuery = {}): Promise<ListResponse<EmailRecord>> {
+  async list(
+    project: string,
+    query: ListEmailsQuery = {},
+  ): Promise<ListResponse<EmailRecord>> {
     return this.run(async () => {
       const p = await resolveRpcProject(this.env, project);
       return listEmailRecords(this.env, parseListEmailsQuery(query), p.id);
     });
   }
 
-  async cancel(project: string, emailId: string): Promise<{ id: string; status: "canceled" }> {
+  async cancel(
+    project: string,
+    emailId: string,
+  ): Promise<{ id: string; status: "canceled" }> {
     return this.run(async () => {
       const p = await resolveRpcProject(this.env, project);
       return cancelEmail(this.env, emailId, p.id);
     });
   }
+}
+
+export interface MailerRpc extends NewsletterApi {}
+type NewsletterHandler = (
+  env: Env,
+  ctx: ExecutionContext,
+  ...args: unknown[]
+) => Promise<unknown>;
+for (const [name, handler] of Object.entries(newsletterAdminHandlers) as Array<
+  [string, NewsletterHandler]
+>) {
+  Object.defineProperty(MailerRpc.prototype, name, {
+    value: async function (this: MailerRpc, slug: string, ...args: unknown[]) {
+      const self = this as unknown as { env: Env; ctx: ExecutionContext };
+      try {
+        await resolveRpcProject(self.env, slug);
+        return await handler(self.env, self.ctx, slug, ...args);
+      } catch (e) {
+        throw toRpcError(e);
+      }
+    },
+    configurable: true,
+  });
 }

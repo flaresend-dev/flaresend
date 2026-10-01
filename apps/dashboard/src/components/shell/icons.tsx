@@ -1,5 +1,5 @@
 import {
-  Ban, ChartLine, Contact, Globe, KeyRound, LayoutTemplate, Mail, Radio, ScrollText, Settings, Users, Webhook, type LucideIcon,
+  Ban, ChartLine, Contact, Globe, KeyRound, LayoutTemplate, Mail, Radio, Newspaper, ScrollText, Settings, Users, Webhook, type LucideIcon,
 } from "lucide-react";
 import type { ProjectSection } from "@/lib/nav";
 import { cn } from "@/lib/utils";
@@ -9,6 +9,7 @@ import logo from "./logo.png";
 export const NAV_ICONS: Record<ProjectSection, LucideIcon> = {
   emails: Mail,
   broadcasts: Radio,
+  newsletters: Newspaper,
   audiences: Users,
   contacts: Contact,
   templates: LayoutTemplate,

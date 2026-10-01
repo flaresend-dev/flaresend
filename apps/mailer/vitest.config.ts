@@ -21,6 +21,8 @@ export default defineConfig(async () => {
             // Secrets in production (see wrangler.jsonc), so tests supply them.
             PUBLIC_BASE_URL: "https://mailer.test",
             CF_ACCOUNT_ID: "",
+            NEWSLETTER_TOKEN_SECRET: "test-only-newsletter-token-secret",
+            NEWSLETTER_ADDRESS_SECRET: "test-only-address-secret",
           },
         },
       }),

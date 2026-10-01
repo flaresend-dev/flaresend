@@ -16,16 +16,17 @@
   "dependencies": {
     "@flaresend/templates": "workspace:*",
     "@flaresend/types": "workspace:*",
+    "csv-parse": "^7.0.3",
     "hono": "^4.13.9",
     "ulid": "^3.0.2",
     "zod": "^3.25.76"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.22.0",
+    "@flaresend/client": "workspace:*",
     "@types/node": "^22.15.0",
     "typescript": "^5.8.3",
     "vitest": "^4.1.0",
-    "wrangler": "^4.140.0",
-    "@flaresend/client": "workspace:*"
+    "wrangler": "^4.140.0"
   }
 }

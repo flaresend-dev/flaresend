@@ -238,6 +238,7 @@ function display(a: PayloadAddress): string {
 export async function resendEmail(env: Env, id: string, projectId: string | null, waitUntil?: (p: Promise<unknown>) => void): Promise<SendEmailResult> {
   const email = await getEmailById(env.DB, id, projectId);
   if (!email) throw ApiError.notFound("email_not_found", `email ${id} not found`, "id");
+  if (email.purpose === "subscription_confirmation") throw ApiError.conflict("confirmation_resend_required", "Request a new confirmation link through the subscription form.");
   const project = await getProjectById(env.DB, email.project_id);
   if (!project) throw ApiError.notFound("project_not_found", "project not found");
   if (project.disabled_at) throw ApiError.permission("project_disabled", "this project is disabled");

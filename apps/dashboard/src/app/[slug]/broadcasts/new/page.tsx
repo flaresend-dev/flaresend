@@ -3,7 +3,6 @@ import { getProjectOr404, linker, type SlugParams } from "@/lib/project";
 import { PageHeader } from "@/components/ui/page-header";
 import { PageError } from "@/components/page-error";
 import { BroadcastComposer } from "@/components/broadcast-composer";
-import { BroadcastNotices } from "@/components/broadcasts/notices";
 
 export const metadata = { title: "New broadcast" };
 
@@ -16,7 +15,6 @@ export default async function NewBroadcastPage({ params }: SlugParams) {
   return (
     <>
       <PageHeader title="New broadcast" back={{ href: to("broadcasts"), label: "Broadcasts" }} />
-      {!project.broadcastsEnabled ? <BroadcastNotices slug={slug} view={view} enabled={false} /> : null}
       {audiences.ok ? (
         <BroadcastComposer slug={slug} broadcast={null} audiences={audiences.data} defaultFrom={project.defaultFrom ?? ""} templates={editable} />
       ) : (

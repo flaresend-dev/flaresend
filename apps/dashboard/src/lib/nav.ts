@@ -15,7 +15,7 @@ export const ALL = "all";
  * Sections the "All projects" view shows one project at a time, with a project picker (`/all/contacts/{slug}`).
  * Every other section has a combined list at `/all/{section}`.
  */
-export const PER_PROJECT_SECTIONS: readonly ProjectSection[] = ["contacts", "settings"];
+export const PER_PROJECT_SECTIONS: readonly ProjectSection[] = ["contacts", "settings", "newsletters"];
 
 /** Sections whose pages are not tied to one project (email ids are global, suppressions are shared). */
 const GLOBAL_SECTIONS: readonly ProjectSection[] = ["emails", "metrics", "logs", "suppressions"];
@@ -24,7 +24,7 @@ const GLOBAL_SECTIONS: readonly ProjectSection[] = ["emails", "metrics", "logs",
 export const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
 
 export type ProjectSection =
-  | "emails" | "broadcasts" | "audiences" | "contacts" | "templates" | "metrics" | "logs"
+  | "emails" | "broadcasts" | "newsletters" | "audiences" | "contacts" | "templates" | "metrics" | "logs"
   | "domains" | "api-keys" | "webhooks" | "suppressions" | "settings";
 
 export interface NavItem {
@@ -37,6 +37,7 @@ export const NAV: NavItem[][] = [
   [
     { id: "emails", label: "Emails" },
     { id: "broadcasts", label: "Broadcasts" },
+    { id: "newsletters", label: "Newsletters" },
     { id: "audiences", label: "Audiences" },
     { id: "contacts", label: "Contacts" },
     { id: "templates", label: "Templates" },

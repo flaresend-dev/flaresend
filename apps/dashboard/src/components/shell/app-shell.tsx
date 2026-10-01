@@ -28,7 +28,7 @@ export function AppShell({ project, all, projects, children }: {
         <Sidebar project={current} projects={list} />
       </aside>
       <main className="min-w-0 flex-1">
-        <div className="max-w-[1120px] px-4 py-6 md:px-10 md:py-8">{children}</div>
+        <div className="fs-shell-content max-w-[1120px] px-4 py-6 md:px-10 md:py-8">{children}</div>
       </main>
       {current ? <CommandPalette project={current} projects={list} /> : null}
     </div>

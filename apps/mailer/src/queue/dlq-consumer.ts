@@ -5,9 +5,14 @@ import { getEmailById } from "../db/emails";
 import { parkOrphan } from "./events-consumer";
 
 export async function processDlqMessage(msg: Message<unknown>, env: Env): Promise<void> {
-  const body = msg.body as { kind?: string; emailId?: string; deliveryId?: string; type?: string };
+  const body = msg.body as { kind?: string; emailId?: string; deliveryId?: string; type?: string; importId?: string };
 
-  if (body?.kind === "send" && body.emailId) {
+  if (body?.kind === "newsletter-run") {
+    // The run stays "sending" with pending recipients; the cron (advanceRuns) enqueues it again.
+    console.warn("newsletter run message dead-lettered", body);
+  } else if (body?.kind === "newsletter-import" && body.importId) {
+    await env.DB.prepare("UPDATE newsletter_imports SET status='failed',last_error='The import exhausted its retries.',lease_token=NULL,lease_until=NULL,updated_at=? WHERE id=? AND status IN ('queued','processing')").bind(nowIso(),body.importId).run();
+  } else if (body?.kind === "send" && body.emailId) {
     const email = await getEmailById(env.DB, body.emailId);
     if (email && ["queued", "sending", "scheduled"].includes(email.status)) {
       const now = nowIso();

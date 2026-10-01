@@ -1,4 +1,10 @@
-import { decodeRpcError } from "@flaresend/types";
+import {
+  decodeRpcError,
+  bindNewsletterApi,
+  newsletterHttpApi,
+  type NewsletterApi,
+  type BoundNewsletterApi,
+} from "@flaresend/types";
 import type {
   BatchResult,
   EmailRecord,
@@ -17,20 +23,30 @@ export type { TypedSend, SendOptions } from "./shared";
  * The methods of the mailer's `MailerRpc` WorkerEntrypoint, as seen through a service binding.
  * Bind it in wrangler with `{ "binding": "MAILER", "service": "flaresend", "entrypoint": "MailerRpc" }`.
  */
-export interface MailerRpcBinding {
+export interface MailerRpcBinding extends Partial<NewsletterApi> {
   send(project: string, input: SendEmailInput): Promise<SendEmailResult>;
   sendBatch(project: string, inputs: SendEmailInput[]): Promise<BatchResult>;
   get(project: string, emailId: string): Promise<EmailRecord | null>;
-  list(project: string, query: ListEmailsQuery): Promise<ListResponse<EmailRecord>>;
-  cancel(project: string, emailId: string): Promise<{ id: string; status: "canceled" }>;
+  list(
+    project: string,
+    query: ListEmailsQuery,
+  ): Promise<ListResponse<EmailRecord>>;
+  cancel(
+    project: string,
+    emailId: string,
+  ): Promise<{ id: string; status: "canceled" }>;
 }
 
 export interface RpcSend {
   (input: SendEmailInput, opts?: SendOptions): Promise<SendEmailResult>;
-  <TemplateMap extends object>(input: TypedSend<TemplateMap>, opts?: SendOptions): Promise<SendEmailResult>;
+  <TemplateMap extends object>(
+    input: TypedSend<TemplateMap>,
+    opts?: SendOptions,
+  ): Promise<SendEmailResult>;
 }
 
 export interface RpcClient {
+  newsletters: BoundNewsletterApi;
   /** `opts.idempotencyKey` is merged into `input.idempotencyKey` (it wins if both are set). */
   send: RpcSend;
   /** Up to 100 inputs. Results come back in input order. */
@@ -51,17 +67,48 @@ async function call<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-export function rpcClient(binding: MailerRpcBinding, opts: { project: string }): RpcClient {
-  if (!binding) throw new TypeError("Flaresend: rpcClient needs a service binding (e.g. env.MAILER)");
-  if (!opts?.project) throw new TypeError("Flaresend: rpcClient needs { project: <slug> }");
+export function rpcClient(
+  binding: MailerRpcBinding,
+  opts: { project: string },
+): RpcClient {
+  if (!binding)
+    throw new TypeError(
+      "Flaresend: rpcClient needs a service binding (e.g. env.MAILER)",
+    );
+  if (!opts?.project)
+    throw new TypeError("Flaresend: rpcClient needs { project: <slug> }");
   const { project } = opts;
 
   const send = ((input: SendEmailInput, sendOpts?: SendOptions) => {
-    const merged: SendEmailInput = sendOpts?.idempotencyKey ? { ...input, idempotencyKey: sendOpts.idempotencyKey } : input;
+    const merged: SendEmailInput = sendOpts?.idempotencyKey
+      ? { ...input, idempotencyKey: sendOpts.idempotencyKey }
+      : input;
     return call(() => binding.send(project, merged));
   }) as RpcSend;
 
   return {
+    newsletters: bindNewsletterApi(
+      Object.fromEntries(
+        Object.keys(
+          newsletterHttpApi(
+            async () => undefined as never,
+            () => "",
+          ),
+        ).map((name) => [
+          name,
+          (...args: unknown[]) =>
+            call(async () => {
+              const method = Reflect.get(binding, name);
+              if (typeof method !== "function")
+                throw new Error(
+                  "This mailer does not support newsletters. Update its Worker first.",
+                );
+              return Reflect.apply(method, binding, args);
+            }),
+        ]),
+      ) as unknown as NewsletterApi,
+      project,
+    ),
     send,
     sendBatch: (inputs) => call(() => binding.sendBatch(project, inputs)),
     get: (emailId) => call(() => binding.get(project, emailId)),

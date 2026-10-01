@@ -92,7 +92,6 @@ export async function updateSettingsAction(slug: string, _: ActionState, fd: For
     rpcEnabled: bool(fd, "rpcEnabled"),
     trackOpens: bool(fd, "trackOpens"),
     trackClicks: bool(fd, "trackClicks"),
-    broadcastsEnabled: bool(fd, "broadcastsEnabled"),
   };
   const only = splitList(str(fd, "_fields"));
   const patch: UpdateProjectInput = only.length

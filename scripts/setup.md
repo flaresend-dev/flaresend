@@ -36,7 +36,10 @@ npx wrangler queues create flaresend-send
 npx wrangler queues create flaresend-events
 npx wrangler queues create flaresend-dlq
 npx wrangler queues create flaresend-webhooks
+npx wrangler queues create flaresend-newsletters
 ```
+
+The mailer also binds Workers AI (`"ai": { "binding": "AI" }` in `apps/mailer/wrangler.jsonc`) for newsletter writing help. It needs no setup command; remove the binding to turn AI off. Workers AI is billed to the account.
 
 Email bodies in R2 are deleted after 30 days by that lifecycle rule. After that, `GET /v1/emails/:id/content` returns `404 content_expired` and resend is no longer possible. The D1 metadata stays.
 
