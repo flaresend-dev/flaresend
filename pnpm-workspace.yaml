@@ -10,3 +10,5 @@ overrides:
   esbuild@0.27.7: "^0.28.2"
   sharp@0.35.2: "^0.35.4"
   undici@7.29.0: "^7.29.1"
+  # GHSA-vcvr-r3jv-pc5j (next/og RCE) via @react-email/ui.
+  next@>=16.2.0 <16.3.6: "^16.3.8"

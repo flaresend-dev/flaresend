@@ -57,11 +57,18 @@ const isEmptyDoc = (doc: NewsletterDocument) => wordsIn(doc) === 0 && !doc.block
 
 /** Markdown from the model, reduced to what the schema holds. */
 function cleanMarkdown(md: string) {
-  return md
+  let out = md
     .replace(/```[a-z]*\n?/gi, "")
     .replace(/^#\s+/gm, "## ")
-    .replace(/^#{4,6}\s+/gm, "### ")
-    .replace(/<[^>]+>/g, "");
+    .replace(/^#{4,6}\s+/gm, "### ");
+  // Strip HTML until nothing changes (nested input like "<<b>script>" survives one pass), then drop any stray "<".
+  // ">" stays: it starts a Markdown quote.
+  let prev: string;
+  do {
+    prev = out;
+    out = out.replace(/<[^<>]*>/g, "");
+  } while (out !== prev);
+  return out.replace(/</g, "");
 }
 
 interface Pending {
