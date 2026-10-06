@@ -27,6 +27,7 @@ jobs:
       - run: pnpm build
       - run: pnpm typecheck
       - run: pnpm test
+      - run: pnpm --filter @flaresend/dashboard exec opennextjs-cloudflare build
 
   deploy:
     needs: check
