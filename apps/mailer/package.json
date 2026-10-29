@@ -26,7 +26,7 @@
     "@flaresend/client": "workspace:*",
     "@types/node": "^22.15.0",
     "typescript": "^5.8.3",
-    "vitest": "^4.1.0",
+    "vitest": "^5.0.5",
     "wrangler": "^4.140.0"
   }
 }
