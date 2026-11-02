@@ -21,7 +21,7 @@
     "@codemirror/view": "^6.43.13",
     "@flaresend/types": "workspace:*",
     "@mantine/core": "^8.3.18",
-    "@mantine/hooks": "^8.3.18",
+    "@mantine/hooks": "^9.7.4",
     "@opennextjs/cloudflare": "^1.20.6",
     "@uiw/react-codemirror": "^4.25.12",
     "class-variance-authority": "^0.7.1",
