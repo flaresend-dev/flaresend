@@ -15,7 +15,7 @@
     "deploy": "pnpm --filter @flaresend/mailer migrate:remote && pnpm --filter @flaresend/mailer deploy"
   },
   "devDependencies": {
-    "turbo": "^2.5.0",
+    "turbo": "^2.11.10",
     "typescript": "^5.8.3"
   }
 }
